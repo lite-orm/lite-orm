@@ -3,11 +3,9 @@ package org.liteorm.handler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.HashMap;
+import java.sql.ResultSetMetaData;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author 张庆波
@@ -16,26 +14,30 @@ import java.util.Map;
 @Slf4j
 public class ResultHandler extends AbstractBaseHandler {
 
+    private ResultMapping resultMapping;
+
+    public ResultHandler(ResultMapping resultMapping) {
+        this.resultMapping = resultMapping;
+    }
+
     @Override
-    public void handle(ChainContext context) throws Exception {
+    public void handle(ChainContext<?> context) throws Exception {
         try (ResultSet resultSet = context.getResultSet()) {
             if (resultSet != null) {
-                context.setResult(processResultSet(resultSet));
+                context.setResult(processResultSet(resultSet, context.getResultClazz()));
             }
             getNext().handle(context);
         }
     }
 
-    private static List<Map<String, Object>> processResultSet(ResultSet resultSet) throws SQLException {
-        List<Map<String, Object>> resultList = new LinkedList<>();
-        int columnCount = resultSet.getMetaData().getColumnCount();
+    private <T> List<T> processResultSet(ResultSet resultSet, Class<T> type) throws Exception {
+        List<T> resultList = new LinkedList<>();
+        ResultSetMetaData metaData = resultSet.getMetaData();
         while (resultSet.next()) {
-            Map<String, Object> row = new HashMap<>();
-            for (int i = 1; i <= columnCount; i++) {
-                row.put(resultSet.getMetaData().getColumnName(i), resultSet.getObject(i));
-            }
-            resultList.add(row);
+            T t = resultMapping.mapRow(resultSet, metaData, type);
+            resultList.add(t);
         }
         return resultList;
     }
+
 }

@@ -10,7 +10,7 @@ import java.sql.Statement;
 public class StatementHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext context) throws Exception {
+    public void handle(ChainContext<?> context) throws Exception {
         Connection connection = context.getConnection();
         String sql = context.getSql();
 
@@ -31,9 +31,7 @@ public class StatementHandler extends AbstractBaseHandler {
             }
 
             // 继续调用下一个 Handler
-            if (getNext() != null) {
-                getNext().handle(context);
-            }
+            getNext().handle(context);
         }
     }
 

@@ -9,12 +9,10 @@ import java.sql.Connection;
 public class ConnectionHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext context) {
-        try (Connection connection = context.getDataSource().getConnection();) {
+    public void handle(ChainContext<?> context) throws Exception {
+        try (Connection connection = context.getDataSource().getConnection()) {
             context.setConnection(connection);
             getNext().handle(context);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
     }
 }

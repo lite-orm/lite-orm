@@ -1,0 +1,12 @@
+package org.liteorm.handler;
+
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+
+/**
+ * @author 张庆波
+ * @since 创建于 2024/10/27 21:12
+ */
+public interface ResultMapping {
+    <T> T mapRow(ResultSet resultSet, ResultSetMetaData metaData, Class<T> type) throws Exception;
+}

@@ -6,7 +6,7 @@ package org.liteorm.handler;
  */
 public interface BaseHandler {
 
-    void handle(ChainContext context) throws Exception;
+    void handle(ChainContext<?> context) throws Exception;
 
     BaseHandler getNext();
 

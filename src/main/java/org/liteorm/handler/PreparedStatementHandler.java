@@ -30,9 +30,7 @@ public class PreparedStatementHandler extends AbstractBaseHandler {
             }
 
             // 继续下一个Handler
-            if (getNext() != null) {
-                getNext().handle(context);
-            }
+            getNext().handle(context);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

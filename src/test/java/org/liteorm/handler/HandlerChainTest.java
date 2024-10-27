@@ -23,11 +23,11 @@ public class HandlerChainTest {
     public void testChain() throws Exception {
         ConnectionHandler connectionHandler = new ConnectionHandler();
         PreparedStatementHandler statementHandler = new PreparedStatementHandler();
-        ResultHandler resultHandler = new ResultHandler();
+        ResultHandler resultHandler = new ResultHandler(new ReflectResultMapping());
         TransactionHandler transactionHandler = new TransactionHandler();
         HandlerChain chain = new HandlerChain(connectionHandler, transactionHandler, statementHandler, resultHandler);
 
-        ChainContext chainContext = new ChainContext();
+        ChainContext<User> chainContext = new ChainContext<>(User.class);
         chainContext.setDataSource(getMySQLDataSource());
         chainContext.setSql(query);
         chainContext.setParams(new Object[]{1});
