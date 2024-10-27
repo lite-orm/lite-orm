@@ -31,6 +31,7 @@ public class HandlerChainTest {
         chainContext.setDataSource(getMySQLDataSource());
         chainContext.setSql(query);
         chainContext.setParams(new Object[]{1});
+
         chain.execute(chainContext);
         log.info("{}", chainContext.getResult());
     }

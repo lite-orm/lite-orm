@@ -12,7 +12,7 @@ public class HandlerChain {
     private final BaseHandler HEAD = new AbstractBaseHandler() {
         @Override
         public void handle(ChainContext context) throws Exception {
-            log.info("head");
+            log.debug("head");
             getNext().handle(context);
         }
     };
@@ -20,7 +20,7 @@ public class HandlerChain {
     private final BaseHandler TAIL = new AbstractBaseHandler() {
         @Override
         public void handle(ChainContext context) throws Exception {
-            log.info("tail");
+            log.debug("tail");
         }
     };
 
