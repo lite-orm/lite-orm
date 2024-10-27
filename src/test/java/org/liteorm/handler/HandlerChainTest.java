@@ -23,7 +23,7 @@ public class HandlerChainTest {
     public void testChain() throws Exception {
         ConnectionHandler connectionHandler = new ConnectionHandler();
         PreparedStatementHandler statementHandler = new PreparedStatementHandler();
-        ResultHandler resultHandler = new ResultHandler(new ReflectResultMapping());
+        ResultHandler resultHandler = new ResultHandler();
         TransactionHandler transactionHandler = new TransactionHandler();
         HandlerChain chain = new HandlerChain(connectionHandler, transactionHandler, statementHandler, resultHandler);
 

@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  * @author 张庆波
@@ -16,8 +17,18 @@ public class ResultHandler extends AbstractBaseHandler {
 
     private ResultMapping resultMapping;
 
-    public ResultHandler(ResultMapping resultMapping) {
-        this.resultMapping = resultMapping;
+    public ResultHandler() {
+        // 结果集映射开放SPI
+        ServiceLoader<ResultMapping> loader = ServiceLoader.load(ResultMapping.class);
+        for (ResultMapping resultMapping : loader) {
+            if (resultMapping != null) {
+                this.resultMapping = resultMapping;
+            }
+            if (this.resultMapping != null) {
+                log.debug("loaded resultMapping: {}", resultMapping.getClass().getName());
+                break;
+            }
+        }
     }
 
     @Override
