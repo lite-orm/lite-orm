@@ -13,46 +13,50 @@ import java.sql.SQLException;
 public class TransactionHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext context) throws Exception {
+    public void handle(ChainContext<?> context) throws Exception {
         Connection connection = context.getConnection();
         try {
-            beginTransaction(context);
+            beginTransaction(context, connection);
             getNext().handle(context);
-            commit(context);
+            commit(context, connection);
         } catch (Exception e) {
-            rollback(context);
+            rollback(context, connection);
         } finally {
-            reset(context);
+            reset(context, connection);
         }
     }
 
-    private void beginTransaction(ChainContext context) throws SQLException {
+    private void beginTransaction(ChainContext<?> context, Connection connection) throws SQLException {
         if (!context.isTransactionActive()) {
-            context.getConnection().setAutoCommit(false);
+            connection.setAutoCommit(false);
             context.setTransactionActive(true);
+            log.debug("begin transaction");
         }
     }
 
-    private void commit(ChainContext context) throws SQLException {
+    private void commit(ChainContext<?> context, Connection connection) throws SQLException {
         if (context.isTransactionActive()) {
-            context.getConnection().commit();
-            context.getConnection().setAutoCommit(true);
+            connection.commit();
+            connection.setAutoCommit(true);
             context.setTransactionActive(false);
+            log.debug("commit transaction");
         }
     }
 
-    private void reset(ChainContext context) throws SQLException {
+    private void reset(ChainContext<?> context, Connection connection) throws SQLException {
         if (context.isTransactionActive()) {
-            context.getConnection().setAutoCommit(true);
+            connection.setAutoCommit(true);
             context.setTransactionActive(false);
+            log.debug("reset transaction");
         }
     }
 
-    private void rollback(ChainContext context) throws SQLException {
+    private void rollback(ChainContext<?> context, Connection connection) throws SQLException {
         if (context.isTransactionActive()) {
-            context.getConnection().rollback();
-            context.getConnection().setAutoCommit(true);
+            connection.rollback();
+            connection.setAutoCommit(true);
             context.setTransactionActive(false);
+            log.debug("rollback transaction");
         }
     }
 }
