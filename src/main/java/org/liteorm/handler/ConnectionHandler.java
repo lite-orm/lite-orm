@@ -3,6 +3,7 @@ package org.liteorm.handler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Connection;
+import java.util.List;
 
 /**
  * @author 张庆波
@@ -12,11 +13,11 @@ import java.sql.Connection;
 public class ConnectionHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext<?> context) throws Exception {
+    public <T> List<T> handle(ChainContext<T> context) throws Exception {
         try (Connection connection = context.getDataSource().getConnection()) {
             log.debug("get connection");
             context.setConnection(connection);
-            getNext().handle(context);
+            return getNext().handle(context);
         } finally {
             log.debug("close connection");
         }

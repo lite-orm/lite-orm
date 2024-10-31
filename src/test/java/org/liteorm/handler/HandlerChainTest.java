@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * @author 张庆波
@@ -32,8 +33,8 @@ public class HandlerChainTest {
         chainContext.setSql(query);
         chainContext.setParams(new Object[]{1});
 
-        chain.execute(chainContext);
-        log.info("{}", chainContext.getResult());
+        List<User> users = chain.execute(chainContext);
+        log.info("{}", users);
     }
 
     @Test

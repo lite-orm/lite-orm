@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * @author 张庆波
@@ -11,7 +12,7 @@ import java.sql.SQLException;
  */
 public class PreparedStatementHandler extends AbstractBaseHandler {
     @Override
-    public void handle(ChainContext context) throws Exception {
+    public <T> List<T> handle(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
         String sql = context.getSql();
         Object[] params = context.getParams();
@@ -30,7 +31,7 @@ public class PreparedStatementHandler extends AbstractBaseHandler {
             }
 
             // 继续下一个Handler
-            getNext().handle(context);
+            return getNext().handle(context);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

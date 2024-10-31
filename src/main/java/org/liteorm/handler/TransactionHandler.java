@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * @author 张庆波
@@ -13,14 +14,16 @@ import java.sql.SQLException;
 public class TransactionHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext<?> context) throws Exception {
+    public <T> List<T> handle(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
         try {
             beginTransaction(context, connection);
-            getNext().handle(context);
+            List<T> result = getNext().handle(context);
             commit(context, connection);
+            return result;
         } catch (Exception e) {
             rollback(context, connection);
+            throw e;
         } finally {
             reset(context, connection);
         }

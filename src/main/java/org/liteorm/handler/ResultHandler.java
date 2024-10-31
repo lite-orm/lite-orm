@@ -18,7 +18,7 @@ public class ResultHandler extends AbstractBaseHandler {
     private ResultMapping resultMapping;
 
     public ResultHandler() {
-        // 结果集映射开放SPI
+        // SPI
         ServiceLoader<ResultMapping> loader = ServiceLoader.load(ResultMapping.class);
         for (ResultMapping resultMapping : loader) {
             if (resultMapping != null) {
@@ -32,12 +32,12 @@ public class ResultHandler extends AbstractBaseHandler {
     }
 
     @Override
-    public void handle(ChainContext<?> context) throws Exception {
+    public <T> List<T> handle(ChainContext<T> context) throws Exception {
         try (ResultSet resultSet = context.getResultSet()) {
             if (resultSet != null) {
                 context.setResult(processResultSet(resultSet, context.getResultClazz()));
             }
-            getNext().handle(context);
+            return getNext().handle(context);
         }
     }
 

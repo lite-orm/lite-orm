@@ -2,6 +2,7 @@ package org.liteorm.handler;
 
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.List;
 
 /**
  * @author 张庆波
@@ -10,7 +11,7 @@ import java.sql.Statement;
 public class StatementHandler extends AbstractBaseHandler {
 
     @Override
-    public void handle(ChainContext<?> context) throws Exception {
+    public <T> List<T> handle(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
         String sql = context.getSql();
 
@@ -30,8 +31,7 @@ public class StatementHandler extends AbstractBaseHandler {
                 context.setResult(result);
             }
 
-            // 继续调用下一个 Handler
-            getNext().handle(context);
+            return getNext().handle(context);
         }
     }
 

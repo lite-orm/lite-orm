@@ -2,6 +2,8 @@ package org.liteorm.handler;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
+
 /**
  * @author 张庆波
  * @since 创建于 2024/10/26 20:06
@@ -11,16 +13,18 @@ public class HandlerChain {
 
     private final BaseHandler HEAD = new AbstractBaseHandler() {
         @Override
-        public void handle(ChainContext context) throws Exception {
+        public <T> List<T> handle(ChainContext<T> context) throws Exception {
             log.debug("head");
-            getNext().handle(context);
+            return getNext().handle(context);
         }
     };
 
     private final BaseHandler TAIL = new AbstractBaseHandler() {
         @Override
-        public void handle(ChainContext context) throws Exception {
+        public <T> List<T> handle(ChainContext<T> context) throws Exception {
             log.debug("tail");
+            // TODO
+            return (List<T>) context.getResult();
         }
     };
 
@@ -34,7 +38,7 @@ public class HandlerChain {
         tmp.setNext(TAIL);
     }
 
-    public void execute(ChainContext context) throws Exception {
-        HEAD.handle(context);
+    public <T> List<T> execute(ChainContext<T> context) throws Exception {
+        return HEAD.handle(context);
     }
 }
