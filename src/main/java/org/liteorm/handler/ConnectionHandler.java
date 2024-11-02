@@ -13,11 +13,11 @@ import java.util.List;
 public class ConnectionHandler extends AbstractBaseHandler {
 
     @Override
-    public <T> List<T> handle(ChainContext<T> context) throws Exception {
+    public <T> List<T> selectList(ChainContext<T> context) throws Exception {
         try (Connection connection = context.getDataSource().getConnection()) {
             log.debug("get connection");
             context.setConnection(connection);
-            return getNext().handle(context);
+            return getNext().selectList(context);
         } finally {
             log.debug("close connection");
         }

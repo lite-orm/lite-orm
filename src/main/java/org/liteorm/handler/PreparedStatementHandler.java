@@ -12,15 +12,15 @@ import java.util.List;
  */
 public class PreparedStatementHandler extends AbstractBaseHandler {
     @Override
-    public <T> List<T> handle(ChainContext<T> context) throws Exception {
+    public <T> List<T> selectList(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
-        String sql = context.getSql();
+        String sql = context.getSql().trim();
         Object[] params = context.getParams();
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             setParameters(preparedStatement, params);
 
-            // 执行查询或更新操作
+            // 执行查询或更新操作 fixme
             if (sql.trim().toLowerCase().startsWith("select")) {
                 ResultSet resultSet = preparedStatement.executeQuery();
                 context.setResultSet(resultSet);
@@ -31,7 +31,7 @@ public class PreparedStatementHandler extends AbstractBaseHandler {
             }
 
             // 继续下一个Handler
-            return getNext().handle(context);
+            return getNext().selectList(context);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

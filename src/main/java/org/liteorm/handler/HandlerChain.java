@@ -13,15 +13,15 @@ public class HandlerChain {
 
     private final BaseHandler HEAD = new AbstractBaseHandler() {
         @Override
-        public <T> List<T> handle(ChainContext<T> context) throws Exception {
+        public <T> List<T> selectList(ChainContext<T> context) throws Exception {
             log.debug("head");
-            return getNext().handle(context);
+            return getNext().selectList(context);
         }
     };
 
     private final BaseHandler TAIL = new AbstractBaseHandler() {
         @Override
-        public <T> List<T> handle(ChainContext<T> context) throws Exception {
+        public <T> List<T> selectList(ChainContext<T> context) throws Exception {
             log.debug("tail");
             // TODO
             return (List<T>) context.getResult();
@@ -39,6 +39,10 @@ public class HandlerChain {
     }
 
     public <T> List<T> execute(ChainContext<T> context) throws Exception {
-        return HEAD.handle(context);
+        return HEAD.selectList(context);
+    }
+
+    public <T> T executeSingle(ChainContext<T> context) throws Exception {
+        return HEAD.selectSingle(context);
     }
 }

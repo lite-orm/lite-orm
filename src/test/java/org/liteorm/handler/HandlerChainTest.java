@@ -19,6 +19,7 @@ import java.util.List;
 public class HandlerChainTest {
     public static final String url = "jdbc:mysql://192.168.0.12:3306/test?characterEncoding=utf8&serverTimezone=GMT%2B8";
     public static final String query = "SELECT id, name, email FROM users WHERE id = ?";
+    public static final String query2 = "SELECT count(*) cnt FROM users";
 
     @Test
     public void testChain() throws Exception {
@@ -28,12 +29,12 @@ public class HandlerChainTest {
         TransactionHandler transactionHandler = new TransactionHandler();
         HandlerChain chain = new HandlerChain(connectionHandler, transactionHandler, statementHandler, resultHandler);
 
-        ChainContext<User> chainContext = new ChainContext<>(User.class);
+        ChainContext<Integer> chainContext = new ChainContext<>(int.class);
         chainContext.setDataSource(getMySQLDataSource());
-        chainContext.setSql(query);
-        chainContext.setParams(new Object[]{1});
+        chainContext.setSql(query2);
+//        chainContext.setParams(new Object[]{1});
 
-        List<User> users = chain.execute(chainContext);
+        int users = chain.executeSingle(chainContext);
         log.info("{}", users);
     }
 

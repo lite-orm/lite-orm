@@ -14,11 +14,11 @@ import java.util.List;
 public class TransactionHandler extends AbstractBaseHandler {
 
     @Override
-    public <T> List<T> handle(ChainContext<T> context) throws Exception {
+    public <T> List<T> selectList(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
         try {
             beginTransaction(context, connection);
-            List<T> result = getNext().handle(context);
+            List<T> result = getNext().selectList(context);
             commit(context, connection);
             return result;
         } catch (Exception e) {

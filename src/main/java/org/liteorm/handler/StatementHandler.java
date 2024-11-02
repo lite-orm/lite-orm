@@ -11,7 +11,7 @@ import java.util.List;
 public class StatementHandler extends AbstractBaseHandler {
 
     @Override
-    public <T> List<T> handle(ChainContext<T> context) throws Exception {
+    public <T> List<T> selectList(ChainContext<T> context) throws Exception {
         Connection connection = context.getConnection();
         String sql = context.getSql();
 
@@ -31,7 +31,7 @@ public class StatementHandler extends AbstractBaseHandler {
                 context.setResult(result);
             }
 
-            return getNext().handle(context);
+            return getNext().selectList(context);
         }
     }
 

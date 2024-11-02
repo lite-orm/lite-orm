@@ -8,7 +8,11 @@ import java.util.List;
  */
 public interface BaseHandler {
 
-    <T> List<T> handle(ChainContext<T> context) throws Exception;
+    <T> List<T> selectList(ChainContext<T> context) throws Exception;
+
+    default <T> T selectSingle(ChainContext<T> context) throws Exception {
+        return selectList(context).get(0);
+    }
 
     BaseHandler getNext();
 

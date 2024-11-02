@@ -32,6 +32,10 @@ public class ChainContext<T> {
     private boolean autoCommit;
     private boolean batchMode;
 
+
+    private boolean many;
+    private CommandType commandType;
+
     public ChainContext(Class<T> resultClazz) {
         this.resultClazz = resultClazz;
     }
