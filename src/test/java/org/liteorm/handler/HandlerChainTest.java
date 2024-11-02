@@ -32,11 +32,19 @@ public class HandlerChainTest {
         ChainContext<Integer> chainContext = new ChainContext<>(int.class);
         chainContext.setDataSource(getMySQLDataSource());
         chainContext.setSql(query2);
-//        chainContext.setParams(new Object[]{1});
 
         int users = chain.executeSingle(chainContext);
         log.info("{}", users);
+
+        ChainContext<User> context2 = new ChainContext<>(User.class);
+        context2.setDataSource(getMySQLDataSource());
+        context2.setSql(query);
+        context2.setParams(new Object[]{1});
+        List<User> userList = chain.execute(context2);
+        log.info("{}", userList);
     }
+
+
 
     @Test
     public void testJdbc() {
