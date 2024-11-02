@@ -38,11 +38,13 @@ public class HandlerChain {
         tmp.setNext(TAIL);
     }
 
-    public <T> List<T> execute(ChainContext<T> context) throws Exception {
+    public <T> List<T> execute(ChainContext<T> context, Object... params) throws Exception {
+        context.setParams(params);
         return HEAD.selectList(context);
     }
 
-    public <T> T executeSingle(ChainContext<T> context) throws Exception {
+    public <T> T executeSingle(ChainContext<T> context, Object... params) throws Exception {
+        context.setParams(params);
         return HEAD.selectSingle(context);
     }
 }

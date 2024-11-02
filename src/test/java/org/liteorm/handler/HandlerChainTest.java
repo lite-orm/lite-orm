@@ -39,11 +39,9 @@ public class HandlerChainTest {
         ChainContext<User> context2 = new ChainContext<>(User.class);
         context2.setDataSource(getMySQLDataSource());
         context2.setSql(query);
-        context2.setParams(new Object[]{1});
-        List<User> userList = chain.execute(context2);
+        List<User> userList = chain.execute(context2, 1);
         log.info("{}", userList);
     }
-
 
 
     @Test
