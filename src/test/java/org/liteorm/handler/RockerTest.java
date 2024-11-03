@@ -5,6 +5,9 @@ import com.fizzed.rocker.RockerModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * @author 王洋洋
  * @since 创建于 2024/11/02 20:41
@@ -19,8 +22,10 @@ public class RockerTest {
     }
 
     public String generateSelectUserByIdQuery(Integer id) {
+        Map<String,Object> param = new HashMap<>();
+        param.put("id", id);
         RockerModel model = Rocker.template("user.rocker.raw")
-                .bind("id", id);
+                .bind("param", param);
         return model.render().toString();
     }
 

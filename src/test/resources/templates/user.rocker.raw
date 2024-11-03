@@ -1,3 +1,5 @@
-@args (Integer id)
+@import java.util.*
 
-select * from users where id = @id;
+@args (Map<String,Object> param)
+
+select * from users where id = @param.get("id");
