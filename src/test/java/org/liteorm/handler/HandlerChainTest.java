@@ -54,7 +54,7 @@ public class HandlerChainTest {
                 log.info("{},{},{}", resultSet.getInt("id"), resultSet.getString("name"), resultSet.getString("email"));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
     }
 
