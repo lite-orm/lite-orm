@@ -5,7 +5,9 @@ import com.fizzed.rocker.RockerModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,10 +24,17 @@ public class RockerTest {
     }
 
     public String generateSelectUserByIdQuery(Integer id) {
-        Map<String,Object> param = new HashMap<>();
+        Map<String, Object> param = new HashMap<>();
         param.put("id", id);
+        List<String> items = new ArrayList<>();
+
+        for (int i = 0; i < 1000; i++) {
+            items.add(String.valueOf(i));
+        }
+
         RockerModel model = Rocker.template("user.rocker.raw")
-                .bind("param", param);
+                .bind("param", param)
+                .bind("items", items);
         return model.render().toString();
     }
 
