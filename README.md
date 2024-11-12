@@ -1,5 +1,6 @@
 # lite-orm
-lite orm
+
+> lite orm
 
 ## TODO
 
@@ -10,4 +11,4 @@ lite orm
 - **core** continue to improve
   - transaction
   - select, update, delete sql type
-- [springboot] support
+- **SpringBoot** support
