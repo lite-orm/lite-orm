@@ -4,7 +4,7 @@ import java.sql.ResultSet;
 
 /**
  * @author qingbozhang
- * @since 创建于 2024/11/2 21:58
+ * @since 2024/11/2 21:58
  */
 public class IntegerTypeResolver implements BaseTypeResolver<Integer> {
 

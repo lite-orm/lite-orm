@@ -9,7 +9,7 @@ import java.sql.ResultSetMetaData;
 
 /**
  * @author qingbozhang
- * @since 创建于 2024/10/27 21:13
+ * @since 2024/10/27 21:13
  */
 @Slf4j
 public class ReflectResultMapping implements ResultMapping {

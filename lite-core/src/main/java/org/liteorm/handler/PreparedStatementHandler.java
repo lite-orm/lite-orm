@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * @author qingbozhang
- * @since 创建于 2024/10/27 11:23
+ * @since 2024/10/27 11:23
  */
 public class PreparedStatementHandler extends AbstractBaseHandler {
     @Override

@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <mapper namespace="org.lite.demo.UserMapper">
     <select id="selectByName">
-        select * from users where name = #{name}
+        select * from users
+        <where>
+            <if test="name != null">
+                name = #{name}
+            </if>
+        </where>
+        ORDER BY created_at
+    </select>
+
+    <select id="selectByCondition" resultType="org.lite.demo.User">
+        SELECT * FROM base_fee_config
+        <where>
+            data_id IN
+            <foreach collection="dataIds" item="dataId" open="(" separator="," close=")">
+                #{dataId}
+            </foreach>
+            AND status = 'active'
+        </where>
+        ORDER BY created_at
     </select>
 </mapper>

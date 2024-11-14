@@ -6,7 +6,7 @@ import javax.sql.DataSource;
 
 /**
  * @author qingbozhang
- * @since 创建于 2024/11/12 15:35
+ * @since 2024/11/12 15:35
  */
 public class MockResource {
     private static volatile DataSource dataSource;

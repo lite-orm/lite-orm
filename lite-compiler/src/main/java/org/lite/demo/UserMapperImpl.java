@@ -13,7 +13,7 @@ import java.util.Map;
  * 生成代码案例
  *
  * @author qingbozhang
- * @since 创建于 2024/11/12 10:43
+ * @since 2024/11/12 10:43
  */
 public class UserMapperImpl implements UserMapper {
 
@@ -24,7 +24,6 @@ public class UserMapperImpl implements UserMapper {
         try {
             Map<String, Object> params = new HashMap<>();
             params.put("name", name);
-            // TODO 内存中获取
             InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("templates/UserMapper.xml");
             String sql = XmlParser.render(inputStream, "selectByName", params);
             assert inputStream != null;
@@ -36,4 +35,8 @@ public class UserMapperImpl implements UserMapper {
         }
     }
 
+    @Override
+    public List<User> selectByCondition(List<String> names) {
+        return List.of();
+    }
 }

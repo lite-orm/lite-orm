@@ -2,7 +2,7 @@ package org.liteorm.handler;
 
 /**
  * @author qingbozhang
- * @since 创建于 2024/10/26 19:32
+ * @since 2024/10/26 19:32
  */
 public abstract class AbstractBaseHandler implements BaseHandler {
 
