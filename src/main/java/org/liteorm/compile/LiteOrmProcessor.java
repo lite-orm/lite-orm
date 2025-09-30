@@ -1,4 +1,4 @@
-package org.liteorm.processor;
+package org.liteorm.compile;
 
 import org.apache.ibatis.annotations.Mapper;
 
@@ -42,7 +42,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
     private Elements elementUtils;
     private Types typeUtils;
     
-    private AnnotationBasedMapperGenerator mapperGenerator;
+    private MapperImplGenerator mapperGenerator;
     
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -52,8 +52,8 @@ public class LiteOrmProcessor extends AbstractProcessor {
         this.elementUtils = processingEnv.getElementUtils();
         this.typeUtils = processingEnv.getTypeUtils();
         
-        // 只需要Mapper生成器
-        this.mapperGenerator = new AnnotationBasedMapperGenerator(filer, messager, elementUtils, typeUtils);
+        // 初始化新的生成器架构
+        this.mapperGenerator = new MapperImplGenerator(elementUtils, typeUtils);
         
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processor initialized");
     }
@@ -101,20 +101,34 @@ public class LiteOrmProcessor extends AbstractProcessor {
      * 生成零反射的MapperImpl
      */
     private void generateZeroReflectionMapperImpl(TypeElement mapperInterface) throws IOException {
-        String packageName = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
-        String className = mapperInterface.getSimpleName() + "Impl";
-        String qualifiedClassName = packageName + "." + className;
-        
-        // 生成代码
-        String javaCode = mapperGenerator.generate(mapperInterface);
-        
-        // 写入文件
-        JavaFileObject builderFile = filer.createSourceFile(qualifiedClassName);
-        try (Writer writer = builderFile.openWriter()) {
-            writer.write(javaCode);
+        try {
+            // 检查是否支持该接口
+            if (!mapperGenerator.supports(mapperInterface)) {
+                messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Skipping unsupported interface: " + mapperInterface.getQualifiedName());
+                return;
+            }
+            
+            String packageName = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
+            String className = mapperInterface.getSimpleName() + "Impl";
+            String qualifiedClassName = packageName + "." + className;
+            
+            // 生成代码
+            String javaCode = mapperGenerator.generateMapperImpl(mapperInterface);
+            
+            // 写入文件
+            JavaFileObject builderFile = filer.createSourceFile(qualifiedClassName);
+            try (Writer writer = builderFile.openWriter()) {
+                writer.write(javaCode);
+            }
+            
+            messager.printMessage(Diagnostic.Kind.NOTE, 
+                "Generated zero-reflection mapper: " + qualifiedClassName);
+                
+        } catch (MapperImplGenerator.GenerationException e) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "Failed to generate mapper implementation: " + e.getMessage());
+            throw new IOException(e);
         }
-        
-        messager.printMessage(Diagnostic.Kind.NOTE, 
-            "Generated zero-reflection mapper: " + qualifiedClassName);
     }
 }

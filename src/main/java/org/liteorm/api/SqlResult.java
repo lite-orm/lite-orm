@@ -1,4 +1,4 @@
-package org.liteorm;
+package org.liteorm.api;
 
 import java.util.List;
 
@@ -34,6 +34,21 @@ public class SqlResult {
     // 异常结果构造器
     public static SqlResult forError(Exception exception) {
         return new SqlResult(null, 0, false, exception);
+    }
+    
+    // 兼容方法：success for query
+    public static SqlResult success(List<Object[]> results) {
+        return forQuery(results);
+    }
+    
+    // 兼容方法：success for update
+    public static SqlResult success(int updateCount) {
+        return forUpdate(updateCount);
+    }
+    
+    // 兼容方法：error
+    public static SqlResult error(Exception exception) {
+        return forError(exception);
     }
     
     private SqlResult(List<Object[]> queryResults, int updateCount, boolean isQuery, Exception exception) {

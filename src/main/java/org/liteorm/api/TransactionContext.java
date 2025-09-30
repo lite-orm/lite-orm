@@ -1,4 +1,4 @@
-package org.liteorm;
+package org.liteorm.api;
 
 import java.sql.Connection;
 

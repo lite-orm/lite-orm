@@ -1,13 +1,12 @@
-package org.liteorm;
+package org.liteorm.api;
 
 /**
- * SQL执行引擎
- * 这是Core包的任务提交入口，由Compiler生成的MapperImpl调用
+ * SQL执行引擎 - 基于物理必需性的核心接口
  * 
- * 设计原则：
- * - 这是唯一的外部接口
- * - 内部组织责任链完成SQL执行
- * - 返回原始结果，不涉及映射
+ * 物理对应：
+ * - 这是编译期生成代码调用运行时核心的唯一接口
+ * - 内部组织责任链完成SQL的物理执行步骤
+ * - 返回原始数据，不涉及业务映射
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -15,8 +14,7 @@ package org.liteorm;
 public interface SqlEngine {
     
     /**
-     * 执行SQL任务
-     * 这是Compiler生成代码调用Core的唯一入口
+     * 执行SQL任务 - 核心物理入口
      * 
      * @param task SQL执行任务（包含SQL、参数、类型等）
      * @return SQL执行结果（原始数据，不包含映射）

@@ -1,5 +1,7 @@
 package org.liteorm;
 
+import org.liteorm.api.ConnectionManager;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
