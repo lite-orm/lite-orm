@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.liteorm.test.ComplexSqlMapper">
+    
+    <!-- SQL片段定义 - 可复用的SQL块 -->
+    <sql id="userColumns">
+        id, name, email, age, status
+    </sql>
+    
+    <sql id="baseCondition">
+        <where>
+            status = 'ACTIVE'
+        </where>
+    </sql>
+    
+    <sql id="orderByClause">
+        ORDER BY id DESC
+    </sql>
+    
+    <!-- 测试1：多层嵌套动态SQL - choose/when/otherwise + if嵌套 -->
+    <select id="findByComplexConditions" resultType="org.liteorm.test.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <where>
+            <!-- 第一层条件 -->
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            
+            <!-- 嵌套choose -->
+            <choose>
+                <when test="minAge != null and maxAge != null">
+                    <!-- 第二层if嵌套 -->
+                    <if test="minAge > 0">
+                        AND age >= #{minAge}
+                    </if>
+                    <if test="maxAge > 0">
+                        AND age &lt;= #{maxAge}
+                    </if>
+                </when>
+                <when test="minAge != null">
+                    AND age >= #{minAge}
+                </when>
+                <when test="maxAge != null">
+                    AND age &lt;= #{maxAge}
+                </when>
+                <otherwise>
+                    AND age > 0
+                </otherwise>
+            </choose>
+            
+            <!-- 状态列表 - foreach嵌套 -->
+            <if test="statusList != null and statusList.size() > 0">
+                AND status IN
+                <foreach collection="statusList" item="status" open="(" close=")" separator=",">
+                    #{status}
+                </foreach>
+            </if>
+            
+            <!-- 嵌套条件 -->
+            <choose>
+                <when test="includeInactive != null and includeInactive == true">
+                    <!-- 包含非活跃用户 -->
+                </when>
+                <otherwise>
+                    AND status = 'ACTIVE'
+                </otherwise>
+            </choose>
+        </where>
+        <include refid="orderByClause"/>
+    </select>
+    
+    <!-- 测试2：SQL片段引用和复用 -->
+    <select id="findUsersWithFragment" resultType="org.liteorm.test.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <include refid="baseCondition"/>
+        <if test="keyword != null and keyword != ''">
+            AND (name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR email LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <include refid="orderByClause"/>
+    </select>
+    
+    <!-- 测试3：复杂批量插入 - foreach with 嵌套if -->
+    <insert id="batchInsertOrders">
+        INSERT INTO orders (user_id, product_name, amount, status)
+        VALUES
+        <foreach collection="list" item="order" separator=",">
+            (
+                #{order.userId},
+                #{order.productName},
+                <if test="order.amount != null">
+                    #{order.amount}
+                </if>
+                <if test="order.amount == null">
+                    0.0
+                </if>,
+                <if test="order.status != null">
+                    #{order.status}
+                </if>
+                <if test="order.status == null">
+                    'PENDING'
+                </if>
+            )
+        </foreach>
+    </insert>
+    
+    <!-- 测试4：动态表名（注意：实际使用需要注意SQL注入风险） -->
+    <select id="queryDynamicTable" resultType="java.util.HashMap">
+        SELECT * FROM ${tableName}
+        <if test="condition != null and condition != ''">
+            WHERE ${condition}
+        </if>
+    </select>
+    
+    <!-- 测试5：多表关联查询 - 一对多（简化版，实际需要ResultMap） -->
+    <select id="findUsersWithOrders" resultType="org.liteorm.test.UserWithOrders">
+        SELECT 
+            u.id as userId,
+            u.name as userName,
+            u.email as userEmail,
+            u.age as userAge,
+            o.id as orderId,
+            o.product_name as productName,
+            o.amount as amount,
+            o.status as orderStatus
+        FROM users u
+        LEFT JOIN orders o ON u.id = o.user_id
+        <where>
+            <if test="userId != null">
+                u.id = #{userId}
+            </if>
+        </where>
+        ORDER BY u.id, o.id
+    </select>
+    
+    <!-- 测试6：嵌套choose/when/otherwise - 策略模式 -->
+    <select id="findByStrategy" resultType="org.liteorm.test.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <where>
+            <choose>
+                <when test="strategy == 'id'">
+                    id = #{value}
+                </when>
+                <when test="strategy == 'name'">
+                    name = #{value}
+                </when>
+                <when test="strategy == 'email'">
+                    email = #{value}
+                </when>
+                <when test="strategy == 'like'">
+                    <choose>
+                        <when test="value != null and value != ''">
+                            (name LIKE CONCAT('%', #{value}, '%') 
+                             OR email LIKE CONCAT('%', #{value}, '%'))
+                        </when>
+                        <otherwise>
+                            1=1
+                        </otherwise>
+                    </choose>
+                </when>
+                <otherwise>
+                    1=1
+                </otherwise>
+            </choose>
+        </where>
+    </select>
+    
+    <!-- 测试7：复杂trim标签 - 动态SET -->
+    <update id="updateUserSelective">
+        UPDATE users
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="user.name != null and user.name != ''">
+                name = #{user.name},
+            </if>
+            <if test="user.email != null and user.email != ''">
+                email = #{user.email},
+            </if>
+            <if test="user.age != null and user.age > 0">
+                age = #{user.age},
+            </if>
+            <!-- 嵌套条件 -->
+            status = 'ACTIVE',
+        </trim>
+        WHERE id = #{user.id}
+    </update>
+    
+    <!-- 测试8：bind变量 - 动态变量绑定 -->
+    <select id="searchUsers" resultType="org.liteorm.test.User">
+        <bind name="pattern" value="'%' + keyword + '%'"/>
+        SELECT <include refid="userColumns"/> FROM users
+        <where>
+            <if test="keyword != null and keyword != ''">
+                name LIKE #{pattern} OR email LIKE #{pattern}
+            </if>
+        </where>
+    </select>
+    
+    <!-- 测试9：foreach - 数组类型 -->
+    <select id="findByIds" resultType="org.liteorm.test.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <where>
+            <if test="ids != null and ids.length > 0">
+                id IN
+                <foreach collection="array" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+    </select>
+    
+    <!-- 测试10：foreach - List类型 -->
+    <select id="findOrdersByIds" resultType="org.liteorm.test.Order">
+        SELECT id, user_id, product_name, amount, status FROM orders
+        <where>
+            <if test="list != null and list.size() > 0">
+                id IN
+                <foreach collection="list" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+    </select>
+    
+    <!-- 测试11：嵌套if条件 - 多层逻辑 -->
+    <select id="findByNestedConditions" resultType="org.liteorm.test.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <where>
+            <if test="exactMatch != null and exactMatch == true">
+                <!-- 精确匹配模式 -->
+                <if test="name != null and name != ''">
+                    AND name = #{name}
+                </if>
+                <if test="email != null and email != ''">
+                    AND email = #{email}
+                </if>
+                <if test="age != null">
+                    AND age = #{age}
+                </if>
+            </if>
+            <if test="exactMatch == null or exactMatch == false">
+                <!-- 模糊匹配模式 -->
+                <if test="name != null and name != ''">
+                    AND name LIKE CONCAT('%', #{name}, '%')
+                </if>
+                <if test="email != null and email != ''">
+                    AND email LIKE CONCAT('%', #{email}, '%')
+                </if>
+                <if test="age != null">
+                    <choose>
+                        <when test="age > 0">
+                            AND age >= #{age}
+                        </when>
+                        <otherwise>
+                            AND age IS NOT NULL
+                        </otherwise>
+                    </choose>
+                </if>
+            </if>
+        </where>
+        <include refid="orderByClause"/>
+    </select>
+    
+</mapper>

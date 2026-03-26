@@ -1,0 +1,25 @@
+# LiteORM配置示例
+
+lite-orm:
+  # 是否启用LiteORM（默认true）
+  enabled: true
+  
+  # 慢查询阈值（毫秒，默认1000）
+  slow-query-threshold: 1000
+  
+  # 是否启用SQL日志（默认true）
+  sql-logging: true
+  
+  # 是否记录参数值（默认true）
+  log-parameters: true
+  
+  # 是否启用SQL审计（默认false）
+  audit-enabled: false
+  
+  # 审计是否异步（默认true）
+  audit-async: true
+  
+  # Mapper扫描包路径（可选）
+  mapper-packages:
+    - com.example.mapper
+

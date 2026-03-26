@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.liteorm.test.UserMapperXml">
+    
+    <!-- 简单查询 -->
+    <select id="findById" resultType="org.liteorm.test.User">
+        SELECT * FROM users WHERE id = #{id}
+    </select>
+    
+    <!-- 动态查询 -->
+    <select id="findByCondition" resultType="org.liteorm.test.User">
+        SELECT * FROM users
+        <where>
+            <if test="name != null">
+                AND name = #{name}
+            </if>
+            <if test="age != null">
+                AND age = #{age}
+            </if>
+            <choose>
+                <when test="status != null">
+                    AND status = #{status}
+                </when>
+                <otherwise>
+                    AND status = 'ACTIVE'
+                </otherwise>
+            </choose>
+        </where>
+    </select>
+    
+    <!-- 动态插入 -->
+    <insert id="insertUser" parameterType="org.liteorm.test.User">
+        INSERT INTO users
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null">name,</if>
+            <if test="age != null">age,</if>
+            <if test="email != null">email,</if>
+        </trim>
+        VALUES
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null">#{name},</if>
+            <if test="age != null">#{age},</if>
+            <if test="email != null">#{email},</if>
+        </trim>
+    </insert>
+    
+    <!-- 动态更新 -->
+    <update id="updateUser" parameterType="org.liteorm.test.User">
+        UPDATE users
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="age != null">age = #{age},</if>
+            <if test="email != null">email = #{email},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+    
+    <!-- 批量操作 -->
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO users (name, age, email) VALUES
+        <foreach collection="list" item="user" separator=",">
+            (#{user.name}, #{user.age}, #{user.email})
+        </foreach>
+    </insert>
+    
+    <!-- 复杂查询 -->
+    <select id="findUsersWithPagination" resultType="org.liteorm.test.User">
+        SELECT * FROM users
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR email LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="minAge != null">
+                AND age >= #{minAge}
+            </if>
+            <if test="maxAge != null">
+                AND age &lt;= #{maxAge}
+            </if>
+            <if test="statusList != null and statusList.size() > 0">
+                AND status IN
+                <foreach collection="statusList" item="status" open="(" close=")" separator=",">
+                    #{status}
+                </foreach>
+            </if>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+    
+</mapper>
