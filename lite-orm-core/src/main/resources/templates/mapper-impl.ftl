@@ -22,18 +22,8 @@ public class ${implClassName} implements ${interfaceName} {
         this.sqlEngine = java.util.Objects.requireNonNull(sqlEngine, "sqlEngine");
     }
 
-    public ${implClassName}(ConnectionManager connectionManager) {
-        // 创建默认的责任链处理器
-        List<SqlProcessor> processors = new ArrayList<>();
-        org.liteorm.DefaultTransactionManager transactionManager = 
-            new org.liteorm.DefaultTransactionManager(connectionManager);
-        processors.add(new ConnectionProcessor(connectionManager));
-        processors.add(new TransactionProcessor(transactionManager));
-        processors.add(new ParameterProcessor());
-        processors.add(new ExecutionProcessor());
-        processors.add(new ResultProcessor());
-        
-        this.sqlEngine = new DefaultSqlEngine(connectionManager, processors);
+    public ${implClassName}(ConnectionProvider connectionProvider) {
+        this.sqlEngine = new DefaultSqlEngine(connectionProvider);
     }
 
 ${generatedMethods}

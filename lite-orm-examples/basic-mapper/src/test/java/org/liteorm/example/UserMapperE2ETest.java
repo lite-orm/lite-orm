@@ -4,14 +4,11 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.liteorm.DefaultSqlEngine;
-import org.liteorm.DefaultTransactionManager;
-import org.liteorm.SimpleConnectionManager;
-import org.liteorm.runtime.ConnectionProcessor;
+import org.liteorm.JdbcConnectionProvider;
 import org.liteorm.runtime.ExecutionProcessor;
 import org.liteorm.runtime.ParameterProcessor;
 import org.liteorm.runtime.ResultProcessor;
 import org.liteorm.runtime.SqlProcessor;
-import org.liteorm.runtime.TransactionProcessor;
 
 import java.sql.Connection;
 import java.sql.Statement;
@@ -41,22 +38,20 @@ class UserMapperE2ETest {
             statement.execute("CREATE TABLE user_metadata (user_id BIGINT PRIMARY KEY, payload VARCHAR(500))");
         }
 
-        SimpleConnectionManager connectionManager = new SimpleConnectionManager(dataSource);
-        annotationMapper = new UserMapperImpl(connectionManager);
-        xmlMapper = new UserXmlMapperImpl(connectionManager);
-        metadataMapper = new UserMetadataMapperImpl(connectionManager);
+        JdbcConnectionProvider connectionProvider = new JdbcConnectionProvider(dataSource);
+        annotationMapper = new UserMapperImpl(connectionProvider);
+        xmlMapper = new UserXmlMapperImpl(connectionProvider);
+        metadataMapper = new UserMetadataMapperImpl(connectionProvider);
         auditEvents = new java.util.ArrayList<>();
         MigrationAuditInterceptor firstAuditInterceptor = new MigrationAuditInterceptor("first", auditEvents);
         MigrationAuditInterceptor secondAuditInterceptor = new MigrationAuditInterceptor("second", auditEvents);
         List<SqlProcessor> processors = List.of(
-            new ConnectionProcessor(connectionManager),
-            new TransactionProcessor(new DefaultTransactionManager(connectionManager)),
             new ParameterProcessor(),
             new ExecutionProcessor(),
             new ResultProcessor()
         );
         auditedMapper = new UserMapperImpl(new DefaultSqlEngine(
-            connectionManager,
+            connectionProvider,
             processors,
             List.of(firstAuditInterceptor, secondAuditInterceptor)
         ));

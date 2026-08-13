@@ -1,5 +1,9 @@
 # LiteORM Incremental Implementation Plan
 
+> **Migration notice (2026-08-13):** This plan records the completed compile-time Mapper MVP work. All unfinished correctness, transaction, concurrency, feature-completion, architecture-review, optimization, and release tasks moved to `docs/plans/liteorm-completion-correctness-architecture-plan.md`. Do not add new implementation tasks here.
+
+> **Status update (2026-08-13):** Modules M0-M9 are complete. The unfinished M10 benchmark/release work and every backlog item have been migrated to `docs/plans/liteorm-completion-correctness-architecture-plan.md`. Continue implementation from the new plan; this file remains the historical record for the compile-time Mapper MVP.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn the current compile-time Mapper prototype into a reliable MVP that covers the majority of MyBatis-style Mapper use cases through generated static code, while exposing explicit compile-time-bound extension points for exceptional cases.
@@ -349,6 +353,8 @@ generated MapperImpl
 
 ### Module M10: Benchmark and Release Readiness
 
+> Migrated without implementation to Phase P4 of `docs/plans/liteorm-completion-correctness-architecture-plan.md`. Performance work now follows transaction, concurrency, feature-completeness, and architecture-correctness work.
+
 **Purpose:** Establish evidence for performance claims and prepare a stable first release.
 
 **Recommended files:**
@@ -370,6 +376,8 @@ generated MapperImpl
 - Release readiness is tracked by checklist instead of memory.
 
 ## Backlog: Do Not Start Before MVP Stability
+
+> Migrated to the deferred backlog in `docs/plans/liteorm-completion-correctness-architecture-plan.md`.
 
 - [ ] SQL metadata export for IDE/AI/static analysis.
 - [ ] Production observability interceptor pack: structured logging, slow SQL, tracing, and metrics.

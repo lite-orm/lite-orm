@@ -1,8 +1,12 @@
 package org.liteorm.runtime;
 
 import org.liteorm.ExecutionContext;
-import org.liteorm.api.ConnectionManager;
+import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.TransactionCoordinator;
+
+import java.sql.Connection;
+import java.util.Objects;
 
 /**
  * 连接处理器
@@ -13,15 +17,28 @@ import org.liteorm.api.ExecutionPlan;
  */
 public class ConnectionProcessor implements SqlProcessor {
     
-    private final ConnectionManager connectionManager;
+    private final ConnectionProvider connectionProvider;
+    private final TransactionCoordinator transactionCoordinator;
     
-    public ConnectionProcessor(ConnectionManager connectionManager) {
-        this.connectionManager = connectionManager;
+    public ConnectionProcessor(ConnectionProvider connectionProvider) {
+        this(connectionProvider, () -> null);
+    }
+
+    public ConnectionProcessor(ConnectionProvider connectionProvider, TransactionCoordinator transactionCoordinator) {
+        this.connectionProvider = Objects.requireNonNull(connectionProvider, "connectionProvider");
+        this.transactionCoordinator = Objects.requireNonNull(transactionCoordinator, "transactionCoordinator");
     }
     
     @Override
     public void process(ExecutionPlan plan, ExecutionContext context) {
-        // 获取连接（支持事务连接复用）
-        context.setConnection(connectionManager.getConnection());
+        if (context.getConnection() == null) {
+            Connection transactionConnection = transactionCoordinator.currentConnection();
+            if (transactionConnection != null) {
+                context.setConnection(transactionConnection);
+                context.setInTransaction(true);
+            } else {
+                context.setConnection(connectionProvider.acquire());
+            }
+        }
     }
 }

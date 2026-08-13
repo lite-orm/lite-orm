@@ -1,7 +1,7 @@
 package org.liteorm.spring.boot;
 
 import org.liteorm.DefaultSqlEngine;
-import org.liteorm.api.ConnectionManager;
+import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.runtime.*;
@@ -38,8 +38,8 @@ public class LiteOrmAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public ConnectionManager liteOrmConnectionManager(DataSource dataSource) {
-        return new LiteOrmConnectionManager(dataSource);
+    public ConnectionProvider liteOrmConnectionProvider(DataSource dataSource) {
+        return new SpringConnectionProvider(dataSource);
     }
 
     @Bean
@@ -50,43 +50,37 @@ public class LiteOrmAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SqlEngine liteOrmSqlEngine(
-            ConnectionManager connectionManager,
+            ConnectionProvider connectionProvider,
             ObjectProvider<ExecutionInterceptor> interceptorProvider) {
         // 构建处理器链
         List<SqlProcessor> processors = new ArrayList<>();
         
-        // 1. 连接处理器
-        processors.add(new ConnectionProcessor(connectionManager));
-        
-        // 2. Spring事务处理器（如果有Spring事务）
-        processors.add(new SpringTransactionProcessor());
-        
-        // 3. 日志处理器（如果启用）
+        // 1. 日志处理器（如果启用）
         if (properties.isSqlLogging()) {
             processors.add(new LoggingProcessor(properties.isLogParameters(), true));
         }
         
-        // 4. 慢查询监控
+        // 2. 慢查询监控
         if (properties.isSlowQueryMonitoring()) {
             processors.add(new SlowQueryMonitorProcessor(properties.getSlowQueryThreshold()));
         }
         
-        // 5. 审计处理器（如果启用）
+        // 3. 审计处理器（如果启用）
         if (properties.isAuditEnabled()) {
             processors.add(new SqlAuditProcessor(properties.isAuditAsync()));
         }
         
-        // 6. 参数处理器
+        // 4. 参数处理器
         processors.add(new ParameterProcessor());
         
-        // 7. 执行处理器
+        // 5. 执行处理器
         processors.add(new ExecutionProcessor());
         
-        // 8. 结果处理器
+        // 6. 结果处理器
         processors.add(new ResultProcessor());
         
         return new DefaultSqlEngine(
-            connectionManager,
+            connectionProvider,
             processors,
             interceptorProvider.orderedStream().toList()
         );

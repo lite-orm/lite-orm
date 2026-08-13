@@ -14,13 +14,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -38,12 +44,15 @@ class LiteOrmAutoConfigurationIntegrationTest {
     void registersGeneratedMapperAndUsesApplicationDataSource() {
         contextRunner.run(context -> {
             SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
-            DataSource dataSource = context.getBean(DataSource.class);
+            TrackingDataSource dataSource = context.getBean(TrackingDataSource.class);
+            dataSource.resetCounts();
 
-            assertSame(dataSource, context.getBean(LiteOrmConnectionManager.class).getDataSource());
+            assertSame(dataSource, context.getBean(SpringConnectionProvider.class).getDataSource());
             assertSame(context.getBean(SqlEngine.class), ReflectionTestUtils.getField(mapper, "sqlEngine"));
             assertEquals(1, mapper.insert(1L, "Alice"));
             assertEquals(new SpringUser(1L, "Alice"), mapper.findById(1L));
+            assertEquals(2, dataSource.acquisitions());
+            assertEquals(2, dataSource.releases());
         });
     }
 
@@ -51,7 +60,7 @@ class LiteOrmAutoConfigurationIntegrationTest {
     void disablingStarterPreventsLiteOrmBeansAndMapperRegistration() {
         contextRunner.withPropertyValues("lite-orm.enabled=false").run(context -> {
             assertEquals(0, context.getBeansOfType(SpringUserMapper.class).size());
-            assertEquals(0, context.getBeansOfType(LiteOrmConnectionManager.class).size());
+            assertEquals(0, context.getBeansOfType(SpringConnectionProvider.class).size());
         });
     }
 
@@ -69,6 +78,28 @@ class LiteOrmAutoConfigurationIntegrationTest {
             });
 
             assertNull(mapper.findById(2L));
+        });
+    }
+
+    @Test
+    void springTransactionCommitsMultipleMapperCallsOnOnePhysicalConnection() {
+        contextRunner.run(context -> {
+            SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
+            PlatformTransactionManager transactionManager = context.getBean(PlatformTransactionManager.class);
+            TrackingDataSource dataSource = context.getBean(TrackingDataSource.class);
+            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+            dataSource.resetCounts();
+
+            transaction.executeWithoutResult(status -> {
+                mapper.insert(20L, "Dora");
+                mapper.insert(21L, "Evan");
+                assertEquals(new SpringUser(20L, "Dora"), mapper.findById(20L));
+                assertEquals(new SpringUser(21L, "Evan"), mapper.findById(21L));
+                assertEquals(1, dataSource.acquisitions());
+            });
+
+            assertEquals(new SpringUser(20L, "Dora"), mapper.findById(20L));
+            assertEquals(new SpringUser(21L, "Evan"), mapper.findById(21L));
         });
     }
 
@@ -96,17 +127,61 @@ class LiteOrmAutoConfigurationIntegrationTest {
     static class DatabaseConfiguration {
 
         @Bean
-        DataSource dataSource() {
+        TrackingDataSource dataSource() {
             JdbcDataSource dataSource = new JdbcDataSource();
             dataSource.setURL("jdbc:h2:mem:liteorm-spring;DB_CLOSE_DELAY=-1");
-            new JdbcTemplate(dataSource).execute(
+            TrackingDataSource trackingDataSource = new TrackingDataSource(dataSource);
+            new JdbcTemplate(trackingDataSource).execute(
                 "CREATE TABLE IF NOT EXISTS spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
-            return dataSource;
+            return trackingDataSource;
         }
 
         @Bean
         PlatformTransactionManager transactionManager(DataSource dataSource) {
             return new DataSourceTransactionManager(dataSource);
+        }
+    }
+
+    static final class TrackingDataSource extends DelegatingDataSource {
+
+        private final AtomicInteger acquisitions = new AtomicInteger();
+        private final AtomicInteger releases = new AtomicInteger();
+
+        TrackingDataSource(DataSource targetDataSource) {
+            super(targetDataSource);
+        }
+
+        @Override
+        public Connection getConnection() throws SQLException {
+            acquisitions.incrementAndGet();
+            Connection connection = super.getConnection();
+            return (Connection) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{Connection.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("close")) {
+                        releases.incrementAndGet();
+                    }
+                    try {
+                        return method.invoke(connection, args);
+                    } catch (InvocationTargetException failure) {
+                        throw failure.getCause();
+                    }
+                }
+            );
+        }
+
+        int acquisitions() {
+            return acquisitions.get();
+        }
+
+        int releases() {
+            return releases.get();
+        }
+
+        void resetCounts() {
+            acquisitions.set(0);
+            releases.set(0);
         }
     }
 

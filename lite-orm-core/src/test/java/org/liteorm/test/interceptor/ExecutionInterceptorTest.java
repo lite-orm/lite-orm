@@ -3,7 +3,7 @@ package org.liteorm.test.interceptor;
 import org.junit.jupiter.api.Test;
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.ExecutionContext;
-import org.liteorm.api.ConnectionManager;
+import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.ExecutionPlan;
@@ -26,7 +26,7 @@ class ExecutionInterceptorTest {
     @Test
     void invokesBeforeInOrderAndSuccessInReverseOrder() {
         List<String> events = new ArrayList<>();
-        TrackingConnectionManager connections = new TrackingConnectionManager();
+        TrackingConnectionProvider connections = new TrackingConnectionProvider();
         DefaultSqlEngine engine = new DefaultSqlEngine(
             connections,
             List.of(successProcessor(connections.connection)),
@@ -43,7 +43,7 @@ class ExecutionInterceptorTest {
     @Test
     void invokesFailureInReverseOrderAndPreservesOriginalFailure() {
         List<String> events = new ArrayList<>();
-        TrackingConnectionManager connections = new TrackingConnectionManager();
+        TrackingConnectionProvider connections = new TrackingConnectionProvider();
         IllegalStateException failure = new IllegalStateException("processor failed");
         DefaultSqlEngine engine = new DefaultSqlEngine(
             connections,
@@ -61,7 +61,7 @@ class ExecutionInterceptorTest {
 
     @Test
     void interceptorCallbackFailureDoesNotPreventCleanup() {
-        TrackingConnectionManager connections = new TrackingConnectionManager();
+        TrackingConnectionProvider connections = new TrackingConnectionProvider();
         ExecutionInterceptor interceptor = new ExecutionInterceptor() {
             @Override
             public void afterSuccess(ExecutionInvocation invocation) {
@@ -80,7 +80,7 @@ class ExecutionInterceptorTest {
 
     @Test
     void zeroInterceptorsPreserveDirectExecutionBehavior() {
-        TrackingConnectionManager connections = new TrackingConnectionManager();
+        TrackingConnectionProvider connections = new TrackingConnectionProvider();
         DefaultSqlEngine engine = new DefaultSqlEngine(
             connections, List.of(successProcessor(connections.connection)), List.of());
 
@@ -138,7 +138,7 @@ class ExecutionInterceptorTest {
         );
     }
 
-    private static class TrackingConnectionManager implements ConnectionManager {
+    private static class TrackingConnectionProvider implements ConnectionProvider {
         private final Connection connection = (Connection) Proxy.newProxyInstance(
             getClass().getClassLoader(), new Class<?>[]{Connection.class}, (proxy, method, args) -> {
                 if (method.getName().equals("isClosed")) return false;
@@ -149,11 +149,7 @@ class ExecutionInterceptorTest {
             });
         private int releaseCount;
 
-        @Override public Connection getConnection() { return connection; }
-        @Override public void releaseConnection(Connection connection) { releaseCount++; }
-        @Override public Connection beginTransaction() { return connection; }
-        @Override public void commitTransaction(Connection connection) {}
-        @Override public void rollbackTransaction(Connection connection) {}
-        @Override public void setDataSource(javax.sql.DataSource dataSource) {}
+        @Override public Connection acquire() { return connection; }
+        @Override public void release(Connection connection) { releaseCount++; }
     }
 }

@@ -28,21 +28,4 @@ public interface SqlEngine {
         return execute((ExecutionPlan) task);
     }
     
-    /**
-     * 开始手动事务
-     * @return 事务上下文
-     */
-    TransactionContext beginTransaction();
-    
-    /**
-     * 提交事务
-     * @param txContext 事务上下文
-     */
-    void commitTransaction(TransactionContext txContext);
-    
-    /**
-     * 回滚事务
-     * @param txContext 事务上下文
-     */
-    void rollbackTransaction(TransactionContext txContext);
 }

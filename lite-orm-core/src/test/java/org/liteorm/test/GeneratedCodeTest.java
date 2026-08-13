@@ -185,7 +185,7 @@ public class GeneratedCodeTest {
         System.out.println("✅ 构造器中创建责任链:");
         System.out.println("   List<SqlProcessor> processors = new ArrayList<>();");
         System.out.println("   processors.add(new ConnectionProcessor(...));");
-        System.out.println("   processors.add(new TransactionProcessor(...));");
+        System.out.println("   standalone transactions use LocalTransactionCoordinator");
         System.out.println("   processors.add(new ParameterProcessor());");
         System.out.println("   processors.add(new ExecutionProcessor());");
         System.out.println("   processors.add(new ResultProcessor());");

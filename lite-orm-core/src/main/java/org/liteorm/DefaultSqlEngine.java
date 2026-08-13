@@ -1,24 +1,20 @@
 package org.liteorm;
 
-import org.liteorm.api.ConnectionManager;
+import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.TransactionContext;
-import org.liteorm.api.TransactionException;
-import org.liteorm.api.TransactionManager;
+import org.liteorm.api.TransactionCoordinator;
 import org.liteorm.runtime.ConnectionProcessor;
 import org.liteorm.runtime.ExecutionProcessor;
 import org.liteorm.runtime.ParameterProcessor;
 import org.liteorm.runtime.ResultProcessor;
 import org.liteorm.runtime.SqlProcessor;
-import org.liteorm.runtime.TransactionProcessor;
 
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,30 +31,36 @@ import java.util.List;
 public class DefaultSqlEngine implements SqlEngine {
     
     private final List<SqlProcessor> processors;
-    private final ConnectionManager connectionManager;
+    private final ConnectionProvider connectionProvider;
     private final List<ExecutionInterceptor> interceptors;
     
     /**
      * 默认构造器 - 使用标准的5个物理必需处理器
      */
-    public DefaultSqlEngine(ConnectionManager connectionManager) {
-        this.connectionManager = connectionManager;
-        this.processors = createDefaultProcessors(connectionManager);
-        this.interceptors = List.of();
+    public DefaultSqlEngine(ConnectionProvider connectionProvider) {
+        this(connectionProvider, () -> null, defaultProcessors(), List.of());
     }
     
     /**
      * 可配置构造器 - 支持外部传入处理器列表
      * 这满足了"不写死"的需求，支持扩展
      */
-    public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> processors) {
-        this(connectionManager, processors, List.of());
+    public DefaultSqlEngine(ConnectionProvider connectionProvider, List<SqlProcessor> processors) {
+        this(connectionProvider, processors, List.of());
     }
 
-    public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> processors,
+    public DefaultSqlEngine(ConnectionProvider connectionProvider, List<SqlProcessor> processors,
                             List<ExecutionInterceptor> interceptors) {
-        this.connectionManager = connectionManager;
-        this.processors = List.copyOf(processors);
+        this(connectionProvider, () -> null, processors, interceptors);
+    }
+
+    public DefaultSqlEngine(ConnectionProvider connectionProvider, TransactionCoordinator transactionCoordinator,
+                            List<SqlProcessor> processors, List<ExecutionInterceptor> interceptors) {
+        this.connectionProvider = connectionProvider;
+        List<SqlProcessor> configuredProcessors = new ArrayList<>(processors.size() + 1);
+        configuredProcessors.add(new ConnectionProcessor(connectionProvider, transactionCoordinator));
+        configuredProcessors.addAll(processors);
+        this.processors = List.copyOf(configuredProcessors);
         this.interceptors = List.copyOf(interceptors);
     }
     
@@ -66,16 +68,11 @@ public class DefaultSqlEngine implements SqlEngine {
      * 创建默认的5个物理必需处理器
      * 基于SQL执行的物理步骤：连接→事务→参数→执行→结果
      */
-    private List<SqlProcessor> createDefaultProcessors(ConnectionManager connectionManager) {
-        // 创建默认的事务管理器
-        TransactionManager defaultTransactionManager = new org.liteorm.DefaultTransactionManager(connectionManager);
-        
+    private static List<SqlProcessor> defaultProcessors() {
         return Arrays.asList(
-            new ConnectionProcessor(connectionManager),              // 1. 获取连接（物理必需）
-            new TransactionProcessor(defaultTransactionManager),     // 2. 事务管理（一致性必需）
-            new ParameterProcessor(),                                // 3. 参数绑定（安全性必需）  
-            new ExecutionProcessor(),                                // 4. SQL执行（核心必需）
-            new ResultProcessor()                                    // 5. 结果提取（数据获取必需）
+            new ParameterProcessor(),
+            new ExecutionProcessor(),
+            new ResultProcessor()
         );
     }
     
@@ -151,8 +148,8 @@ public class DefaultSqlEngine implements SqlEngine {
             }
         } catch (Exception ignored) {
         }
-        if (context.getConnection() != null) {
-            connectionManager.releaseConnection(context.getConnection());
+        if (context.getConnection() != null && !context.isInTransaction()) {
+            connectionProvider.release(context.getConnection());
         }
     }
     
@@ -172,42 +169,4 @@ public class DefaultSqlEngine implements SqlEngine {
         }
     }
     
-    @Override
-    public TransactionContext beginTransaction() {
-        // 委托给TransactionManager
-        TransactionManager txManager = new DefaultTransactionManager(connectionManager);
-        try {
-            return txManager.begin();
-        } catch (TransactionException e) {
-            throw new RuntimeException("Failed to begin transaction", e);
-        }
-    }
-    
-    @Override
-    public void commitTransaction(TransactionContext txContext) {
-        if (txContext == null) {
-            throw new IllegalArgumentException("TransactionContext cannot be null");
-        }
-        
-        TransactionManager txManager = new DefaultTransactionManager(connectionManager);
-        try {
-            txManager.commit(txContext);
-        } catch (TransactionException e) {
-            throw new RuntimeException("Failed to commit transaction", e);
-        }
-    }
-    
-    @Override
-    public void rollbackTransaction(TransactionContext txContext) {
-        if (txContext == null) {
-            throw new IllegalArgumentException("TransactionContext cannot be null");
-        }
-        
-        TransactionManager txManager = new DefaultTransactionManager(connectionManager);
-        try {
-            txManager.rollback(txContext);
-        } catch (TransactionException e) {
-            throw new RuntimeException("Failed to rollback transaction", e);
-        }
-    }
 }

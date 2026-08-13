@@ -59,7 +59,7 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - `AstNode` 表示动态 SQL 结构。
   - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
   - `DefaultSqlEngine` 通过 processor chain 执行 SQL。
-  - `DefaultTransactionManager` 提供本地事务上下文。
+  - `StandaloneSqlEngine` 与 `LocalTransactionCoordinator` 提供本地事务边界。
 - `lite-orm-spring-boot-starter`
   - 提供 Spring Boot 自动配置入口。
   - 扫描并注册编译期生成的 Mapper 实现。
@@ -118,10 +118,14 @@ ExecutionPlan
 Runtime SQL Pipeline
         |
         +--> ConnectionProcessor
-        +--> TransactionProcessor
         +--> ParameterProcessor
         +--> ExecutionProcessor
         +--> ResultProcessor
+
+Standalone transaction boundary
+        |
+        +--> StandaloneSqlEngine
+        +--> LocalTransactionCoordinator
 ```
 
 ### 编译期职责

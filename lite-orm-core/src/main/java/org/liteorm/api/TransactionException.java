@@ -20,6 +20,7 @@ public class TransactionException extends Exception {
         BEGIN_FAILED,    // 开始事务失败（连接、权限等问题）
         COMMIT_FAILED,   // 提交失败（约束、锁等问题）
         ROLLBACK_FAILED, // 回滚失败（连接断开等问题）
+        CLEANUP_FAILED,  // 事务完成后的连接状态恢复或释放失败
         TIMEOUT,         // 事务超时（长时间未完成）
         DEADLOCK         // 死锁检测（资源竞争）
     }
@@ -48,6 +49,7 @@ public class TransactionException extends Exception {
             case BEGIN_FAILED -> "事务启动失败: " + getMessage();
             case COMMIT_FAILED -> "事务提交失败: " + getMessage();
             case ROLLBACK_FAILED -> "事务回滚失败: " + getMessage();
+            case CLEANUP_FAILED -> "事务清理失败: " + getMessage();
             case TIMEOUT -> "事务执行超时: " + getMessage();
             case DEADLOCK -> "检测到死锁: " + getMessage();
         };

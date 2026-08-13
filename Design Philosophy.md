@@ -80,14 +80,14 @@ lite-orm user-facing dependency
 不是为了扩展而设计，而是为了必要性而存在
 ```
 
-**5个核心处理器**（基于SQL执行的物理必需）：
+**5个核心运行时职责**（基于SQL执行和事务边界的物理必需）：
 1. **ConnectionProcessor** - 获取连接（物理必需）
-2. **TransactionProcessor** - 事务管理（数据一致性必需）
+2. **LocalTransactionCoordinator** - 事务管理（数据一致性必需）
 3. **ParameterProcessor** - 参数绑定（安全性必需）
 4. **ExecutionProcessor** - SQL执行（核心必需）
 5. **ResultProcessor** - 结果提取（数据获取必需）
 
-每个都是 SQL 执行链路上的必要步骤。扩展点可以存在，但默认链路不应该被缓存、审计、分页、路由等远期能力污染。
+其中 `ConnectionProcessor`、`ParameterProcessor`、`ExecutionProcessor`、`ResultProcessor` 属于单次 SQL 执行链；`LocalTransactionCoordinator` 位于执行链外，负责跨多次 Mapper 调用的本地事务边界。扩展点可以存在，但默认链路不应该被缓存、审计、分页、路由等远期能力污染。
 
 ### 📊 推理过程核心表格
 
@@ -99,7 +99,7 @@ lite-orm user-facing dependency
 | **参数绑定** | 防SQL注入的参数设置 | ParameterProcessor | 安全性要求 | ✅ 物理必需 |
 | **SQL执行** | 原生JDBC调用 | ExecutionProcessor | 核心动作 | ✅ 物理必需 |
 | **结果提取** | ResultSet → Object[] | ResultProcessor | 数据获取 | ✅ 物理必需 |
-| **事务管理** | commit/rollback | TransactionProcessor | 数据一致性 | ✅ 物理必需 |
+| **事务管理** | commit/rollback | LocalTransactionCoordinator | 数据一致性 | ✅ 物理必需 |
 
 > **洞察**：每个元素都对应SQL执行的物理事实，没有多余抽象
 
@@ -127,12 +127,12 @@ lite-orm user-facing dependency
 
 > **判断**：编译期方案有明确性能和诊断优势空间，但必须通过真实基准和迁移样例验证，不能只靠理论结论。
 
-#### 🎯 责任链处理器详细表
+#### 🎯 运行时组件详细表
 
-| 处理器 | 单一职责 | 输入 | 输出 | 物理对应 | 为什么必需 |
+| 组件 | 单一职责 | 输入 | 输出 | 物理对应 | 为什么必需 |
 |--------|----------|------|------|----------|------------|
 | **ConnectionProcessor** | 获取数据库连接 | 无连接状态 | Connection对象 | 数据库物理连接 | 没有连接无法操作数据库 |
-| **TransactionProcessor** | 管理事务状态 | Connection | 事务状态设置 | 数据库事务机制 | 保证数据一致性 |
+| **LocalTransactionCoordinator** | 管理事务状态 | Connection | 事务状态设置 | 数据库事务机制 | 保证数据一致性 |
 | **ParameterProcessor** | 绑定SQL参数 | SQL+参数值 | PreparedStatement | JDBC参数绑定 | 防止SQL注入 |
 | **ExecutionProcessor** | 执行SQL语句 | PreparedStatement | ResultSet/UpdateCount | SQL引擎执行 | 这是核心操作 |
 | **ResultProcessor** | 提取查询结果 | ResultSet | Object[]数组 | 内存数据结构 | 将数据库结果转为Java对象 |
@@ -301,8 +301,8 @@ org.liteorm/
 │   ├── SqlEngine.java      # 执行引擎接口
 │   ├── SqlTask.java        # 任务封装
 │   ├── SqlResult.java      # 结果封装
-│   ├── ConnectionManager.java  # 连接管理接口
-│   ├── TransactionManager.java # 事务管理接口
+│   ├── ConnectionProvider.java  # 连接管理接口
+│   ├── TransactionCoordinator.java # 事务管理接口
 │   ├── TransactionContext.java # 事务上下文
 │   └── TransactionException.java # 事务异常
 ├── compile/                # 编译期组件（时间维度）
@@ -312,11 +312,12 @@ org.liteorm/
 ├── runtime/                # 运行时组件（时间维度）
 │   ├── SqlProcessor.java       # 处理器接口
 │   ├── ConnectionProcessor.java # 连接处理器
-│   ├── TransactionProcessor.java # 事务处理器
 │   ├── ParameterProcessor.java  # 参数处理器
 │   ├── ExecutionProcessor.java  # 执行处理器
 │   └── ResultProcessor.java    # 结果处理器
-└── DefaultSqlEngine.java   # 默认实现（可配置）
+├── LocalTransactionCoordinator.java # 本地事务协调器
+├── StandaloneSqlEngine.java # 本地事务与执行引擎组合入口
+└── DefaultSqlEngine.java   # 纯 SQL 执行实现（可配置）
 ```
 
 **收益**：
@@ -331,11 +332,11 @@ org.liteorm/
 
 **解决方案**：支持外部传入处理器列表
 ```java
-// 默认构造器 - 使用标准的5个物理必需处理器
-public DefaultSqlEngine(ConnectionManager connectionManager)
+// 默认构造器 - 使用标准 SQL 执行链
+public DefaultSqlEngine(ConnectionProvider connectionProvider)
 
 // 可配置构造器 - 支持外部传入处理器列表
-public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> processors)
+public DefaultSqlEngine(ConnectionProvider connectionProvider, List<SqlProcessor> processors)
 ```
 
 **收益**：
@@ -353,14 +354,15 @@ public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> 
 ```
 
 **核心组件**：
-- **TransactionManager**: 事务管理接口（最小化API）
+- **TransactionCoordinator**: 只暴露当前事务连接
+- **TransactionOperations**: 只暴露手动 begin/commit/rollback
 - **TransactionContext**: 事务上下文（线程安全）
 - **TransactionException**: 事务异常（详细分类）
-- **DefaultTransactionManager**: 自管理实现（ThreadLocal隔离）
+- **LocalTransactionCoordinator**: 自管理实现（ThreadLocal隔离）
 
 **集成支持**：
-- ✅ 自管理模式：LiteORM完全控制事务生命周期
-- ✅ 外部集成：预留Spring等框架集成接口
+- ✅ 自管理模式：`StandaloneSqlEngine` 委托 `LocalTransactionCoordinator` 控制事务生命周期
+- ✅ Spring模式：Spring 控制 begin/commit/rollback，LiteORM 只通过 `DataSourceUtils` 借还连接
 - ✅ 线程安全：基于ThreadLocal的事务隔离
 - ✅ 异常安全：自动回滚和资源清理
 

@@ -27,9 +27,24 @@ Generated sources are written under:
 lite-orm-examples/basic-mapper/target/generated-sources/annotations
 ```
 
-Application code constructs a generated Mapper with a LiteORM `ConnectionManager`:
+Application code constructs a generated Mapper with a LiteORM `ConnectionProvider`:
 
 ```java
-SimpleConnectionManager connectionManager = new SimpleConnectionManager(dataSource);
-UserMapper mapper = new UserMapperImpl(connectionManager);
+JdbcConnectionProvider connectionProvider = new JdbcConnectionProvider(dataSource);
+UserMapper mapper = new UserMapperImpl(connectionProvider);
+```
+
+Standalone local transactions use one shared engine/coordinator instance:
+
+```java
+StandaloneSqlEngine sqlEngine = new StandaloneSqlEngine(connectionProvider);
+UserMapper mapper = new UserMapperImpl(sqlEngine);
+TransactionContext transaction = sqlEngine.begin();
+try {
+    mapper.insert(1L, "Alice", "alice@example.com", 30);
+    sqlEngine.commit(transaction);
+} catch (Exception failure) {
+    sqlEngine.rollback(transaction);
+    throw failure;
+}
 ```
