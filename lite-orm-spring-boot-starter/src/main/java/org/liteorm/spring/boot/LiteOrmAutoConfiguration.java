@@ -2,6 +2,7 @@ package org.liteorm.spring.boot;
 
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.api.ConnectionManager;
+import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.runtime.*;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.ObjectProvider;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -47,7 +49,9 @@ public class LiteOrmAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public SqlEngine liteOrmSqlEngine(ConnectionManager connectionManager) {
+    public SqlEngine liteOrmSqlEngine(
+            ConnectionManager connectionManager,
+            ObjectProvider<ExecutionInterceptor> interceptorProvider) {
         // 构建处理器链
         List<SqlProcessor> processors = new ArrayList<>();
         
@@ -81,6 +85,10 @@ public class LiteOrmAutoConfiguration {
         // 8. 结果处理器
         processors.add(new ResultProcessor());
         
-        return new DefaultSqlEngine(connectionManager, processors);
+        return new DefaultSqlEngine(
+            connectionManager,
+            processors,
+            interceptorProvider.orderedStream().toList()
+        );
     }
 }

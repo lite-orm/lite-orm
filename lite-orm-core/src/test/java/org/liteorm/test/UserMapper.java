@@ -1,10 +1,10 @@
 package org.liteorm.test;
 
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Update;
-import org.apache.ibatis.annotations.Delete;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Select;
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Update;
+import org.liteorm.annotation.Delete;
 
 import java.util.List;
 

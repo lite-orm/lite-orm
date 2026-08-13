@@ -2,6 +2,7 @@ package org.liteorm.runtime;
 
 import org.liteorm.ExecutionContext;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.RowMapper;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -25,7 +26,9 @@ public class ResultProcessor implements SqlProcessor {
             ResultSet resultSet = context.getResultSet();
             if (resultSet != null) {
                 try {
-                    List<Object[]> results = extractResultSet(resultSet);
+                    List<Object[]> results = plan.getRowMapper() == null
+                        ? extractResultSet(resultSet)
+                        : mapResultSet(resultSet, plan.getRowMapper());
                     context.setQueryResults(results);
                 } catch (SQLException e) {
                     throw new RuntimeException("Failed to extract ResultSet", e);
@@ -33,6 +36,14 @@ public class ResultProcessor implements SqlProcessor {
             }
         }
         // 更新操作的结果已在ExecutionProcessor中设置
+    }
+
+    private List<Object[]> mapResultSet(ResultSet resultSet, RowMapper<?> rowMapper) throws SQLException {
+        List<Object[]> results = new ArrayList<>();
+        while (resultSet.next()) {
+            results.add(new Object[]{rowMapper.map(resultSet)});
+        }
+        return results;
     }
     
     /**

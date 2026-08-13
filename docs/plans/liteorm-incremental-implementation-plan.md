@@ -18,8 +18,9 @@
 - Preserve the core goal: compile-time MyBatis-style Mapper subset, not full MyBatis compatibility.
 - Keep the static generated path as the default; extension points require explicit declaration.
 - Bind extension implementations at compile time and generate ordinary Java method calls.
+- Keep all public annotations in the LiteORM-owned `org.liteorm.annotation` namespace; do not publish compatibility classes under MyBatis/iBatis package names.
 - Never silently fall back to reflection, runtime XML parsing, arbitrary OGNL, or string-based Mapper dispatch.
-- Prefer mature, widely used, lightweight libraries when they reduce parser or protocol risk; expression libraries may be used during annotation processing, but generated Mapper execution must not depend on runtime expression interpretation.
+- Prefer mature, widely used, lightweight libraries when they reduce protocol or infrastructure risk. Do not use OGNL, MVEL, SpEL, or another expression engine: translate the supported OGNL-like subset directly into native Java during annotation processing, and fail compilation for unsupported expressions.
 - Keep custom SQL creation, parameter/result conversion, and execution interception as separate contracts.
 - Run `mvn clean test` before marking a module complete.
 - Do not implement P2 platform features until P0 and P1, including the extension contracts, are stable.
@@ -149,7 +150,9 @@ generated MapperImpl
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test`
 
 - [x] Define the supported expression subset for `test` and `bind`: null/boolean/string/number comparisons, `and`/`or`, simple property paths, array `length`, collection `size()`, and string concatenation in `bind`; reject arbitrary method and static OGNL calls.
+- [x] Translate the supported subset directly into native Java source without an expression-engine dependency at compile time or runtime.
 - [x] Add tests for supported null checks, boolean operators, empty-string checks, simple property paths, array length, collection size, and bind concatenation through existing generated Mapper fixtures.
+- [x] Assert generated source contains native Java operations and no OGNL, MVEL, or SpEL references.
 - [x] Add tests for unsupported method calls or complex OGNL expressions.
 - [x] Reject `${}` by default; route genuinely dynamic identifiers or SQL structure through the explicit SQL provider extension in M6.
 - [x] Add compile-time diagnostics for unsafe `${}` usage.
@@ -261,20 +264,20 @@ generated MapperImpl
 - Modify: `lite-orm-core/src/main/java/org/liteorm/runtime/ResultProcessor.java` only if generated row mappers require a runtime hand-off.
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/mapping`
 
-- [ ] Define `ParameterBinder<T>` around `PreparedStatement`, parameter index, and typed value.
-- [ ] Define `RowMapper<T>` around `ResultSet` positioned at one current row.
-- [ ] Support explicit binder selection for a Mapper parameter or mapped Java type without global reflective type lookup.
-- [ ] Support explicit row mapper selection for single-result and `List<T>` query methods.
-- [ ] Validate generic target types, adapter visibility, construction requirements, and Mapper method compatibility at compile time.
-- [ ] Generate direct binder and row mapper calls in the Mapper implementation or generated execution-plan helpers.
-- [ ] Define null handling: generated code decides whether to call a binder for null, and row mappers run only after `ResultSet.next()` succeeds.
-- [ ] Define precedence as explicit method/parameter adapter, then generated built-in mapping, otherwise compile-time failure.
-- [ ] Add an H2 integration test using a non-default value conversion such as a JSON-like string value object.
-- [ ] Add a custom row mapping test for a shape intentionally unsupported by built-in mapping.
-- [ ] Add compile-time diagnostics for incompatible adapter types and ambiguous adapter declarations.
-- [ ] Assert generated adapter invocation uses direct Java calls without reflective construction or property discovery.
-- [ ] Run focused binder and row mapper tests.
-- [ ] Run `mvn clean test`.
+- [x] Define `ParameterBinder<T>` around `PreparedStatement`, parameter index, and typed value.
+- [x] Define `RowMapper<T>` around `ResultSet` positioned at one current row.
+- [x] Support explicit binder selection for a Mapper parameter or mapped Java type without global reflective type lookup.
+- [x] Support explicit row mapper selection for single-result and `List<T>` query methods.
+- [x] Validate generic target types, adapter visibility, construction requirements, and Mapper method compatibility at compile time.
+- [x] Generate direct binder and row mapper calls in the Mapper implementation or generated execution-plan helpers.
+- [x] Define null handling: generated code decides whether to call a binder for null, and row mappers run only after `ResultSet.next()` succeeds.
+- [x] Define precedence as explicit method/parameter adapter, then generated built-in mapping, otherwise compile-time failure.
+- [x] Add an H2 integration test using a non-default value conversion such as a JSON-like string value object.
+- [x] Add a custom row mapping test for a shape intentionally unsupported by built-in mapping.
+- [x] Add compile-time diagnostics for incompatible adapter types and ambiguous adapter declarations.
+- [x] Assert generated adapter invocation uses direct Java calls without reflective construction or property discovery.
+- [x] Run focused binder and row mapper tests.
+- [x] Run `mvn clean test`.
 
 **Completion criteria:**
 - Special JDBC types and custom object construction are supported without weakening built-in static mapping.
@@ -294,18 +297,18 @@ generated MapperImpl
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/interceptor`
 - Add tests under: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot`
 
-- [ ] Define stable interception phases around execution instead of allowing interception of arbitrary internal methods.
-- [ ] Expose statement metadata, final SQL, ordered parameters, timing state, result summary, and failure information through a narrow context.
-- [ ] Prevent interceptors from replacing generated parameter binders or row mappers through reflection.
-- [ ] For the MVP, allow observation and explicitly modeled routing metadata but reject arbitrary SQL mutation.
-- [ ] Define deterministic ordering and unwind completion and failure callbacks in reverse order.
-- [ ] Define exception semantics so interceptor failures never suppress JDBC rollback or resource cleanup.
-- [ ] Adapt existing logging, slow-query, and audit processors only where necessary; do not build a full observability pack in this module.
-- [ ] Allow Spring Boot to collect ordered `ExecutionInterceptor` beans without Mapper-specific runtime scanning.
-- [ ] Add tests for ordering, success callbacks, failure callbacks, cleanup, and transaction interaction.
-- [ ] Add tests proving zero interceptors preserve current direct execution behavior.
-- [ ] Run focused interceptor and starter tests.
-- [ ] Run `mvn clean test`.
+- [x] Define stable interception phases around execution instead of allowing interception of arbitrary internal methods.
+- [x] Expose statement metadata, final SQL, ordered parameters, timing state, result summary, and failure information through a narrow context.
+- [x] Prevent interceptors from replacing generated parameter binders or row mappers through reflection.
+- [x] For the MVP, allow observation and explicitly modeled routing metadata but reject arbitrary SQL mutation.
+- [x] Define deterministic ordering and unwind completion and failure callbacks in reverse order.
+- [x] Define exception semantics so interceptor failures never suppress JDBC rollback or resource cleanup.
+- [x] Adapt existing logging, slow-query, and audit processors only where necessary; do not build a full observability pack in this module.
+- [x] Allow Spring Boot to collect ordered `ExecutionInterceptor` beans without Mapper-specific runtime scanning.
+- [x] Add tests for ordering, success callbacks, failure callbacks, cleanup, and transaction interaction.
+- [x] Add tests proving zero interceptors preserve current direct execution behavior.
+- [x] Run focused interceptor and starter tests (2026-08-13: core and Spring integration suites passed).
+- [x] Run `mvn clean test` (2026-08-13: full reactor passed).
 
 **Completion criteria:**
 - Cross-cutting behavior has a stable extension contract without MyBatis-style reflective interception of arbitrary internals.
@@ -322,21 +325,21 @@ generated MapperImpl
 - Add fixtures under: `lite-orm-core/src/test/resources/org/liteorm/test/migration`
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test`
 
-- [ ] Document supported annotation patterns.
-- [ ] Document supported XML dynamic SQL tags.
-- [ ] Document unsupported MyBatis features with suggested migration paths.
-- [ ] Document the decision order: generated built-in path first, typed extension second, explicit raw JDBC last.
-- [ ] Document SQL provider, custom binder/row mapper, and execution interceptor usage and their reduced compile-time guarantees.
-- [ ] Add fixture for simple CRUD mapper.
-- [ ] Add fixture for XML dynamic query mapper.
-- [ ] Add fixture for `foreach` bulk lookup.
-- [ ] Add fixture for update with `set`.
-- [ ] Add fixture that intentionally fails on unsupported complex `resultMap`.
-- [ ] Add a provider fixture for runtime SQL structure that cannot use `${}`.
-- [ ] Add a custom binder/row mapper fixture for a special value object.
-- [ ] Add an interceptor fixture demonstrating ordered logging or auditing without changing Mapper dispatch.
-- [ ] Run migration fixture tests.
-- [ ] Run `mvn clean test`.
+- [x] Document supported annotation patterns.
+- [x] Document supported XML dynamic SQL tags.
+- [x] Document unsupported MyBatis features with suggested migration paths.
+- [x] Document the decision order: generated built-in path first, typed extension second, explicit raw JDBC last.
+- [x] Document SQL provider, custom binder/row mapper, and execution interceptor usage and their reduced compile-time guarantees.
+- [x] Add fixture for simple CRUD mapper.
+- [x] Add fixture for XML dynamic query mapper.
+- [x] Add fixture for `foreach` bulk lookup.
+- [x] Add fixture for update with `set`.
+- [x] Add fixture that intentionally fails on unsupported complex `resultMap`.
+- [x] Add a provider fixture for runtime SQL structure that cannot use `${}`.
+- [x] Add a custom binder/row mapper fixture for a special value object.
+- [x] Add an interceptor fixture demonstrating ordered logging or auditing without changing Mapper dispatch.
+- [x] Run migration fixture tests (2026-08-13: 12 diagnostic compilation tests and 9 H2 example tests passed).
+- [x] Run `mvn clean test` (2026-08-13: full reactor passed).
 
 **Completion criteria:**
 - Compatibility is proven by fixtures, not just README text.

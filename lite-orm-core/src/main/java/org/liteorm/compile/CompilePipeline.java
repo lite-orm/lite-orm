@@ -107,7 +107,7 @@ public class CompilePipeline {
      */
     public boolean supports(TypeElement mapperInterface) {
         // 检查是否有@Mapper注解
-        if (mapperInterface.getAnnotation(org.apache.ibatis.annotations.Mapper.class) != null) {
+        if (mapperInterface.getAnnotation(org.liteorm.annotation.Mapper.class) != null) {
             return true;
         }
         
@@ -194,11 +194,16 @@ public class CompilePipeline {
             }
         }
 
+        AdapterBindings adapterBindings = analyzeAdapterBindings(
+            mapperInterface, method, sqlInfo, providerBinding, methodParameters, parameterResult.bindings());
+
         // 3. 构建方法信息
         String methodName = method.getSimpleName().toString();
         String returnType = method.getReturnType().toString();
         String parameterList = buildParameterList(method);
-        ResultMapping resultMapping = generateResultMapping(mapperInterface, method, returnType);
+        ResultMapping resultMapping = adapterBindings.rowMapperFieldName() == null
+            ? generateResultMapping(mapperInterface, method, returnType)
+            : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "");
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -218,10 +223,183 @@ public class CompilePipeline {
             providerBinding == null ? null : providerBinding.providerClassName(),
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
+            adapterBindings.adapterFields(),
+            adapterBindings.parameterBinderFields(),
+            adapterBindings.rowMapperFieldName(),
             methodParameters,
             parameterResult.bindings(),
             sqlInfo == null ? null : sqlInfo.astNode()
         );
+    }
+
+    private AdapterBindings analyzeAdapterBindings(
+            TypeElement mapperInterface, ExecutableElement method,
+            SqlContentParser.SqlParseResult sqlInfo, ProviderBinding providerBinding,
+            List<SqlParameterParser.MethodParameter> methodParameters,
+            List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
+        List<MapperCompilationModel.AdapterField> fields = new ArrayList<>();
+        List<String> binderFields = new ArrayList<>();
+        String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+
+        boolean hasBinder = method.getParameters().stream()
+            .anyMatch(parameter -> findAnnotation(parameter, "org.liteorm.annotation.UseParameterBinder") != null);
+        if (hasBinder && (providerBinding != null || sqlInfo == null || sqlInfo.isDynamic())) {
+            throw new CompileException(methodLocation
+                + ": custom parameter binders currently require static annotation or XML SQL");
+        }
+
+        java.util.Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters =
+            new java.util.LinkedHashMap<>();
+        for (VariableElement parameter : method.getParameters()) {
+            AnnotationMirror annotation = findAnnotation(
+                parameter, "org.liteorm.annotation.UseParameterBinder");
+            if (annotation == null) {
+                continue;
+            }
+            TypeElement binderElement = validateAdapter(
+                mapperInterface, method, annotationTypeValue(annotation, "value"),
+                "org.liteorm.api.ParameterBinder", parameter.asType(), "parameter binder target type");
+            String fieldName = method.getSimpleName() + capitalize(parameter.getSimpleName().toString())
+                + "ParameterBinder";
+            MapperCompilationModel.AdapterField adapterField = new MapperCompilationModel.AdapterField(
+                binderElement.getQualifiedName().toString(), fieldName);
+            parameterAdapters.put(parameter, adapterField);
+            addAdapterField(fields, binderElement, fieldName);
+        }
+
+        for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
+            String root = binding.expression().split("\\.", 2)[0];
+            VariableElement parameter = findMethodParameter(method, methodParameters, root);
+            MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
+            if (adapterField == null) {
+                binderFields.add(null);
+                continue;
+            }
+            if (binding.expression().contains(".")) {
+                throw new CompileException(methodLocation
+                    + ": custom parameter binder must bind the whole Mapper parameter, not property "
+                    + binding.expression());
+            }
+            binderFields.add(adapterField.fieldName());
+        }
+
+        AnnotationMirror rowMapperAnnotation = findAnnotation(method, "org.liteorm.annotation.UseRowMapper");
+        String rowMapperField = null;
+        if (rowMapperAnnotation != null) {
+            if (providerBinding != null && providerBinding.statementType() != ExecutionPlan.StatementType.SELECT) {
+                throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
+            }
+            ExecutionPlan.StatementType statementType = providerBinding == null
+                ? mapStatementType(sqlInfo.sqlType()) : providerBinding.statementType();
+            if (statementType != ExecutionPlan.StatementType.SELECT) {
+                throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
+            }
+            String mappedType = extractMappedType(method.getReturnType().toString());
+            TypeElement mappedTypeElement = elementUtils.getTypeElement(mappedType);
+            TypeMirror mappedTypeMirror = mappedTypeElement == null
+                ? method.getReturnType() : mappedTypeElement.asType();
+            TypeElement rowMapperElement = validateAdapter(
+                mapperInterface, method, annotationTypeValue(rowMapperAnnotation, "value"),
+                "org.liteorm.api.RowMapper", mappedTypeMirror, "row mapper target type");
+            rowMapperField = method.getSimpleName() + "RowMapper";
+            addAdapterField(fields, rowMapperElement, rowMapperField);
+        }
+        return new AdapterBindings(
+            List.copyOf(fields),
+            java.util.Collections.unmodifiableList(new ArrayList<>(binderFields)),
+            rowMapperField
+        );
+    }
+
+    private VariableElement findMethodParameter(
+            ExecutableElement method, List<SqlParameterParser.MethodParameter> descriptions, String alias) {
+        for (int index = 0; index < descriptions.size(); index++) {
+            if (descriptions.get(index).aliases().contains(alias)) {
+                return method.getParameters().get(index);
+            }
+        }
+        return null;
+    }
+
+    private TypeElement validateAdapter(
+            TypeElement mapperInterface, ExecutableElement method, TypeMirror adapterType,
+            String interfaceName, TypeMirror expectedTarget, String mismatchLabel) throws CompileException {
+        TypeElement adapterElement = (TypeElement) typeUtils.asElement(adapterType);
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        if (adapterElement == null) {
+            throw new CompileException(location + ": adapter type could not be resolved");
+        }
+        String mapperPackage = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
+        boolean samePackage = mapperPackage.equals(
+            elementUtils.getPackageOf(adapterElement).getQualifiedName().toString());
+        if (adapterElement.getModifiers().contains(Modifier.ABSTRACT)
+                || adapterElement.getModifiers().contains(Modifier.PRIVATE)
+                || (!samePackage && !adapterElement.getModifiers().contains(Modifier.PUBLIC))) {
+            throw new CompileException(location + ": adapter must be a concrete accessible class");
+        }
+        boolean hasNoArgConstructor = adapterElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
+            .map(ExecutableElement.class::cast)
+            .anyMatch(constructor -> constructor.getParameters().isEmpty()
+                && (constructor.getModifiers().contains(Modifier.PUBLIC)
+                    || (samePackage && !constructor.getModifiers().contains(Modifier.PRIVATE))));
+        if (!hasNoArgConstructor) {
+            throw new CompileException(location + ": adapter requires an accessible no-arg constructor");
+        }
+        TypeMirror actualTarget = findGenericInterfaceInput(adapterElement, interfaceName);
+        if (actualTarget == null) {
+            throw new CompileException(location + ": adapter must implement " + interfaceName + "<T>");
+        }
+        if (!typeUtils.isSameType(typeUtils.erasure(actualTarget), typeUtils.erasure(expectedTarget))) {
+            throw new CompileException(location + ": " + mismatchLabel + " " + actualTarget
+                + " does not match " + expectedTarget);
+        }
+        return adapterElement;
+    }
+
+    private TypeMirror findGenericInterfaceInput(TypeElement typeElement, String interfaceName) {
+        for (TypeMirror interfaceType : typeElement.getInterfaces()) {
+            if (interfaceType instanceof DeclaredType declaredType
+                    && declaredType.asElement() instanceof TypeElement interfaceElement) {
+                if (interfaceElement.getQualifiedName().contentEquals(interfaceName)
+                        && declaredType.getTypeArguments().size() == 1) {
+                    return declaredType.getTypeArguments().get(0);
+                }
+                TypeMirror inherited = findGenericInterfaceInput(interfaceElement, interfaceName);
+                if (inherited != null) {
+                    return inherited;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void addAdapterField(
+            List<MapperCompilationModel.AdapterField> fields, TypeElement adapterElement, String fieldName) {
+        if (fields.stream().noneMatch(field -> field.fieldName().equals(fieldName))) {
+            fields.add(new MapperCompilationModel.AdapterField(
+                adapterElement.getQualifiedName().toString(), fieldName));
+        }
+    }
+
+    private AnnotationMirror findAnnotation(javax.lang.model.element.Element element, String annotationName) {
+        return element.getAnnotationMirrors().stream()
+            .filter(annotation -> annotation.getAnnotationType().toString().equals(annotationName))
+            .findFirst().orElse(null);
+    }
+
+    private String extractMappedType(String returnType) {
+        return returnType.contains("List<") ? extractListElementType(returnType) : returnType;
+    }
+
+    private String capitalize(String value) {
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private record AdapterBindings(
+        List<MapperCompilationModel.AdapterField> adapterFields,
+        List<String> parameterBinderFields,
+        String rowMapperFieldName) {
     }
 
     private ProviderBinding analyzeProviderBinding(TypeElement mapperInterface, ExecutableElement method)

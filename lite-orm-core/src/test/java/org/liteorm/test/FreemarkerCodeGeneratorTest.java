@@ -9,6 +9,7 @@ import org.liteorm.compile.SqlParameterParser;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FreemarkerCodeGeneratorTest {
@@ -33,6 +34,9 @@ class FreemarkerCodeGeneratorTest {
             "",
             null,
             null,
+            null,
+            List.of(),
+            List.of(),
             null,
             List.of(new SqlParameterParser.MethodParameter("id", "id", "java.lang.Long", List.of("id", "param1", "arg0"))),
             List.of(new SqlParameterParser.ParameterBinding(1, "id", "id", "java.lang.Long")),
@@ -65,6 +69,9 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             null,
+            List.of(),
+            List.of(),
+            null,
             List.of(new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0"))),
             List.of(),
             new AstNode.ContainerNode(List.of(
@@ -80,5 +87,50 @@ class FreemarkerCodeGeneratorTest {
         assertTrue(code.contains("if (name != null && !name.isEmpty())"));
         assertTrue(code.contains("parameters.add(name);"));
         assertTrue(code.contains("sql.append(\"?\");"));
+    }
+
+    @Test
+    void translatesSupportedExpressionsDirectlyToNativeJava() throws Exception {
+        MapperCompilationModel.MethodModel method = new MapperCompilationModel.MethodModel(
+            "search",
+            "java.util.List<org.liteorm.test.User>",
+            "String name, java.util.List<Long> ids, long[] excludedIds",
+            "buildSearchExecutionPlan",
+            "org.liteorm.test.UserMapper.search",
+            ExecutionPlan.StatementType.SELECT,
+            ExecutionPlan.SqlSource.XML,
+            "<script>SELECT * FROM users</script>",
+            true,
+            false,
+            "java.util.List<org.liteorm.test.User>",
+            "new org.liteorm.test.User((Long)row[0], (String)row[1], null, null)",
+            "",
+            null,
+            null,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            List.of(
+                new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0")),
+                new SqlParameterParser.MethodParameter("ids", "ids", "java.util.List<java.lang.Long>", List.of("ids", "param2", "arg1")),
+                new SqlParameterParser.MethodParameter("excludedIds", "excludedIds", "long[]", List.of("excludedIds", "param3", "arg2"))
+            ),
+            List.of(),
+            new AstNode.ContainerNode(List.of(
+                new AstNode.BindNode("pattern", "'%' + name + '%'"),
+                new AstNode.IfNode("name != null and name != ''", List.of(new AstNode.TextNode(" AND name LIKE #{pattern}"))),
+                new AstNode.IfNode("ids != null and ids.size() > 0", List.of(new AstNode.TextNode(" AND id IN (#{ids})"))),
+                new AstNode.IfNode("excludedIds != null and excludedIds.length > 0", List.of(new AstNode.TextNode(" AND id NOT IN (#{excludedIds})")))
+            ))
+        );
+
+        String code = generator.generateMethodImpl(method);
+
+        assertTrue(code.contains("Object pattern = \"%\" + name + \"%\";"));
+        assertTrue(code.contains("if (name != null && !name.isEmpty())"));
+        assertTrue(code.contains("if (ids != null && ids.size() > 0)"));
+        assertTrue(code.contains("if (excludedIds != null && excludedIds.length > 0)"));
+        assertFalse(code.matches("(?s).*\\b(?:ognl|Ognl|MVEL|SpEL)\\b.*"));
     }
 }

@@ -1,6 +1,6 @@
 package org.liteorm.compile;
 
-import org.apache.ibatis.annotations.Mapper;
+import org.liteorm.annotation.Mapper;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -32,7 +32,7 @@ import java.util.Set;
  * @since 2024/09/29
  */
 @SupportedAnnotationTypes({
-    "org.apache.ibatis.annotations.Mapper"
+    "org.liteorm.annotation.Mapper"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class LiteOrmProcessor extends AbstractProcessor {

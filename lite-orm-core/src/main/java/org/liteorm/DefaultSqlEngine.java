@@ -2,6 +2,8 @@ package org.liteorm;
 
 import org.liteorm.api.ConnectionManager;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.ExecutionInterceptor;
+import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionContext;
@@ -15,6 +17,8 @@ import org.liteorm.runtime.SqlProcessor;
 import org.liteorm.runtime.TransactionProcessor;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -32,6 +36,7 @@ public class DefaultSqlEngine implements SqlEngine {
     
     private final List<SqlProcessor> processors;
     private final ConnectionManager connectionManager;
+    private final List<ExecutionInterceptor> interceptors;
     
     /**
      * 默认构造器 - 使用标准的5个物理必需处理器
@@ -39,6 +44,7 @@ public class DefaultSqlEngine implements SqlEngine {
     public DefaultSqlEngine(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
         this.processors = createDefaultProcessors(connectionManager);
+        this.interceptors = List.of();
     }
     
     /**
@@ -46,8 +52,14 @@ public class DefaultSqlEngine implements SqlEngine {
      * 这满足了"不写死"的需求，支持扩展
      */
     public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> processors) {
+        this(connectionManager, processors, List.of());
+    }
+
+    public DefaultSqlEngine(ConnectionManager connectionManager, List<SqlProcessor> processors,
+                            List<ExecutionInterceptor> interceptors) {
         this.connectionManager = connectionManager;
-        this.processors = processors;
+        this.processors = List.copyOf(processors);
+        this.interceptors = List.copyOf(interceptors);
     }
     
     /**
@@ -71,21 +83,58 @@ public class DefaultSqlEngine implements SqlEngine {
     public SqlResult execute(ExecutionPlan plan) {
         // 创建执行上下文
         ExecutionContext context = new ExecutionContext();
+        ExecutionInvocation invocation = new ExecutionInvocation(plan);
+        List<ExecutionInterceptor> enteredInterceptors = new ArrayList<>(interceptors.size());
         
         try {
+            for (ExecutionInterceptor interceptor : interceptors) {
+                enteredInterceptors.add(interceptor);
+                interceptor.beforeExecution(invocation);
+            }
+
             // 按顺序执行所有处理器 - 这是物理执行链
             for (SqlProcessor processor : processors) {
                 processor.process(plan, context);
             }
             
             // 构造成功结果
-            return createSuccessResult(context, plan);
+            SqlResult result = createSuccessResult(context, plan);
+            invocation.complete(
+                plan.getStatementType() == ExecutionPlan.StatementType.SELECT ? 0 : context.getUpdateCount(),
+                context.getQueryResults() == null ? 0 : context.getQueryResults().size(),
+                null
+            );
+            invokeSuccessCallbacks(enteredInterceptors, invocation);
+            return result;
             
         } catch (Exception e) {
-            // 构造错误结果
+            invocation.complete(
+                plan.getStatementType() == ExecutionPlan.StatementType.SELECT ? 0 : context.getUpdateCount(),
+                context.getQueryResults() == null ? 0 : context.getQueryResults().size(),
+                e
+            );
+            invokeFailureCallbacks(enteredInterceptors, invocation, e);
             return SqlResult.error(e);
         } finally {
             closeExecutionResources(context);
+        }
+    }
+
+    private void invokeSuccessCallbacks(
+            List<ExecutionInterceptor> enteredInterceptors, ExecutionInvocation invocation) {
+        for (int index = enteredInterceptors.size() - 1; index >= 0; index--) {
+            enteredInterceptors.get(index).afterSuccess(invocation);
+        }
+    }
+
+    private void invokeFailureCallbacks(
+            List<ExecutionInterceptor> enteredInterceptors, ExecutionInvocation invocation, Exception failure) {
+        for (int index = enteredInterceptors.size() - 1; index >= 0; index--) {
+            try {
+                enteredInterceptors.get(index).afterFailure(invocation);
+            } catch (Exception callbackFailure) {
+                failure.addSuppressed(callbackFailure);
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-package org.apache.ibatis.annotations;
+package org.liteorm.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记删除方法的注解，兼容MyBatis
+ * 标记查询方法的注解
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -15,11 +15,11 @@ import java.lang.annotation.Target;
 @Documented
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Delete {
+public @interface Select {
     
     /**
      * SQL语句，支持参数占位符
-     * 例如：DELETE FROM user WHERE id = #{id}
+     * 例如：SELECT * FROM user WHERE name = #{name}
      */
     String[] value();
 }

@@ -28,7 +28,7 @@ class SqlProviderCompilationTest {
         Compilation result = compile("ValidProviderMapper", """
             package org.liteorm.test.providerfixture;
 
-            import org.apache.ibatis.annotations.Mapper;
+            import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.UseSqlProvider;
             import org.liteorm.api.BoundParameter;
             import org.liteorm.api.BoundSql;
@@ -65,7 +65,7 @@ class SqlProviderCompilationTest {
     @Test
     void rejectsProviderCombinedWithSqlAnnotation() throws Exception {
         Compilation result = compile("ConflictingProviderMapper", source("""
-            @org.apache.ibatis.annotations.Select("SELECT id FROM users")
+            @org.liteorm.annotation.Select("SELECT id FROM users")
             @UseSqlProvider(value = IdProvider.class, statementType = ExecutionPlan.StatementType.SELECT)
             Result find(Query query);
             """, "class IdProvider implements SqlProvider<Query> { public BoundSql provide(Query query) { return new BoundSql(\"SELECT 1\", List.of()); } }"));
@@ -102,7 +102,7 @@ class SqlProviderCompilationTest {
     private String source(String method, String provider) {
         return """
             package org.liteorm.test.providerfixture;
-            import org.apache.ibatis.annotations.Mapper;
+            import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.UseSqlProvider;
             import org.liteorm.api.*;
             import java.util.List;

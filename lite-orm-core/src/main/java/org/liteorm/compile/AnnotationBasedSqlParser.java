@@ -1,6 +1,9 @@
 package org.liteorm.compile;
 
-import org.apache.ibatis.annotations.*;
+import org.liteorm.annotation.Delete;
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Select;
+import org.liteorm.annotation.Update;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;

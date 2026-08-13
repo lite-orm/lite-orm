@@ -85,8 +85,8 @@ class UnsupportedMapperSignatureCompilationTest {
             "AmbiguousParameterMapper",
             """
                 @Select("SELECT 1 WHERE 1 = #{value}")
-                int find(@org.apache.ibatis.annotations.Param("value") Long first,
-                         @org.apache.ibatis.annotations.Param("value") Long second);
+                int find(@org.liteorm.annotation.Param("value") Long first,
+                         @org.liteorm.annotation.Param("value") Long second);
                 """,
             "find",
             "Ambiguous SQL parameter alias: value"
@@ -162,6 +162,16 @@ class UnsupportedMapperSignatureCompilationTest {
         );
     }
 
+    @Test
+    void complexXmlResultMapFailsWithMigrationGuidance() throws Exception {
+        assertUnsupportedMethod(
+            "ComplexResultMapMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "Unsupported XML resultMap 'valueResult'; use resultType, @UseRowMapper, or raw JDBC"
+        );
+    }
+
     private void assertUnsupportedMethod(
             String mapperName,
             String methodSource,
@@ -205,8 +215,8 @@ class UnsupportedMapperSignatureCompilationTest {
         Files.writeString(mapperSource, """
             package org.liteorm.test.diagnostics;
 
-            import org.apache.ibatis.annotations.Mapper;
-            import org.apache.ibatis.annotations.Select;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
 
             record ValueRow(String value) {
             }

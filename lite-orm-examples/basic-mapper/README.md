@@ -8,6 +8,9 @@ It covers:
 - an annotation-backed Mapper with insert, select, update, and delete methods;
 - an XML-backed Mapper loaded from the normal classpath resource location;
 - generated `UserMapperImpl` and `UserXmlMapperImpl` classes;
+- XML dynamic `where`, `foreach`, and `set` behavior;
+- a compile-time-bound SQL provider, custom parameter binder, and custom row mapper;
+- an execution interceptor observing generated Mapper execution without changing dispatch;
 - real execution and result assertions against an H2 in-memory database.
 
 If a Mapper method contains both an XML statement and a SQL annotation, LiteORM compiles the XML statement and emits a method-scoped compiler warning explaining that XML overrides the annotation.

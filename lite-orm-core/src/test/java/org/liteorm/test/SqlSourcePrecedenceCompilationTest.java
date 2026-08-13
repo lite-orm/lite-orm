@@ -35,8 +35,8 @@ class SqlSourcePrecedenceCompilationTest {
         Files.writeString(mapperSource, """
             package org.liteorm.test.precedence;
 
-            import org.apache.ibatis.annotations.Mapper;
-            import org.apache.ibatis.annotations.Select;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
 
             record ValueRow(String value) {
             }

@@ -1,0 +1,27 @@
+package org.liteorm.example;
+
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
+import org.liteorm.annotation.UseParameterBinder;
+import org.liteorm.annotation.UseRowMapper;
+
+import java.util.List;
+
+@Mapper
+public interface UserMetadataMapper {
+
+    @Insert("INSERT INTO user_metadata (user_id, payload) VALUES (#{userId}, #{payload})")
+    int insert(@Param("userId") Long userId,
+               @Param("payload") @UseParameterBinder(JsonValueBinder.class) JsonValue payload);
+
+    @Select("SELECT user_id, payload FROM user_metadata WHERE payload = #{payload} ORDER BY user_id")
+    @UseRowMapper(UserMetadataRowMapper.class)
+    List<UserMetadata> findByPayload(
+        @Param("payload") @UseParameterBinder(JsonValueBinder.class) JsonValue payload);
+
+    @Select("SELECT user_id, payload FROM user_metadata WHERE user_id = #{userId}")
+    @UseRowMapper(UserMetadataRowMapper.class)
+    UserMetadata findByUserId(@Param("userId") Long userId);
+}

@@ -1,6 +1,6 @@
 package org.liteorm.test;
 
-import org.apache.ibatis.annotations.Mapper;
+import org.liteorm.annotation.Mapper;
 import java.util.List;
 
 /**

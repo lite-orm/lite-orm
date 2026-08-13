@@ -28,6 +28,14 @@ public interface ExecutionPlan {
 
     SqlSource getSourceType();
 
+    default ParameterBinder<?>[] getParameterBinders() {
+        return null;
+    }
+
+    default RowMapper<?> getRowMapper() {
+        return null;
+    }
+
     enum StatementType {
         SELECT,
         INSERT,

@@ -35,9 +35,15 @@ public record MapperCompilationModel(
         String providerClassName,
         String providerFieldName,
         String providerArgumentExpression,
+        List<AdapterField> adapterFields,
+        List<String> parameterBinderFields,
+        String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
         List<SqlParameterParser.ParameterBinding> parameterBindings,
         AstNode astNode
     ) {
+    }
+
+    public record AdapterField(String typeName, String fieldName) {
     }
 }

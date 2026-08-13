@@ -97,8 +97,14 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(method.providerFieldName()).append(" = new ")
                     .append(method.providerClassName()).append("();\n");
             }
+            for (MapperCompilationModel.AdapterField adapterField : method.adapterFields()) {
+                builder.append("    private final ").append(adapterField.typeName()).append(" ")
+                    .append(adapterField.fieldName()).append(" = new ")
+                    .append(adapterField.typeName()).append("();\n");
+            }
         }
-        if (methods.stream().anyMatch(method -> method.providerClassName() != null)) {
+        if (methods.stream().anyMatch(method -> method.providerClassName() != null
+                || !method.adapterFields().isEmpty())) {
             builder.append("\n");
         }
         for (MapperCompilationModel.MethodModel method : methods) {
@@ -169,7 +175,9 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("boundSql.parameterValues(), SqlTask.SqlType.")
                 .append(methodModel.statementType().name()).append(", ")
                 .append(methodModel.requiresTransaction()).append(", ")
-                .append(javaString(methodModel.resultType())).append(", ExecutionPlan.SqlSource.GENERATED);\n");
+                .append(javaString(methodModel.resultType())).append(", ExecutionPlan.SqlSource.GENERATED, ")
+                .append(parameterBinderArray(methodModel)).append(", ")
+                .append(rowMapperExpression(methodModel)).append(");\n");
         } else if (methodModel.dynamic()) {
             code.append("        StringBuilder sql = new StringBuilder();\n");
             code.append("        List<Object> parameters = new ArrayList<>();\n");
@@ -193,7 +201,9 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("SqlTask.SqlType.").append(methodModel.statementType().name()).append(", ")
                 .append(methodModel.requiresTransaction()).append(", ")
                 .append(javaString(methodModel.resultType())).append(", ")
-                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(");\n");
+                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+                .append(parameterBinderArray(methodModel)).append(", ")
+                .append(rowMapperExpression(methodModel)).append(");\n");
         } else {
             code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
             code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
@@ -202,11 +212,27 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("sql, params, SqlTask.SqlType.").append(methodModel.statementType().name()).append(", ")
                 .append(methodModel.requiresTransaction()).append(", ")
                 .append(javaString(methodModel.resultType())).append(", ")
-                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(");\n");
+                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+                .append(parameterBinderArray(methodModel)).append(", ")
+                .append(rowMapperExpression(methodModel)).append(");\n");
         }
 
         code.append("    }\n");
         return code.toString();
+    }
+
+    private String parameterBinderArray(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.parameterBinderFields().isEmpty()
+                || methodModel.parameterBinderFields().stream().allMatch(java.util.Objects::isNull)) {
+            return "null";
+        }
+        return "new ParameterBinder<?>[]{" + methodModel.parameterBinderFields().stream()
+            .map(field -> field == null ? "null" : field)
+            .collect(java.util.stream.Collectors.joining(", ")) + "}";
+    }
+
+    private String rowMapperExpression(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.rowMapperFieldName() == null ? "null" : methodModel.rowMapperFieldName();
     }
 
     private String generateAstLogic(AstNode astNode, MapperCompilationModel.MethodModel methodModel,

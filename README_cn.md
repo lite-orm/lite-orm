@@ -67,13 +67,22 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
 
 已验证能力包括：
 
-- MyBatis 风格 `@Mapper`。
+- LiteORM 自有 `org.liteorm.annotation` 注解；项目不在 MyBatis/iBatis 命名空间下发布任何类。
+- 使用 `org.liteorm.annotation.Mapper` 声明的 MyBatis 风格 Mapper 接口。
 - `@Select`、`@Insert`、`@Update`、`@Delete` 注解输入。
 - XML-backed Mapper 方法。
 - `@Param`、`param1`、`arg0`、`list`、`collection`、`array` 等常见参数命名。
 - 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`。
 - 静态执行计划、静态参数绑定、基础静态结果映射。
 - LiteORM 本地事务和 Spring 托管事务参与。
+
+典型导入如下：
+
+```java
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
+```
 
 当前构建验证：
 
@@ -158,6 +167,18 @@ Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` �
 
 Provider Mapper 方法支持零个或一个参数；多个输入应封装为 record。使用 Provider 的方法不能同时声明 XML 或 SQL 注解。
 
+## 自定义 JDBC Adapter
+
+当 JDBC 默认 `setObject` 无法满足特殊值类型时，可以在 Mapper 参数上使用 `@UseParameterBinder`。当返回结构无法由 LiteORM 内建的标量、record 或 JavaBean 映射生成时，可以在查询方法上使用 `@UseRowMapper`。
+
+两种 adapter 都是强类型接口，实现类在编译期确定并需要可访问的无参构造器。生成 Mapper 持有单个 adapter 实例，并通过执行计划传递直接引用。显式 adapter 优先于内建转换。参数为 null 时不调用自定义 binder，而是绑定 SQL `NULL`；只有 `ResultSet.next()` 成功后才调用 row mapper。
+
+## 执行拦截器
+
+可注册 `ExecutionInterceptor`，在受控的 JDBC 执行边界实现日志、指标、审计、授权或路由观察。拦截器只能读取 statement 标识、最终 SQL、有序参数副本、语句/来源类型、耗时、结果数量、失败信息和只读路由元数据，不能替换生成的 SQL、参数 binder 或 row mapper。
+
+`beforeExecution` 按配置顺序执行，`afterSuccess` 和 `afterFailure` 按相反顺序回退。Spring Boot 按 Spring ordering 收集拦截器 bean。回调失败不会阻止 JDBC 资源释放；失败回调抛出的异常会作为 suppressed exception 附加到原始执行异常。
+
 ## MyBatis 兼容边界
 
 ### 第一阶段支持
@@ -196,6 +217,10 @@ Provider Mapper 方法支持零个或一个参数；多个输入应封装为 rec
 示例：
 
 ```java
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
+
 @Mapper
 public interface UserMapper {
 
@@ -223,7 +248,7 @@ public interface UserMapper {
 3. 编译期间在对应 Mapper 方法位置输出 WARNING，提示注解已被 XML 覆盖。
 4. 只有 XML 文件中存在同名 statement 时才视为冲突；仅存在同 Mapper XML 文件不会导致其他注解方法误报。
 
-动态 SQL 表达式当前采用受控编译子集。项目可以在编译器内部采用成熟的轻量表达式解析库降低语法解析风险，但不会在运行时执行 OGNL 或其他表达式解释器；最终仍生成普通 Java 条件和循环代码。
+动态 SQL 表达式采用受控的 OGNL 风格编译子集。注解处理器直接把支持的表达式翻译成原生 Java 条件、属性访问、循环和 bind 表达式；编译期与运行期都不引入 OGNL、MVEL、SpEL 或其他表达式引擎。超出子集的表达式直接编译失败，不会退回运行时解释执行。
 
 可运行的外部 Maven 示例见：
 
@@ -234,6 +259,9 @@ public interface UserMapper {
 后续路线按可独立交付的模块推进，具体任务见：
 
 - [LiteORM Incremental Implementation Plan](docs/plans/liteorm-incremental-implementation-plan.md)
+- [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)
+- [MyBatis 迁移指南](docs/migration-guide.md)
+- [扩展契约](docs/extensions.md)
 
 推荐优先级：
 

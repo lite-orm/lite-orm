@@ -1,6 +1,6 @@
 package org.liteorm.compile;
 
-import org.apache.ibatis.annotations.Param;
+import org.liteorm.annotation.Param;
 
 import javax.lang.model.element.VariableElement;
 import java.util.ArrayList;

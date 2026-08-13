@@ -4,6 +4,7 @@ import org.liteorm.api.*;
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.runtime.*;
 import org.liteorm.api.BoundSql;
+import org.liteorm.api.ParameterBinder;
 import java.util.List;
 import java.util.ArrayList;
 

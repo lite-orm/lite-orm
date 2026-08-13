@@ -226,6 +226,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
      * 解析SQL元素
      */
     private SqlParseResult parseSqlElement(Element sqlElement, ExecutableElement method) {
+        validateResultMapping(sqlElement);
         validateSupportedTags(sqlElement);
         String sqlType = sqlElement.getTagName().toUpperCase();
         String sqlContent = getSqlContent(sqlElement);
@@ -244,6 +245,17 @@ public class XmlBasedSqlParser implements SqlContentParser {
             isDynamic,
             parameters,
             astNode
+        );
+    }
+
+    private void validateResultMapping(Element sqlElement) {
+        if (!sqlElement.hasAttribute("resultMap")) {
+            return;
+        }
+
+        String resultMap = sqlElement.getAttribute("resultMap").trim();
+        throw new IllegalArgumentException(
+            "Unsupported XML resultMap '" + resultMap + "'; use resultType, @UseRowMapper, or raw JDBC"
         );
     }
 

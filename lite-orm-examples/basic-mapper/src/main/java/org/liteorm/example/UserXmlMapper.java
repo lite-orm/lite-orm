@@ -1,7 +1,7 @@
 package org.liteorm.example;
 
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
 
 import java.util.List;
 

@@ -1,9 +1,9 @@
 package org.liteorm.spring.boot.fixture;
 
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
 
 @Mapper
 public interface SpringUserMapper {

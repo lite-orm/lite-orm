@@ -1,4 +1,4 @@
-package org.apache.ibatis.annotations;
+package org.liteorm.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记查询方法的注解，兼容MyBatis
+ * 标记插入方法的注解
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -15,11 +15,11 @@ import java.lang.annotation.Target;
 @Documented
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Select {
+public @interface Insert {
     
     /**
      * SQL语句，支持参数占位符
-     * 例如：SELECT * FROM user WHERE name = #{name}
+     * 例如：INSERT INTO user (name, email) VALUES (#{name}, #{email})
      */
     String[] value();
 }

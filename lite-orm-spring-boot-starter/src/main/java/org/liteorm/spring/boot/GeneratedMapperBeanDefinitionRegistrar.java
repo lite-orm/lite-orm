@@ -76,7 +76,7 @@ final class GeneratedMapperBeanDefinitionRegistrar
 
             AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder
                 .genericBeanDefinition(implementationClass)
-                .setAutowireMode(AbstractBeanDefinition.AUTOWIRE_CONSTRUCTOR)
+                .addConstructorArgReference("liteOrmSqlEngine")
                 .getBeanDefinition();
             registry.registerBeanDefinition(beanName, beanDefinition);
         } catch (ClassNotFoundException e) {
@@ -89,7 +89,7 @@ final class GeneratedMapperBeanDefinitionRegistrar
             return null;
         }
         for (Class<?> implementedInterface : implementationClass.getInterfaces()) {
-            if (implementedInterface.isAnnotationPresent(org.apache.ibatis.annotations.Mapper.class)) {
+            if (implementedInterface.isAnnotationPresent(org.liteorm.annotation.Mapper.class)) {
                 return implementedInterface;
             }
         }

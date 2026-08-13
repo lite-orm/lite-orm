@@ -1,4 +1,4 @@
-package org.apache.ibatis.annotations;
+package org.liteorm.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记Mapper接口的注解，兼容MyBatis
+ * 标记Mapper接口的注解
  * 用于在编译期生成对应的实现类
  * 
  * @author lite-orm

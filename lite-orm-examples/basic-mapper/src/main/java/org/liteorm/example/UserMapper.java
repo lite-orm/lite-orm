@@ -1,11 +1,11 @@
 package org.liteorm.example;
 
-import org.apache.ibatis.annotations.Delete;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
+import org.liteorm.annotation.Delete;
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
+import org.liteorm.annotation.Update;
 import org.liteorm.annotation.UseSqlProvider;
 import org.liteorm.api.ExecutionPlan;
 
