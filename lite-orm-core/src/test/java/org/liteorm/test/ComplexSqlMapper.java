@@ -2,7 +2,6 @@ package org.liteorm.test;
 
 import org.apache.ibatis.annotations.Mapper;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 复杂SQL Mapper - 测试MyBatis高级特性
@@ -11,9 +10,8 @@ import java.util.Map;
  * 1. 多层嵌套动态SQL
  * 2. SQL片段引用和复用
  * 3. 复杂foreach批量操作
- * 4. 动态表名/字段名
- * 5. ResultMap复杂映射
- * 6. 一对多/多对一关联查询
+ * 4. ResultMap复杂映射
+ * 5. 一对多/多对一关联查询
  * 
  * @author lite-orm
  * @since 2024/11/15
@@ -41,16 +39,6 @@ public interface ComplexSqlMapper {
      * 复杂批量插入
      */
     int batchInsertOrders(List<Order> orders);
-    
-    /**
-     * 动态表名查询
-     */
-    List<Map<String, Object>> queryDynamicTable(String tableName, String condition);
-    
-    /**
-     * 多表关联查询 - 一对多
-     */
-    List<UserWithOrders> findUsersWithOrders(Long userId);
     
     /**
      * 嵌套choose/when/otherwise

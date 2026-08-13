@@ -15,6 +15,7 @@
     <modules>
         <module>lite-orm-core</module>
         <module>lite-orm-spring-boot-starter</module>
+        <module>lite-orm-examples/basic-mapper</module>
     </modules>
 
     <properties>
@@ -132,4 +133,3 @@
         </pluginManagement>
     </build>
 </project>
-

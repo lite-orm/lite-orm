@@ -79,6 +79,11 @@ public class XmlBasedSqlParser implements SqlContentParser {
         // 检查是否有对应的XML文件
         return getXmlPath(method) != null;
     }
+
+    public boolean hasMapperResource(ExecutableElement method) {
+        String xmlPath = getXmlPath(method);
+        return xmlPath != null && getXmlDocument(xmlPath) != null;
+    }
     
     @Override
     public String getParserName() {
@@ -221,6 +226,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
      * 解析SQL元素
      */
     private SqlParseResult parseSqlElement(Element sqlElement, ExecutableElement method) {
+        validateSupportedTags(sqlElement);
         String sqlType = sqlElement.getTagName().toUpperCase();
         String sqlContent = getSqlContent(sqlElement);
         boolean isDynamic = containsDynamicTags(sqlElement);
@@ -239,6 +245,30 @@ public class XmlBasedSqlParser implements SqlContentParser {
             parameters,
             astNode
         );
+    }
+
+    private void validateSupportedTags(Element element) {
+        NodeList childNodes = element.getChildNodes();
+        for (int i = 0; i < childNodes.getLength(); i++) {
+            Node node = childNodes.item(i);
+            if (node.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+
+            Element childElement = (Element) node;
+            String tagName = childElement.getTagName().toLowerCase();
+            if (!isSupportedDynamicTag(tagName)) {
+                throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
+            }
+            validateSupportedTags(childElement);
+        }
+    }
+
+    private boolean isSupportedDynamicTag(String tagName) {
+        return switch (tagName) {
+            case "if", "foreach", "choose", "when", "otherwise", "where", "set", "trim", "bind", "include" -> true;
+            default -> false;
+        };
     }
     
     /**
@@ -339,8 +369,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
             case "include":
                 return parseIncludeElement(element);
             default:
-                // 未知标签，当作文本处理
-                return new AstNode.TextNode(element.getTextContent().trim());
+                throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
         }
     }
     

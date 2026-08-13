@@ -92,7 +92,20 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateMethods(List<MapperCompilationModel.MethodModel> methods) throws GenerationException {
         StringBuilder builder = new StringBuilder();
         for (MapperCompilationModel.MethodModel method : methods) {
+            if (method.providerClassName() != null) {
+                builder.append("    private final ").append(method.providerClassName()).append(" ")
+                    .append(method.providerFieldName()).append(" = new ")
+                    .append(method.providerClassName()).append("();\n");
+            }
+        }
+        if (methods.stream().anyMatch(method -> method.providerClassName() != null)) {
+            builder.append("\n");
+        }
+        for (MapperCompilationModel.MethodModel method : methods) {
             builder.append(generateMethodImpl(method)).append("\n");
+            if (!method.resultMappingHelperCode().isBlank()) {
+                builder.append(method.resultMappingHelperCode()).append("\n");
+            }
         }
         return builder.toString();
     }
@@ -146,7 +159,18 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("    private ExecutionPlan ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(methodModel.parameterList()).append(") {\n");
 
-        if (methodModel.dynamic()) {
+        if (methodModel.providerClassName() != null) {
+            code.append("        BoundSql boundSql = BoundSql.requireValid(")
+                .append(methodModel.providerFieldName()).append(".provide(")
+                .append(methodModel.providerArgumentExpression()).append("), ")
+                .append(javaString(methodModel.statementId())).append(");\n");
+            code.append("        return new SqlTask(")
+                .append(javaString(methodModel.statementId())).append(", boundSql.sql(), ")
+                .append("boundSql.parameterValues(), SqlTask.SqlType.")
+                .append(methodModel.statementType().name()).append(", ")
+                .append(methodModel.requiresTransaction()).append(", ")
+                .append(javaString(methodModel.resultType())).append(", ExecutionPlan.SqlSource.GENERATED);\n");
+        } else if (methodModel.dynamic()) {
             code.append("        StringBuilder sql = new StringBuilder();\n");
             code.append("        List<Object> parameters = new ArrayList<>();\n");
             AtomicInteger sequence = new AtomicInteger();
@@ -342,7 +366,8 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         while (dollarMatcher.find()) {
             String literal = text.substring(cursor, dollarMatcher.start());
             if (!literal.isEmpty()) {
-                code.append(indent).append(sqlVar).append(".append(").append(javaString(literal)).append(");\n");
+                code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", ")
+                    .append(javaString(literal)).append(");\n");
             }
             code.append(indent).append(sqlVar).append(".append(String.valueOf(")
                 .append(toJavaAccess(dollarMatcher.group(1).trim(), null, false, Set.of())).append("));\n");
@@ -350,7 +375,8 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         }
         String tail = text.substring(cursor);
         if (!tail.isEmpty()) {
-            code.append(indent).append(sqlVar).append(".append(").append(javaString(tail)).append(");\n");
+            code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", ")
+                .append(javaString(tail)).append(");\n");
         }
     }
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.example.UserXmlMapper">
+    <select id="findByEmail" resultType="org.liteorm.example.User">
+        SELECT id, name, email, age FROM users WHERE email = #{email}
+    </select>
+
+    <select id="findByIds" resultType="org.liteorm.example.User">
+        SELECT id, name, email, age FROM users
+        <where>
+            <if test="ids != null and ids.size() > 0">
+                id IN
+                <foreach collection="ids" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+        ORDER BY id
+    </select>
+
+    <update id="updateSelective">
+        UPDATE users
+        <set>
+            <if test="user.name != null">name = #{user.name},</if>
+            <if test="user.email != null">email = #{user.email},</if>
+            <if test="user.age != null">age = #{user.age},</if>
+        </set>
+        WHERE id = #{user.id}
+    </update>
+</mapper>

@@ -3,6 +3,7 @@ package ${packageName};
 import org.liteorm.api.*;
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.runtime.*;
+import org.liteorm.api.BoundSql;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -15,6 +16,10 @@ import java.util.ArrayList;
 public class ${implClassName} implements ${interfaceName} {
 
     private final SqlEngine sqlEngine;
+
+    public ${implClassName}(SqlEngine sqlEngine) {
+        this.sqlEngine = java.util.Objects.requireNonNull(sqlEngine, "sqlEngine");
+    }
 
     public ${implClassName}(ConnectionManager connectionManager) {
         // 创建默认的责任链处理器
@@ -31,6 +36,26 @@ public class ${implClassName} implements ${interfaceName} {
     }
 
 ${generatedMethods}
+
+    private void appendSqlFragment(StringBuilder sql, String fragment) {
+        if (fragment == null || fragment.isBlank()) {
+            return;
+        }
+        String normalized = fragment.trim();
+        if (!sql.isEmpty() && needsSqlSeparator(sql.charAt(sql.length() - 1), normalized.charAt(0))) {
+            sql.append(' ');
+        }
+        sql.append(normalized);
+    }
+
+    private boolean needsSqlSeparator(char previous, char next) {
+        return !Character.isWhitespace(previous)
+            && !Character.isWhitespace(next)
+            && previous != '('
+            && next != ')'
+            && next != ','
+            && previous != ',';
+    }
 
     private String normalizeWhereClause(String rawClause) {
         String normalized = rawClause == null ? "" : rawClause.trim();

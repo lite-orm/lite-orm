@@ -104,35 +104,6 @@
         </foreach>
     </insert>
     
-    <!-- 测试4：动态表名（注意：实际使用需要注意SQL注入风险） -->
-    <select id="queryDynamicTable" resultType="java.util.HashMap">
-        SELECT * FROM ${tableName}
-        <if test="condition != null and condition != ''">
-            WHERE ${condition}
-        </if>
-    </select>
-    
-    <!-- 测试5：多表关联查询 - 一对多（简化版，实际需要ResultMap） -->
-    <select id="findUsersWithOrders" resultType="org.liteorm.test.UserWithOrders">
-        SELECT 
-            u.id as userId,
-            u.name as userName,
-            u.email as userEmail,
-            u.age as userAge,
-            o.id as orderId,
-            o.product_name as productName,
-            o.amount as amount,
-            o.status as orderStatus
-        FROM users u
-        LEFT JOIN orders o ON u.id = o.user_id
-        <where>
-            <if test="userId != null">
-                u.id = #{userId}
-            </if>
-        </where>
-        ORDER BY u.id, o.id
-    </select>
-    
     <!-- 测试6：嵌套choose/when/otherwise - 策略模式 -->
     <select id="findByStrategy" resultType="org.liteorm.test.User">
         SELECT <include refid="userColumns"/> FROM users

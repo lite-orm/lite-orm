@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.diagnostics.MissingStatementMapper">
+    <select id="anotherMethod" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT 'another'
+    </select>
+</mapper>

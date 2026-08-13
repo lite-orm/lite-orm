@@ -30,6 +30,10 @@ class FreemarkerCodeGeneratorTest {
             false,
             "org.liteorm.test.User",
             "new org.liteorm.test.User((Long)row[0], (String)row[1], null, null)",
+            "",
+            null,
+            null,
+            null,
             List.of(new SqlParameterParser.MethodParameter("id", "id", "java.lang.Long", List.of("id", "param1", "arg0"))),
             List.of(new SqlParameterParser.ParameterBinding(1, "id", "id", "java.lang.Long")),
             null
@@ -57,6 +61,10 @@ class FreemarkerCodeGeneratorTest {
             false,
             "java.util.List<org.liteorm.test.User>",
             "new org.liteorm.test.User((Long)row[0], (String)row[1], (String)row[2], (Integer)row[3])",
+            "",
+            null,
+            null,
+            null,
             List.of(new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0"))),
             List.of(),
             new AstNode.ContainerNode(List.of(

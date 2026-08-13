@@ -1,7 +1,6 @@
 package org.liteorm.spring.boot;
 
 import org.liteorm.DefaultSqlEngine;
-import org.liteorm.SimpleConnectionManager;
 import org.liteorm.api.ConnectionManager;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.runtime.*;
@@ -38,7 +37,12 @@ public class LiteOrmAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ConnectionManager liteOrmConnectionManager(DataSource dataSource) {
-        return new SimpleConnectionManager(dataSource);
+        return new LiteOrmConnectionManager(dataSource);
+    }
+
+    @Bean
+    public static GeneratedMapperBeanDefinitionRegistrar generatedMapperBeanDefinitionRegistrar() {
+        return new GeneratedMapperBeanDefinitionRegistrar();
     }
     
     @Bean
@@ -80,4 +84,3 @@ public class LiteOrmAutoConfiguration {
         return new DefaultSqlEngine(connectionManager, processors);
     }
 }
-

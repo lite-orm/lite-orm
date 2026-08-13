@@ -1,317 +1,199 @@
 # lite-orm
 
+`lite-orm` 是一个以编译期代码生成为核心的 Java ORM 实验项目。它不是要复刻一个更轻的 MyBatis，而是要验证并产品化一个更明确的方向：
 
-## `lite-orm` 架构介绍与愿景
-## 核心理念
-- 编译期生成 Mapper 静态实现、SQL 渲染逻辑和对象映射代码，尽量把运行期开销前移到编译期
-- 运行期只保留必要的执行职责，通过责任链完成连接、事务、参数、执行、结果处理
-- 兼容 MyBatis 风格注解和 XML 输入，降低迁移成本，但不复制 MyBatis 的运行时设计
-- 基于 `DataSource` 抽象工作，核心包不依赖具体连接池实现
-- 面向 AI 协作、静态分析和自动化演进，强调结构化、可诊断、可生成、可扩展
+> 把 MyBatis 传统上在运行期完成的 Mapper 分发、SQL 渲染、参数绑定和结果映射，尽可能前移到编译期，生成可审查、可调试、可执行的静态 Java 代码。
 
-### 目标与愿景
+这个项目的核心资产不是运行时代理，而是编译期模型、动态 SQL AST、代码生成器和一条尽量薄的运行时 JDBC 执行链。
 
-我们的目标不是简单复刻一个更轻的 MyBatis，而是打造一个以编译器为中心、以静态代码为核心资产的 Java ORM 框架。
+## 核心定位
 
-* **性能目标**：减少运行时反射、脚本解释、动态参数解析等框架层成本，让热点路径更容易被 JIT 优化。
-* **工程目标**：把 SQL、参数绑定、结果映射、事务提示都变成可审查、可调试、可测试的静态产物。
-* **迁移目标**：保留 MyBatis 风格的使用习惯，让现有 Mapper、注解、XML 有一条可渐进迁移的路径。
-* **平台目标**：让 ORM 不只是一个运行时库，而是一个可被 AI、IDE、静态分析器和自动化工具理解的编译期平台。
+### 我们要做什么
 
-### 中心思想
+- 生成 Mapper 接口的静态实现类，避免运行期 Mapper 代理和反射分发。
+- 将注解和 XML 中的 SQL 解析为统一编译期模型。
+- 将常见 MyBatis 动态 SQL 编译成 Java 条件分支、循环和 SQL renderer。
+- 在编译期确定参数绑定顺序、SQL 来源、statement 类型和返回形状。
+- 运行期只负责连接、事务、参数绑定、SQL 执行和结果提取这些 JDBC 物理步骤。
+- 保留 MyBatis 风格的 Mapper 编写习惯，让现有项目可以渐进迁移。
 
-`lite-orm` 的中心思想可以概括为一句话：
+### 我们暂时不做什么
 
-> 把 MyBatis 传统上在运行期完成的解析、绑定、映射、拼装工作，尽可能前移到编译期，生成可直接执行的静态 Java 代码。
+`lite-orm` 当前阶段不追求 MyBatis 全量无差异兼容。下面这些能力属于后续迭代或明确非 MVP 目标：
 
-这意味着：
+- MyBatis 插件体系的完整兼容。
+- 任意 OGNL 表达式和所有历史 XML 特性。
+- 复杂 `resultMap` 图谱、延迟加载、分步查询、一对多聚合。
+- 二级缓存、分页 DSL、分库分表、多租户、读写分离。
+- 分布式事务和完整企业级治理能力。
 
-- 核心竞争力不是运行时代理，而是编译期模型、AST 和代码生成器
-- 动态 SQL 的目标不是在运行期继续解释模板，而是在编译期翻译成普通 Java 条件分支和循环
-- 运行期核心保持足够薄，只负责真正无法在编译期完成的事情，例如拿连接、执行 SQL、处理事务边界
-- 框架的关键资产应该是显式结构，而不是隐藏在反射、代理、脚本解释器中的隐式行为
+这些能力可以作为平台化方向演进，但不能混入第一阶段目标。第一阶段要先把“编译期 Mapper 子集替代”做扎实。
 
+## 为什么不是重复造 MyBatis
 
----
-## 模块总览
+MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但它的核心模型仍然偏运行期：Mapper 代理、XML/配置解析、参数解析、映射规则等行为大多隐藏在运行时框架内部。
 
-```mermaid
-graph TD
-    A[lite-orm 核心] --> B[编译期]
-    A --> C[运行期]
+`lite-orm` 的差异化是把这些行为显式化为编译期产物：
 
-    %% 编译期模块
-    B --> B1[注解处理器]
-    B1 --> B2[生成 SQL + 对象映射代码]
-    B2 --> B3["动态 SQL 翻译 (if/for/choose)"]
-    B2 --> B4[批量操作生成]
-    B2 --> B5[代码优化 & JIT 编译友好]
+| 维度 | MyBatis | lite-orm 目标 |
+| --- | --- | --- |
+| Mapper 调用 | 运行期代理和方法分发 | 编译期生成实现类，普通 Java 调用 |
+| SQL 动态逻辑 | 运行期解释 XML/OGNL | 编译期生成 Java renderer |
+| 参数绑定 | 运行期解析参数名和属性路径 | 编译期确定绑定顺序 |
+| 结果映射 | 运行期映射规则和反射路径较多 | 编译期生成静态映射代码 |
+| 调试体验 | XML 和代理链偏黑盒 | 生成代码可读、可断点 |
+| 静态分析 | 行为隐藏在框架内部 | 模型和生成代码可被 IDE/AI 分析 |
 
-    %% 运行期模块
-    C --> C1[责任链模式]
-    C1 --> C2[数据库连接管理]
-    C1 --> C3[SQL 执行]
-    C1 --> C4[结果映射]
-    C1 --> C5[事务管理]
-    C1 --> C6[缓存机制扩展点]
-    C1 --> C7[日志与审计扩展点]
-    C1 --> C8[错误处理与回退机制]
-    C1 --> C9[高级分页与复杂查询]
+因此，项目真正的方向不是“小 MyBatis”，而是：
 
-    %% 缓存子模块
-    C6 --> C6a[一级缓存 LocalCache]
-    C6 --> C6b[二级缓存 Redis 可扩展]
+> 编译期 Mapper 平台。
 
-    %% 一级缓存生命周期
-    C6a --> C6a1[事务开始：创建 LocalCache]
-    C6a --> C6a2[查询操作：命中缓存返回 / 未命中执行 SQL 并存缓存]
-    C6a --> C6a3[更新/删除操作：同步清理缓存]
-    C6a --> C6a4[事务结束：清理 LocalCache]
+## 当前实现状态
 
-    subgraph Planned_Enterprise_Features
-        C6
-        C7
-        C8
-        C9
-    end
+当前仓库已经具备一条可验证的核心闭环：
+
+- `lite-orm-core`
+  - `LiteOrmProcessor` 扫描 `@Mapper` 接口。
+  - `CompilePipeline` 统一 XML 和注解 SQL 输入。
+  - `XmlBasedSqlParser` 和 `AnnotationBasedSqlParser` 解析 SQL 来源。
+  - `AstNode` 表示动态 SQL 结构。
+  - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
+  - `DefaultSqlEngine` 通过 processor chain 执行 SQL。
+  - `DefaultTransactionManager` 提供本地事务上下文。
+- `lite-orm-spring-boot-starter`
+  - 提供 Spring Boot 自动配置入口。
+  - 扫描并注册编译期生成的 Mapper 实现。
+  - 复用应用 `DataSource` 和 Spring 托管事务连接。
+
+已验证能力包括：
+
+- MyBatis 风格 `@Mapper`。
+- `@Select`、`@Insert`、`@Update`、`@Delete` 注解输入。
+- XML-backed Mapper 方法。
+- `@Param`、`param1`、`arg0`、`list`、`collection`、`array` 等常见参数命名。
+- 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`。
+- 静态执行计划、静态参数绑定、基础静态结果映射。
+- LiteORM 本地事务和 Spring 托管事务参与。
+
+当前构建验证：
+
+```bash
+mvn clean test
 ```
 
-## 核心模块设计
+最近一次验证结果：core `84` 个测试通过，spring starter `2` 个测试通过。
 
-### 1. 编译期
+## 架构总览
 
-> 解析 XML 建议引用开源成熟的库，而不是用正则
-> Java 模板生成使用 freemarker
-
-| 模块           | 功能                                  |
-| ------------ | ----------------------------------- |
-| 注解处理器        | 扫描注解、XML、接口方法                       |
-| SQL & 对象映射生成 | 生成纯 Java SQL 执行和对象映射逻辑              |
-| 动态 SQL 翻译    | 将 if/for/choose 等标签翻译成 Java 条件分支和循环 |
-| 批量操作生成       | 支持批量插入、更新、删除的高性能 SQL                |
-| 代码优化         | 保证生成代码 JIT 友好、无反射开销                 |
-
-
-
-### 2. 运行期（责任链模式）
-
-责任链流程：
+```text
+Mapper interface + XML/annotations
+        |
+        v
+Annotation Processor
+        |
+        v
+Normalized Mapper Model
+        |
+        +--> Dynamic SQL AST
+        +--> Parameter Model
+        +--> Result Shape
+        +--> Statement Metadata
+        |
+        v
+Generated MapperImpl
+        |
+        v
+ExecutionPlan
+        |
+        v
+Runtime SQL Pipeline
+        |
+        +--> ConnectionProcessor
+        +--> TransactionProcessor
+        +--> ParameterProcessor
+        +--> ExecutionProcessor
+        +--> ResultProcessor
 ```
-[ORM 操作/事务开始]
-   │
-   ├─ 数据库连接管理
-   ├─ SQL 执行
-   ├─ 结果映射
-   ├─ 事务管理
-   ├─ 缓存机制
-   ├─ 日志/审计
-   └─ 错误处理/回退
+
+### 编译期职责
+
+编译期负责所有能提前确定的事情：
+
+- 找到 Mapper 接口和 SQL 来源。
+- 解析 XML 和注解 SQL。
+- 将动态 SQL 转成 AST。
+- 校验参数引用、方法签名和返回类型。
+- 生成 SQL renderer、执行计划、参数绑定和结果映射代码。
+
+### 运行期职责
+
+运行期只保留必要的 JDBC 执行职责：
+
+- 获取和释放数据库连接。
+- 参与本地或托管事务。
+- 创建 `PreparedStatement` 并绑定参数。
+- 执行 SQL。
+- 提取 `ResultSet` 为生成代码可消费的结果结构。
+
+运行期处理器可以扩展，但默认链路只包含 SQL 执行的物理必需步骤。
+
+## Spring Boot 接入
+
+Starter 不创建运行时 Mapper 代理，而是注册编译期已经生成的 `*MapperImpl`：
+
+```yaml
+lite-orm:
+  enabled: true
+  mapper-packages:
+    - com.example.mapper
 ```
 
-- 每个环节职责：
-    > 这些环节都要以接口形式支持SPI，方便用户SPI扩展
-    1. 连接管理：基于 `DataSource` 获取、回收连接，支持多数据源和不同连接池
-    2. SQL 执行：执行预编译 SQL 或批量操作
-    3. 结果映射：将 ResultSet 映射为 Java 对象，支持延迟加载
-    4. 事务管理：支持自身或 Spring 托管事务，支持嵌套事务.(此项目设计接口，实现自身管理事务， 未来会在 liteorm-spring-boot-starter里面适配 Spring 事务)
-    5. 缓存机制：一级缓存（LocalCache， use caffeine cache）+ 二级缓存（Redis 可扩展） 一二级缓存用户都可以实现接口自定义扩展
-    6. 日志/审计：SQL 执行日志、慢查询、操作审计
-    7. 错误处理/回退：统一异常体系、回滚策略、可扩展插件
-    8. 高级分页/复杂查询：类型安全 API 支持分页、排序、关联查询
+应用启动时，Starter 扫描配置包中的生成类，按 Mapper 接口类型注册 Spring Bean，并注入自动配置的 `SqlEngine`。启动扫描允许检查类和构造器，但 Mapper 调用、SQL 构造、参数绑定和结果映射仍然是普通 Java 直接调用，不在热路径使用反射。
 
----
+Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
 
-### 3. 缓存设计
+## SQL Provider 逃生口
 
-**一级缓存：**
-    
-    - 生命周期：事务/操作链内
-    - 作用：事务内对象一致性、避免重复查询
-    - 自动清理：事务结束自动清理
+只有当 SQL 无法由当前支持的注解/XML 子集表达时，才使用 `@UseSqlProvider`。Provider 是编译期已知的 `SqlProvider<P>`，需要可访问的无参构造器，并返回由 SQL 文本和有序 `BoundParameter` 列表组成的不可变 `BoundSql`。生成类持有单个 Provider 实例并直接调用普通 Java 方法，不使用反射分发。
 
-**二级缓存：**
+Provider Mapper 方法支持零个或一个参数；多个输入应封装为 record。使用 Provider 的方法不能同时声明 XML 或 SQL 注解。
 
-    - 生命周期：跨事务、应用级别或分布式
-    - 可扩展至 Redis 或其他分布式缓存
-    - 热点数据缓存，降低 DB 压力
+## MyBatis 兼容边界
 
-**缓存策略：**
+### 第一阶段支持
 
-    - 查询命中返回缓存
-    - 更新/删除同步更新或清理缓存
-    - 可扩展 TTL、Evict 策略
+- Mapper 接口。
+- 注解 SQL。
+- XML SQL。
+- 常见动态 SQL 标签。
+- 显式 `@Param` 和常见 fallback 参数名。
+- record class 和基础构造器结果映射。
+- 本地事务和 Spring 事务参与。
 
-### 4. 事务管理
+### 第一阶段不承诺
 
-> 此项目设计接口，实现自身管理事务， 未来会在 liteorm-spring-boot-starter里面适配 Spring 事务
+- 任意 OGNL。
+- 复杂 `resultMap`。
+- 嵌套对象聚合。
+- MyBatis 插件。
+- 懒加载。
+- 二级缓存。
+- 分页插件。
+- 全量 XML 标签兼容。
 
-**支持方式：**
+不支持的能力应该尽量在编译期失败，并给出 Mapper 方法或 XML 节点位置，而不是在运行期模糊 fallback。
 
-    - 本地事务：框架内部管理
-    - 托管事务：支持 Spring @Transactional
+## 迁移策略
 
-**特性：**
+推荐从 MyBatis 项目中选取低风险 Mapper 渐进迁移：
 
-    - 嵌套事务处理
-    - 异常回滚策略统一
-    - 与缓存协同工作（一级缓存生命周期绑定事务）
+1. 优先迁移查询型 Mapper。
+2. 优先选择只使用常见动态 SQL 标签的 XML 或注解方法。
+3. 多参数方法显式补充 `@Param`。
+4. 对单对象参数统一使用 `#{user.id}`、`#{user.name}` 这类属性路径。
+5. 先跑外部 demo 项目和真实数据库 E2E，再扩大迁移范围。
 
-### 5. 高级分页与复杂查询
-
-    - 提供通用分页接口
-    - 支持类型安全的查询 API
-    - 支持关联查询（JOIN 映射）、排序、过滤
-    - 可以结合一级/二级缓存优化热点分页数据
-
-
-### 6. 错误处理与回退
-
-- 标准化异常体系：
-  
-    - 数据库异常 → LiteOrmException
-    - SQL 错误 → SqlExecutionException
-    - 事务异常 → TransactionException
-
-- 回退策略：
-
-    - 事务失败时自动回滚
-    - 缓存同步清理
-    - 可扩展插件处理特殊异常
-
-### 7. 日志与审计
-
-    - SQL 执行日志（可选详细模式）
-    - 慢查询监控
-    - 操作审计（用户、时间、操作类型）
-    - 插件化设计，可替换为 ELK、Prometheus 等系统
-
-### 8. 分库分表
-
-    - 支持多数据源配置
-
-    - 可扩展路由策略（按表、按库、读写分离）
-
-    - 与事务和缓存协同工作
-
-    - 分布式系统友好
-
-### 9. 插件与扩展机制
-> 生命周期中在[有意义]的地方充分预留的扩展点，让用户感受到可以像组装高达一样来玩转框架。可以借鉴 Spring
- 
-- 责任链可插拔：
-    - 缓存策略
-    - 日志/审计
-    - 错误处理
-    - 分库分表路由
-- 编译期可增加自定义代码生成插件（我们默认使用 freemarker 要以接口方式扩展点，用户甚至可以自定义为其它 velocity,  ）
-- 设计保证核心轻量，扩展不修改核心
-
-## 为什么它更像 AI 时代的 ORM
-
-传统 ORM 更像运行时框架，而 `lite-orm` 更像编译期平台。
-
-原因不在于“是否支持 XML/注解”，而在于“框架知识是否足够结构化，能否被工具和模型理解”：
-
-- Mapper 行为在编译期生成成显式 Java 代码，便于 AI 和人一起审查
-- 动态 SQL 先进入统一 AST，再翻译成静态 Java 渲染逻辑，结构清晰
-- 参数命名、事务语义、SQL 来源、返回类型都可以转化为编译期诊断和机器可读元数据
-- 运行期责任链边界明确，方便插入日志、审计、监控、路由等增强能力
-- 核心依赖 `DataSource` 抽象，不把框架设计和某个连接池实现绑定在一起
-
-从 AI 协作的角度看，这类架构天然更友好：
-
-- AI 更容易生成 Mapper、SQL 模板、扩展处理器和配置
-- AI 更容易根据编译错误和生成代码回写修复
-- AI 更容易做静态分析、兼容性检查、迁移建议和性能治理
-- AI 不需要猜测代理和反射背后的运行时行为，因为关键逻辑已经展开为普通代码
-
-这并不意味着 `lite-orm` 已经完成了所有能力，而是意味着它的方向更适合 AI 时代的软件工程模型：
-
-- 静态化
-- 结构化
-- 可诊断
-- 可生成
-- 可组合
-
-## 扩展方向
-
-如果继续沿着当前路线推进，下面这些方向最有价值。
-
-### P0：把核心能力做实
-
-- 强化编译期诊断：参数歧义、动态 SQL 非法引用、危险 `${}`、返回类型不匹配都在编译期报错
-- 移除核心模块对具体连接池的残留依赖，彻底收敛到 `DataSource`
-- 补强真实断言型测试，而不是只停留在打印型验证
-- 明确 MyBatis 兼容边界，把“已支持 / 未承诺 / 明确不支持”写清楚
-
-### P1：把 ORM 做成平台
-
-- 引入稳定的 SQL 中间表示，不只停留在模板字符串和 AST 节点
-- 导出机器可读元数据，例如 statement、参数、事务提示、返回形状
-- 提供更强的结果映射能力，包括嵌套对象、一对多聚合、复杂 `resultMap`
-- 增强运行时可观测性，统一日志、审计、慢 SQL、Tracing、Metrics
-
-### P2：面向 AI 和复杂业务场景
-
-- 提供类型安全查询 DSL，作为注解/XML 之外的第三种输入
-- 增加多租户、读写分离、分库分表路由扩展
-- 增加缓存、审计、安全策略、SQL 治理等策略型扩展点
-- 构建 AI 友好的迁移和修复能力，例如从 MyBatis Mapper 自动生成 LiteORM 兼容实现建议
-
-## 路线判断
-
-从架构方向上看，`lite-orm` 不应该只追求“更快的 MyBatis”，而应该逐步演进成：
-
-> 一个以编译器为中心、以静态代码为核心资产、以运行时执行链为基础设施的 ORM 平台。
-
-如果做到这一点，它的价值会超过单纯的 ORM 替代品：
-
-- 对开发者，它意味着更低的运行时心智负担
-- 对性能，它意味着更低的框架层开销和更高的 JIT 优化上限
-- 对平台工程，它意味着更强的可观测、可治理、可扩展能力
-- 对 AI 协作，它意味着更容易生成、理解、诊断和演进
-
-### 10. 建议优先级
-
-| 功能 | 当前状态 | 建议优先级 | 说明 |
-|------|----------|------------|------|
-| **编译期代码生成核心** | ✅ **已完成** | 🔥 **极高** | 完整的编译管道，支持注解和XML解析 |
-| **运行期责任链核心** | ✅ **已完成** | 🔥 **极高** | 5个核心处理器完整实现并测试通过 |
-| **完整端到端测试** | ✅ **已完成** | 🔥 **极高** | 24个测试全部通过，覆盖核心流程 |
-| **AST节点体系** | ✅ **已完成** | 🔥 **高** | 完整的AST节点体系，支持所有动态标签 |
-| **XML配置支持** | ✅ **已完成** | 📋 **高** | 完整的XML解析器，支持复杂嵌套和SQL片段引用 |
-| **#{param}参数绑定** | ✅ **已完成** | 🔥 **高** | SqlParameterParser完整实现，支持对象属性访问 |
-| **Record Class映射** | ✅ **已完成** | 🔥 **高** | 零反射的record class映射，编译期硬编码 |
-| **Freemarker模板** | ✅ **已完成** | 🔥 **高** | 优化的代码生成模板，生成高质量代码 |
-| **批量操作支持** | ✅ **架构就绪** | 📋 **高** | 框架支持批量操作，需在实际项目中完善 |
-| **错误处理 & 回退** | ✅ **已完成** | 📋 **中** | 完善的异常体系和事务回滚机制 |
-| **高级分页/复杂查询** | ✅ **架构就绪** | 📋 **中** | 框架预留扩展点，可按需实现 |
-| **一级缓存** | ✅ **架构就绪** | 📋 **中** | SPI扩展点已设计，可插拔实现 |
-| **二级缓存** | ✅ **架构就绪** | 📋 **中** | SPI扩展点已设计，支持Redis等 |
-| **SQL审计 & 日志** | ✅ **架构就绪** | 📋 **低** | 责任链可扩展，易于添加审计处理器 |
-| **文档和示例** | ✅ **已完成** | 📋 **低** | 完整的设计文档和测试示例 |
-
-## 当前 MyBatis 兼容边界
-
-当前版本已经明确支持下面这组高价值能力：
-
-- Mapper 接口 + MyBatis 风格注解
-- Mapper 接口 + XML 映射文件
-- `@Param` 命名参数，以及 `param1`、`arg0`、`list`、`collection`、`array` 等常见命名语义
-- 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`
-- 编译期生成执行计划、静态参数绑定、静态结果映射
-- LiteORM 本地事务，以及 Spring 托管事务存在时的事务参与检测
-
-当前版本暂未承诺完整 MyBatis 全量兼容，尤其是下面这些内容仍然建议视为后续迭代项：
-
-- MyBatis 插件体系的完全兼容
-- 复杂 `resultMap` 图谱、延迟加载、分步查询
-- 分布式事务、二级缓存、分页 DSL、分库分表运行时策略
-- 所有 OGNL 表达式和历史 XML 特性的无差异支持
-
-## MyBatis 迁移示例
-
-一个典型迁移方式是先保持 Mapper 接口不变，再逐步让 LiteORM 接管生成实现：
+示例：
 
 ```java
 @Mapper
@@ -319,7 +201,8 @@ public interface UserMapper {
 
     @Select("""
         <script>
-        SELECT id, name, email, age FROM users
+        SELECT id, name, email, age
+        FROM users
         <where>
             <if test="name != null and name != ''">
                 name = #{name}
@@ -331,9 +214,33 @@ public interface UserMapper {
 }
 ```
 
-迁移建议：
+## SQL 来源优先级
 
-1. 先迁移查询型 Mapper，优先选择只依赖 `@Select`、`@Update`、XML 动态 SQL 的接口。
-2. 对多参数方法显式补上 `@Param`，让编译期参数诊断更直接。
-3. 对单对象参数的 XML 语句，统一使用属性访问写法，例如 `#{user.id}`、`#{user.name}`，减少歧义。
-4. 在 Spring 项目中优先通过 `lite-orm-spring-boot-starter` 接管事务参与，再逐步替换原有 MyBatis Bean 装配。
+同一个 Mapper 方法可以在迁移期间暂时同时保留 XML SQL 和 SQL 注解。编译器采用以下规则：
+
+1. XML statement 优先于 `@Select`、`@Insert`、`@Update`、`@Delete`。
+2. 生成代码只使用 XML statement。
+3. 编译期间在对应 Mapper 方法位置输出 WARNING，提示注解已被 XML 覆盖。
+4. 只有 XML 文件中存在同名 statement 时才视为冲突；仅存在同 Mapper XML 文件不会导致其他注解方法误报。
+
+动态 SQL 表达式当前采用受控编译子集。项目可以在编译器内部采用成熟的轻量表达式解析库降低语法解析风险，但不会在运行时执行 OGNL 或其他表达式解释器；最终仍生成普通 Java 条件和循环代码。
+
+可运行的外部 Maven 示例见：
+
+- [lite-orm-examples/basic-mapper](lite-orm-examples/basic-mapper/README.md)
+
+## 后续路线
+
+后续路线按可独立交付的模块推进，具体任务见：
+
+- [LiteORM Incremental Implementation Plan](docs/plans/liteorm-incremental-implementation-plan.md)
+
+推荐优先级：
+
+1. MVP 硬化：外部项目 E2E、编译期诊断、安全边界、构建配置。
+2. 映射增强：JavaBean、构造器选择、列名映射、基础类型返回。
+3. Spring 可用性：Mapper Bean 注册、配置项、事务集成示例。
+4. 兼容样例：MyBatis 迁移 fixtures 和差异文档。
+5. 平台化能力：元数据导出、可观测性、缓存、分页 DSL、路由策略。
+
+判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。

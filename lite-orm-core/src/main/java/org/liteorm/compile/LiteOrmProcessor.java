@@ -53,7 +53,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
         this.typeUtils = processingEnv.getTypeUtils();
         
         // 初始化编译管道
-        this.compilePipeline = new CompilePipeline(elementUtils, typeUtils);
+        this.compilePipeline = new CompilePipeline(elementUtils, typeUtils, messager);
         
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processor initialized");
     }
@@ -127,8 +127,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
                 
         } catch (CompilePipeline.CompileException e) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "Failed to compile mapper implementation: " + e.getMessage());
-            throw new IOException(e);
+                "Failed to compile mapper implementation: " + e.getMessage(), mapperInterface);
         }
     }
 }

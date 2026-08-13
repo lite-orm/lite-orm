@@ -12,9 +12,8 @@ import org.liteorm.compile.AstNode;
  * 1. 多层嵌套动态SQL解析
  * 2. SQL片段引用和复用
  * 3. 复杂foreach批量操作
- * 4. 动态表名/字段名处理
- * 5. bind变量处理
- * 6. 各种标签组合
+ * 4. bind变量处理
+ * 5. 各种标签组合
  * 
  * @author lite-orm
  * @since 2024/11/15
@@ -55,16 +54,6 @@ public class ComplexSqlTest {
         System.out.println("✅ foreach数组类型");
         System.out.println("✅ foreach List类型");
         System.out.println("✅ 复杂foreach测试通过");
-    }
-
-    @Test
-    @DisplayName("测试动态表名和字段名")
-    public void testDynamicTableAndColumn() {
-        System.out.println("🧪 测试动态表名和字段名");
-        
-        // ${tableName} 和 ${condition} 处理
-        System.out.println("⚠️  注意：动态表名需要注意SQL注入风险");
-        System.out.println("✅ 动态表名/字段名测试通过");
     }
 
     @Test
@@ -139,7 +128,7 @@ public class ComplexSqlTest {
         System.out.println("✅ 多层嵌套 + SQL片段");
         System.out.println("✅ choose + foreach + if");
         System.out.println("✅ trim + bind + include");
-        System.out.println("✅ 动态表名 + 参数绑定");
+        System.out.println("✅ 不安全的动态结构由独立编译失败测试覆盖");
         System.out.println("✅ 综合测试通过");
         
         System.out.println("\n🎉 ComplexSqlMapper所有特性验证完成！");

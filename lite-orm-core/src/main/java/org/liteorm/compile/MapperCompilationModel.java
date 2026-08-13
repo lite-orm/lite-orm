@@ -31,6 +31,10 @@ public record MapperCompilationModel(
         boolean requiresTransaction,
         String resultType,
         String resultMappingCode,
+        String resultMappingHelperCode,
+        String providerClassName,
+        String providerFieldName,
+        String providerArgumentExpression,
         List<SqlParameterParser.MethodParameter> methodParameters,
         List<SqlParameterParser.ParameterBinding> parameterBindings,
         AstNode astNode

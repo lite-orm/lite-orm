@@ -84,6 +84,26 @@ public class DefaultSqlEngine implements SqlEngine {
         } catch (Exception e) {
             // 构造错误结果
             return SqlResult.error(e);
+        } finally {
+            closeExecutionResources(context);
+        }
+    }
+
+    private void closeExecutionResources(ExecutionContext context) {
+        try {
+            if (context.getResultSet() != null) {
+                context.getResultSet().close();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            if (context.getPreparedStatement() != null) {
+                context.getPreparedStatement().close();
+            }
+        } catch (Exception ignored) {
+        }
+        if (context.getConnection() != null) {
+            connectionManager.releaseConnection(context.getConnection());
         }
     }
     

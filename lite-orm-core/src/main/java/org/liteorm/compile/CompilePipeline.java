@@ -2,13 +2,23 @@ package org.liteorm.compile;
 
 import org.liteorm.api.ExecutionPlan;
 
+import javax.annotation.processing.Messager;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 编译管道 - 串联解析→渲染→代码生成的主线流程
@@ -22,16 +32,25 @@ import java.util.List;
  * @since 2024/10/01
  */
 public class CompilePipeline {
+
+    private static final Pattern DOLLAR_SUBSTITUTION_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
+    private static final Pattern METHOD_CALL_PATTERN = Pattern.compile("([a-zA-Z_][\\w.]*)\\s*\\(");
     
     private final List<SqlContentParser> sqlParsers;
     private final CodeGenerator codeGenerator;
     private final SqlParameterParser parameterParser;
     private final Elements elementUtils;
     private final Types typeUtils;
+    private final Messager messager;
     
     public CompilePipeline(Elements elementUtils, Types typeUtils) {
+        this(elementUtils, typeUtils, null);
+    }
+
+    public CompilePipeline(Elements elementUtils, Types typeUtils, Messager messager) {
         this.elementUtils = elementUtils;
         this.typeUtils = typeUtils;
+        this.messager = messager;
         
         // 初始化解析器（按优先级排序）
         this.sqlParsers = Arrays.asList(
@@ -62,10 +81,11 @@ public class CompilePipeline {
             
             // 2. 生成代码
             return codeGenerator.generateMapperImpl(mapperInterface, compilationModel, elementUtils, typeUtils);
-            
+        } catch (CompileException e) {
+            throw e;
         } catch (Exception e) {
             throw new CompileException("Failed to compile mapper: " + 
-                mapperInterface.getQualifiedName(), e);
+                mapperInterface.getQualifiedName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -94,7 +114,8 @@ public class CompilePipeline {
         // 检查是否有任何方法包含SQL注解
         return mapperInterface.getEnclosedElements().stream()
             .anyMatch(element -> element instanceof ExecutableElement &&
-                sqlParsers.stream().anyMatch(parser -> parser.supports((ExecutableElement) element)));
+                (hasUseSqlProvider((ExecutableElement) element)
+                    || sqlParsers.stream().anyMatch(parser -> parser.supports((ExecutableElement) element))));
     }
     
     /**
@@ -121,33 +142,50 @@ public class CompilePipeline {
      */
     private MapperCompilationModel.MethodModel analyzeMethod(TypeElement mapperInterface, ExecutableElement method)
             throws CompileException {
-        validateMethodSignature(method);
+        validateMethodSignature(mapperInterface, method);
+
+        ProviderBinding providerBinding = analyzeProviderBinding(mapperInterface, method);
 
         // 1. 解析SQL内容
         SqlContentParser.SqlParseResult sqlInfo = null;
-        for (SqlContentParser parser : sqlParsers) {
-            if (parser.supports(method)) {
-                try {
-                    sqlInfo = parser.parseSql(method);
-                    if (sqlInfo != null) {
-                        break;
+        if (providerBinding == null) {
+            for (SqlContentParser parser : sqlParsers) {
+                if (parser.supports(method)) {
+                    try {
+                        sqlInfo = parser.parseSql(method);
+                        if (sqlInfo != null) {
+                            break;
+                        }
+                    } catch (Exception e) {
+                        throw new CompileException("Failed to parse " + parser.getParserName() + " for " +
+                            mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": " + e.getMessage(), e);
                     }
-                } catch (Exception e) {
-                    throw new CompileException("Failed to parse " + parser.getParserName() + " for " +
-                        mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": " + e.getMessage(), e);
                 }
             }
         }
         
-        if (sqlInfo == null) {
+        if (sqlInfo == null && providerBinding == null) {
+            XmlBasedSqlParser xmlParser = (XmlBasedSqlParser) sqlParsers.get(0);
+            if (xmlParser.hasMapperResource(method)) {
+                throw new CompileException(
+                    mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                        + ": XML mapper exists but statement '" + method.getSimpleName() + "' was not found"
+                );
+            }
             return null; // 跳过没有SQL的方法
+        }
+        if (sqlInfo != null) {
+            validateSafeSqlSubstitution(mapperInterface, method, sqlInfo);
+            validateDynamicExpressions(mapperInterface, method, sqlInfo.astNode());
+            warnWhenXmlOverridesAnnotation(mapperInterface, method, sqlInfo);
         }
         
         // 2. 生成标准化参数模型和绑定顺序
         List<SqlParameterParser.MethodParameter> methodParameters =
             parameterParser.describeMethodParameters(method.getParameters());
-        SqlParameterParser.SqlParseResult parameterResult = new SqlParameterParser.SqlParseResult(sqlInfo.sqlTemplate(), List.of());
-        if (!sqlInfo.isDynamic()) {
+        SqlParameterParser.SqlParseResult parameterResult = new SqlParameterParser.SqlParseResult(
+            sqlInfo == null ? "" : sqlInfo.sqlTemplate(), List.of());
+        if (sqlInfo != null && !sqlInfo.isDynamic()) {
             try {
                 parameterResult = parameterParser.parseSql(sqlInfo.sqlTemplate(), methodParameters);
             } catch (Exception e) {
@@ -160,7 +198,7 @@ public class CompilePipeline {
         String methodName = method.getSimpleName().toString();
         String returnType = method.getReturnType().toString();
         String parameterList = buildParameterList(method);
-        String resultMappingCode = generateResultMapping(returnType);
+        ResultMapping resultMapping = generateResultMapping(mapperInterface, method, returnType);
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -168,28 +206,250 @@ public class CompilePipeline {
             parameterList,
             "build" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1) + "ExecutionPlan",
             mapperInterface.getQualifiedName() + "." + methodName,
-            mapStatementType(sqlInfo.sqlType()),
-            mapSourceType(sqlInfo.sourceType()),
-            sqlInfo.isDynamic() ? sqlInfo.sqlTemplate() : parameterResult.processedSql(),
-            sqlInfo.isDynamic(),
-            requiresTransaction(sqlInfo.sqlType()),
+            providerBinding == null ? mapStatementType(sqlInfo.sqlType()) : providerBinding.statementType(),
+            providerBinding == null ? mapSourceType(sqlInfo.sourceType()) : ExecutionPlan.SqlSource.GENERATED,
+            providerBinding == null ? (sqlInfo.isDynamic() ? sqlInfo.sqlTemplate() : parameterResult.processedSql()) : "",
+            providerBinding == null && sqlInfo.isDynamic(),
+            providerBinding == null ? requiresTransaction(sqlInfo.sqlType())
+                : providerBinding.statementType() != ExecutionPlan.StatementType.SELECT,
             returnType,
-            resultMappingCode,
+            resultMapping.expression(),
+            resultMapping.helperCode(),
+            providerBinding == null ? null : providerBinding.providerClassName(),
+            providerBinding == null ? null : methodName + "SqlProvider",
+            providerBinding == null ? null : providerBinding.argumentExpression(),
             methodParameters,
             parameterResult.bindings(),
-            sqlInfo.astNode()
+            sqlInfo == null ? null : sqlInfo.astNode()
         );
     }
 
-    private void validateMethodSignature(ExecutableElement method) throws CompileException {
+    private ProviderBinding analyzeProviderBinding(TypeElement mapperInterface, ExecutableElement method)
+            throws CompileException {
+        AnnotationMirror annotation = findUseSqlProvider(method);
+        if (annotation == null) {
+            return null;
+        }
+        AnnotationBasedSqlParser annotationParser = (AnnotationBasedSqlParser) sqlParsers.get(1);
+        XmlBasedSqlParser xmlParser = (XmlBasedSqlParser) sqlParsers.get(0);
+        if (annotationParser.supports(method) || xmlParser.parseSql(method) != null) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": SQL provider cannot be combined with XML or SQL annotations");
+        }
+        if (method.getParameters().size() > 1) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": SQL provider methods support zero or one Mapper parameter; wrap multiple values in a record");
+        }
+
+        TypeMirror providerType = annotationTypeValue(annotation, "value");
+        String statementTypeName = annotationEnumValue(annotation, "statementType");
+        TypeElement providerElement = (TypeElement) typeUtils.asElement(providerType);
+        String mapperPackage = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
+        String providerPackage = elementUtils.getPackageOf(providerElement).getQualifiedName().toString();
+        boolean samePackage = mapperPackage.equals(providerPackage);
+        if (providerElement == null || providerElement.getModifiers().contains(Modifier.PRIVATE)
+                || providerElement.getModifiers().contains(Modifier.ABSTRACT)
+                || (!samePackage && !providerElement.getModifiers().contains(Modifier.PUBLIC))) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": SQL provider must be a concrete accessible class");
+        }
+        boolean hasAccessibleNoArg = providerElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
+            .map(ExecutableElement.class::cast)
+            .anyMatch(constructor -> constructor.getParameters().isEmpty()
+                && (constructor.getModifiers().contains(Modifier.PUBLIC)
+                    || (samePackage && !constructor.getModifiers().contains(Modifier.PRIVATE))));
+        if (!hasAccessibleNoArg) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": SQL provider requires an accessible no-arg constructor");
+        }
+
+        TypeMirror providerInput = findSqlProviderInput(providerElement);
+        if (providerInput == null) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": provider must implement org.liteorm.api.SqlProvider<P>");
+        }
+        TypeMirror mapperInput = method.getParameters().isEmpty()
+            ? elementUtils.getTypeElement("java.lang.Void").asType()
+            : method.getParameters().get(0).asType();
+        if (!typeUtils.isSameType(typeUtils.erasure(providerInput), typeUtils.erasure(mapperInput))) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": provider input type " + providerInput + " does not match Mapper parameter type " + mapperInput);
+        }
+        return new ProviderBinding(
+            providerElement.getQualifiedName().toString(),
+            method.getParameters().isEmpty() ? "null" : method.getParameters().get(0).getSimpleName().toString(),
+            ExecutionPlan.StatementType.valueOf(statementTypeName)
+        );
+    }
+
+    private TypeMirror findSqlProviderInput(TypeElement providerElement) {
+        for (TypeMirror interfaceType : providerElement.getInterfaces()) {
+            if (interfaceType instanceof DeclaredType declaredType
+                    && declaredType.asElement() instanceof TypeElement interfaceElement
+                    && interfaceElement.getQualifiedName().contentEquals("org.liteorm.api.SqlProvider")
+                    && declaredType.getTypeArguments().size() == 1) {
+                return declaredType.getTypeArguments().get(0);
+            }
+        }
+        TypeMirror superclass = providerElement.getSuperclass();
+        if (superclass instanceof DeclaredType declaredSuperclass
+                && declaredSuperclass.asElement() instanceof TypeElement superclassElement
+                && !superclassElement.getQualifiedName().contentEquals("java.lang.Object")) {
+            return findSqlProviderInput(superclassElement);
+        }
+        return null;
+    }
+
+    private boolean hasUseSqlProvider(ExecutableElement method) {
+        return findUseSqlProvider(method) != null;
+    }
+
+    private AnnotationMirror findUseSqlProvider(ExecutableElement method) {
+        return method.getAnnotationMirrors().stream()
+            .filter(annotation -> annotation.getAnnotationType().toString()
+                .equals("org.liteorm.annotation.UseSqlProvider"))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private TypeMirror annotationTypeValue(AnnotationMirror annotation, String name) {
+        return (TypeMirror) annotationValue(annotation, name).getValue();
+    }
+
+    private String annotationEnumValue(AnnotationMirror annotation, String name) {
+        VariableElement value = (VariableElement) annotationValue(annotation, name).getValue();
+        return value.getSimpleName().toString();
+    }
+
+    private AnnotationValue annotationValue(AnnotationMirror annotation, String name) {
+        return elementUtils.getElementValuesWithDefaults(annotation).entrySet().stream()
+            .filter(entry -> entry.getKey().getSimpleName().contentEquals(name))
+            .map(java.util.Map.Entry::getValue)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private record ProviderBinding(
+        String providerClassName, String argumentExpression, ExecutionPlan.StatementType statementType) {
+    }
+
+    private void validateSafeSqlSubstitution(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            SqlContentParser.SqlParseResult sqlInfo) throws CompileException {
+        String expression = findDollarSubstitution(sqlInfo.sqlTemplate());
+        if (expression == null && sqlInfo.astNode() != null) {
+            expression = findDollarSubstitution(sqlInfo.astNode());
+        }
+        if (expression != null) {
+            throw new CompileException(
+                mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                    + ": Unsafe SQL substitution ${" + expression + "} is not supported; "
+                    + "use #{...} for values or a compile-time-bound SQL provider for dynamic SQL structure"
+            );
+        }
+    }
+
+    private String findDollarSubstitution(AstNode astNode) {
+        if (astNode instanceof AstNode.TextNode textNode) {
+            return findDollarSubstitution(textNode.text());
+        }
+        for (AstNode child : astNode.getChildren()) {
+            String expression = findDollarSubstitution(child);
+            if (expression != null) {
+                return expression;
+            }
+        }
+        return null;
+    }
+
+    private String findDollarSubstitution(String sql) {
+        Matcher matcher = DOLLAR_SUBSTITUTION_PATTERN.matcher(sql == null ? "" : sql);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private void validateDynamicExpressions(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            AstNode astNode) throws CompileException {
+        if (astNode == null) {
+            return;
+        }
+
+        String unsupportedExpression = findUnsupportedExpression(astNode);
+        if (unsupportedExpression != null) {
+            throw new CompileException(
+                mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                    + ": Unsupported dynamic SQL expression: " + unsupportedExpression
+            );
+        }
+    }
+
+    private String findUnsupportedExpression(AstNode astNode) {
+        String expression = switch (astNode) {
+            case AstNode.IfNode ifNode -> ifNode.test();
+            case AstNode.WhenNode whenNode -> whenNode.test();
+            case AstNode.BindNode bindNode -> bindNode.value();
+            default -> null;
+        };
+        if (expression != null && !isSupportedExpression(expression)) {
+            return expression;
+        }
+
+        for (AstNode child : astNode.getChildren()) {
+            String unsupportedExpression = findUnsupportedExpression(child);
+            if (unsupportedExpression != null) {
+                return unsupportedExpression;
+            }
+        }
+        return null;
+    }
+
+    private boolean isSupportedExpression(String expression) {
+        if (expression == null || expression.isBlank() || expression.indexOf('@') >= 0) {
+            return false;
+        }
+
+        Matcher methodMatcher = METHOD_CALL_PATTERN.matcher(expression);
+        while (methodMatcher.find()) {
+            String methodPath = methodMatcher.group(1);
+            if (!methodPath.endsWith(".size")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void warnWhenXmlOverridesAnnotation(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            SqlContentParser.SqlParseResult sqlInfo) {
+        if (messager == null) {
+            return;
+        }
+
+        SqlContentParser annotationParser = sqlParsers.get(1);
+        if (sqlInfo.sourceType() == SqlContentParser.SqlSourceType.XML && annotationParser.supports(method)) {
+            messager.printMessage(
+                Diagnostic.Kind.WARNING,
+                "XML SQL overrides annotation SQL for " + mapperInterface.getQualifiedName()
+                    + "#" + method.getSimpleName(),
+                method
+            );
+        }
+    }
+
+    private void validateMethodSignature(TypeElement mapperInterface, ExecutableElement method) throws CompileException {
+        String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
         if (method.isDefault()) {
-            throw new CompileException("Default mapper methods are not supported: " + method.getSimpleName());
+            throw new CompileException(methodLocation + ": default mapper methods are not supported");
         }
         if (method.isVarArgs()) {
-            throw new CompileException("Varargs mapper methods are not supported: " + method.getSimpleName());
+            throw new CompileException(methodLocation + ": varargs mapper methods are not supported");
         }
         if (method.getModifiers().contains(javax.lang.model.element.Modifier.STATIC)) {
-            throw new CompileException("Static mapper methods are not supported: " + method.getSimpleName());
+            throw new CompileException(methodLocation + ": static mapper methods are not supported");
         }
     }
 
@@ -231,15 +491,15 @@ public class CompilePipeline {
     /**
      * 生成结果映射代码
      */
-    private String generateResultMapping(String returnType) {
-        // 简化实现，完整版本需要更复杂的类型分析
+    private ResultMapping generateResultMapping(
+            TypeElement mapperInterface, ExecutableElement method, String returnType) throws CompileException {
         if (returnType.contains("List<")) {
             String elementType = extractListElementType(returnType);
-            return generateSingleMapping(elementType);
+            return generateSingleMapping(mapperInterface, method, elementType);
         } else if (!returnType.equals("void")) {
-            return generateSingleMapping(returnType);
+            return generateSingleMapping(mapperInterface, method, returnType);
         } else {
-            return ""; // void方法无需结果映射
+            return new ResultMapping("", "");
         }
     }
     
@@ -255,45 +515,67 @@ public class CompilePipeline {
     /**
      * 生成单对象映射代码
      */
-    private String generateSingleMapping(String objectType) {
-        try {
-            var typeElement = elementUtils.getTypeElement(objectType);
-            if (typeElement == null) {
-                // 基本类型或包装类型，直接转换
-                return "(" + objectType + ")row[0]";
-            }
-            
-            // 检查是否是record class
-            if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-                return generateRecordMapping(typeElement, objectType);
-            }
-            
-            // 普通类：尝试使用全参构造器
-            return generateClassMapping(typeElement, objectType);
-            
-        } catch (Exception e) {
-            return "/* 类型映射失败: " + objectType + " */ null";
+    private ResultMapping generateSingleMapping(
+            TypeElement mapperInterface, ExecutableElement method, String objectType) throws CompileException {
+        String scalarMapping = generateScalarMapping(objectType, "row[0]");
+        if (scalarMapping != null) {
+            return new ResultMapping(scalarMapping, "");
         }
+
+        var typeElement = elementUtils.getTypeElement(objectType);
+        if (typeElement == null) {
+            throw unsupportedResultMapping(mapperInterface, method, objectType);
+        }
+
+        if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
+            return new ResultMapping(
+                generateRecordMapping(mapperInterface, method, typeElement, objectType), "");
+        }
+
+        return generateJavaBeanMapping(mapperInterface, method, typeElement, objectType);
+    }
+
+    private String generateScalarMapping(String objectType, String valueExpression) {
+        return switch (objectType) {
+            case "java.lang.String" -> "(java.lang.String)" + valueExpression;
+            case "java.lang.Long", "long" -> "((java.lang.Number)" + valueExpression + ").longValue()";
+            case "java.lang.Integer", "int" -> "((java.lang.Number)" + valueExpression + ").intValue()";
+            case "java.lang.Short", "short" -> "((java.lang.Number)" + valueExpression + ").shortValue()";
+            case "java.lang.Byte", "byte" -> "((java.lang.Number)" + valueExpression + ").byteValue()";
+            case "java.lang.Double", "double" -> "((java.lang.Number)" + valueExpression + ").doubleValue()";
+            case "java.lang.Float", "float" -> "((java.lang.Number)" + valueExpression + ").floatValue()";
+            case "java.lang.Boolean", "boolean" -> "(java.lang.Boolean)" + valueExpression;
+            case "java.lang.Character", "char" -> "(java.lang.Character)" + valueExpression;
+            default -> null;
+        };
     }
     
     /**
      * 生成record class映射代码（零反射）
      */
-    private String generateRecordMapping(javax.lang.model.element.TypeElement typeElement, String objectType) {
+    private String generateRecordMapping(
+            TypeElement mapperInterface, ExecutableElement mapperMethod,
+            TypeElement typeElement, String objectType) throws CompileException {
         // 获取record components
         var recordComponents = typeElement.getRecordComponents();
         
         StringBuilder mapping = new StringBuilder("new " + objectType + "(");
         for (int i = 0; i < recordComponents.size(); i++) {
             var component = recordComponents.get(i);
+            String componentName = component.getSimpleName().toString();
             String componentType = component.asType().toString();
             
             if (i > 0) {
                 mapping.append(", ");
             }
             
-            // 生成硬编码的类型转换：(Long)row[0], (String)row[1], ...
-            mapping.append("(").append(componentType).append(")row[").append(i).append("]");
+            String convertedValue = generateScalarMapping(componentType, "row[" + i + "]");
+            if (convertedValue == null) {
+                throw unsupportedResultMapping(mapperInterface, mapperMethod,
+                    "nested record component " + objectType + "." + componentName
+                        + " (" + componentType + ")");
+            }
+            mapping.append(convertedValue);
         }
         mapping.append(")");
         
@@ -303,34 +585,69 @@ public class CompilePipeline {
     /**
      * 生成普通类映射代码
      */
-    private String generateClassMapping(javax.lang.model.element.TypeElement typeElement, String objectType) {
-        // 简化实现：查找所有字段，生成构造器调用
-        // 这里假设有一个匹配字段顺序的构造器
-        var fields = new ArrayList<javax.lang.model.element.VariableElement>();
-        for (var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() == javax.lang.model.element.ElementKind.FIELD) {
-                fields.add((javax.lang.model.element.VariableElement) enclosed);
-            }
+    private ResultMapping generateJavaBeanMapping(
+            TypeElement mapperInterface, ExecutableElement mapperMethod,
+            TypeElement typeElement, String objectType) throws CompileException {
+        boolean hasAccessibleNoArgConstructor = typeElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
+            .map(ExecutableElement.class::cast)
+            .anyMatch(constructor -> constructor.getParameters().isEmpty()
+                && !constructor.getModifiers().contains(Modifier.PRIVATE));
+        if (!hasAccessibleNoArgConstructor) {
+            throw unsupportedResultMapping(mapperInterface, mapperMethod, objectType
+                + " requires an accessible no-arg constructor");
         }
-        
+
+        List<VariableElement> fields = typeElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
+            .map(VariableElement.class::cast)
+            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
+            .toList();
         if (fields.isEmpty()) {
-            return "new " + objectType + "()";
+            throw unsupportedResultMapping(mapperInterface, mapperMethod, objectType + " has no mappable fields");
         }
-        
-        StringBuilder mapping = new StringBuilder("new " + objectType + "(");
-        for (int i = 0; i < fields.size(); i++) {
-            var field = fields.get(i);
-            String fieldType = field.asType().toString();
-            
-            if (i > 0) {
-                mapping.append(", ");
+
+        String helperName = "map" + Character.toUpperCase(mapperMethod.getSimpleName().charAt(0))
+            + mapperMethod.getSimpleName().toString().substring(1) + "Row";
+        StringBuilder helper = new StringBuilder();
+        helper.append("    private ").append(objectType).append(" ").append(helperName)
+            .append("(Object[] row) {\n");
+        helper.append("        ").append(objectType).append(" mapped = new ").append(objectType).append("();\n");
+
+        for (int index = 0; index < fields.size(); index++) {
+            VariableElement field = fields.get(index);
+            String fieldName = field.getSimpleName().toString();
+            String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+            ExecutableElement setter = typeElement.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
+                .filter(candidate -> candidate.getModifiers().contains(Modifier.PUBLIC))
+                .filter(candidate -> candidate.getParameters().size() == 1)
+                .findFirst()
+                .orElseThrow(() -> unsupportedResultMapping(mapperInterface, mapperMethod,
+                    objectType + " is missing public setter " + setterName));
+            String parameterType = setter.getParameters().get(0).asType().toString();
+            String convertedValue = generateScalarMapping(parameterType, "row[" + index + "]");
+            if (convertedValue == null) {
+                throw unsupportedResultMapping(mapperInterface, mapperMethod,
+                    "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");
             }
-            
-            mapping.append("(").append(fieldType).append(")row[").append(i).append("]");
+            helper.append("        mapped.").append(setterName).append("(")
+                .append(convertedValue).append(");\n");
         }
-        mapping.append(")");
-        
-        return mapping.toString();
+        helper.append("        return mapped;\n");
+        helper.append("    }\n");
+        return new ResultMapping(helperName + "(row)", helper.toString());
+    }
+
+    private CompileException unsupportedResultMapping(
+            TypeElement mapperInterface, ExecutableElement method, String detail) {
+        return new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+            + ": Unsupported result mapping: " + detail);
+    }
+
+    private record ResultMapping(String expression, String helperCode) {
     }
     
     /**
