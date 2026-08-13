@@ -139,14 +139,14 @@ Assembly
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
 - Add: `lite-orm-core/src/test/java/org/liteorm/test/runtime/ResourceLifecycleTest.java`
 
-- [ ] Define one exception contract carrying statement ID, source type, cause, and safe SQL context.
-- [ ] Stop wrapping generated Mapper failures in generic `RuntimeException`.
-- [ ] Decide whether `SqlEngine.execute` throws or returns errors; remove the unused alternative to keep one model.
-- [ ] Verify result set, statement, and ordinary connection close in reverse ownership order.
-- [ ] Verify cleanup exceptions are suppressed onto the primary failure.
-- [ ] Verify interceptor callback failures do not replace JDBC or transaction failures.
-- [ ] Verify active local and Spring transaction connections remain open after one Mapper call.
-- [ ] Run resource and exception tests, then core tests.
+- [x] Define one exception contract carrying statement ID, source type, cause, and safe SQL context.
+- [x] Stop wrapping generated Mapper failures in generic `RuntimeException`.
+- [x] Make `SqlEngine.execute` return only successful results and throw `SqlExecutionException` on failure.
+- [x] Verify result set, statement, and ordinary connection close in reverse ownership order.
+- [x] Verify cleanup exceptions are suppressed onto the primary failure.
+- [x] Verify interceptor callback failures do not replace JDBC or transaction failures.
+- [x] Verify active local and Spring transaction connections remain open after one Mapper call through transaction reuse tests.
+- [x] Run resource and exception tests, then core tests.
 
 ## Phase P1: Complete Common Mapper Functionality
 

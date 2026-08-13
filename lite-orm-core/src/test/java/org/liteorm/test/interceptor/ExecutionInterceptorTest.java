@@ -8,6 +8,7 @@ import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
+import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlTask;
 import org.liteorm.runtime.SqlProcessor;
 
@@ -17,8 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecutionInterceptorTest {
@@ -35,7 +36,7 @@ class ExecutionInterceptorTest {
 
         SqlResult result = engine.execute(updatePlan());
 
-        assertFalse(result.hasError());
+        assertEquals(3, result.getUpdateCount());
         assertEquals(List.of("first.before", "second.before", "second.success", "first.success"), events);
         assertEquals(1, connections.releaseCount);
     }
@@ -51,10 +52,9 @@ class ExecutionInterceptorTest {
             List.of(interceptor("first", events), interceptor("second", events))
         );
 
-        SqlResult result = engine.execute(updatePlan());
+        SqlExecutionException result = assertThrows(SqlExecutionException.class, () -> engine.execute(updatePlan()));
 
-        assertTrue(result.hasError());
-        assertSame(failure, result.getException());
+        assertSame(failure, result.getCause());
         assertEquals(List.of("first.before", "second.before", "second.failure", "first.failure"), events);
         assertEquals(1, connections.releaseCount);
     }
@@ -71,10 +71,33 @@ class ExecutionInterceptorTest {
         DefaultSqlEngine engine = new DefaultSqlEngine(
             connections, List.of(successProcessor(connections.connection)), List.of(interceptor));
 
-        SqlResult result = engine.execute(updatePlan());
+        SqlExecutionException result = assertThrows(SqlExecutionException.class, () -> engine.execute(updatePlan()));
 
-        assertTrue(result.hasError());
-        assertEquals("callback failed", result.getException().getMessage());
+        assertEquals("callback failed", result.getCause().getMessage());
+        assertEquals(1, connections.releaseCount);
+    }
+
+    @Test
+    void failureCallbackDoesNotReplacePrimaryExecutionFailure() {
+        TrackingConnectionProvider connections = new TrackingConnectionProvider();
+        IllegalStateException executionFailure = new IllegalStateException("processor failed");
+        IllegalArgumentException callbackFailure = new IllegalArgumentException("callback failed");
+        ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+            @Override
+            public void afterFailure(ExecutionInvocation invocation) {
+                throw callbackFailure;
+            }
+        };
+        DefaultSqlEngine engine = new DefaultSqlEngine(
+            connections,
+            List.of(contextProcessor(connections.connection), (plan, context) -> { throw executionFailure; }),
+            List.of(interceptor)
+        );
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () -> engine.execute(updatePlan()));
+
+        assertSame(executionFailure, failure.getCause());
+        assertSame(callbackFailure, executionFailure.getSuppressed()[0]);
         assertEquals(1, connections.releaseCount);
     }
 
@@ -86,7 +109,6 @@ class ExecutionInterceptorTest {
 
         SqlResult result = engine.execute(updatePlan());
 
-        assertFalse(result.hasError());
         assertEquals(3, result.getUpdateCount());
         assertEquals(1, connections.releaseCount);
     }

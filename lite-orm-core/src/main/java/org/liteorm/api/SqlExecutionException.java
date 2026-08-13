@@ -9,42 +9,32 @@ package org.liteorm.api;
  * @since 2024/11/15
  */
 public class SqlExecutionException extends LiteOrmException {
-    
+
+    private final String statementId;
+    private final ExecutionPlan.SqlSource sourceType;
     private final String sql;
-    private final Object[] parameters;
-    
-    public SqlExecutionException(String message, String sql, Object[] parameters) {
-        super(buildMessage(message, sql, parameters));
-        this.sql = sql;
-        this.parameters = parameters;
+
+    public SqlExecutionException(ExecutionPlan plan, Throwable cause) {
+        super(buildMessage(plan), cause);
+        this.statementId = plan.getStatementId();
+        this.sourceType = plan.getSourceType();
+        this.sql = plan.getSql();
     }
-    
-    public SqlExecutionException(String message, String sql, Object[] parameters, Throwable cause) {
-        super(buildMessage(message, sql, parameters), cause);
-        this.sql = sql;
-        this.parameters = parameters;
+
+    private static String buildMessage(ExecutionPlan plan) {
+        return "SQL execution failed [statementId=" + plan.getStatementId()
+            + ", source=" + plan.getSourceType() + "]\nSQL: " + plan.getSql();
     }
-    
-    private static String buildMessage(String message, String sql, Object[] parameters) {
-        StringBuilder sb = new StringBuilder(message);
-        sb.append("\nSQL: ").append(sql);
-        if (parameters != null && parameters.length > 0) {
-            sb.append("\nParameters: [");
-            for (int i = 0; i < parameters.length; i++) {
-                if (i > 0) sb.append(", ");
-                sb.append(parameters[i]);
-            }
-            sb.append("]");
-        }
-        return sb.toString();
+
+    public String getStatementId() {
+        return statementId;
     }
-    
+
+    public ExecutionPlan.SqlSource getSourceType() {
+        return sourceType;
+    }
+
     public String getSql() {
         return sql;
     }
-    
-    public Object[] getParameters() {
-        return parameters;
-    }
 }
-

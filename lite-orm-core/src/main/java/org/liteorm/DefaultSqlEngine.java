@@ -5,6 +5,7 @@ import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionCoordinator;
 import org.liteorm.runtime.ConnectionProcessor;
@@ -78,11 +79,11 @@ public class DefaultSqlEngine implements SqlEngine {
     
     @Override
     public SqlResult execute(ExecutionPlan plan) {
-        // 创建执行上下文
         ExecutionContext context = new ExecutionContext();
         ExecutionInvocation invocation = new ExecutionInvocation(plan);
         List<ExecutionInterceptor> enteredInterceptors = new ArrayList<>(interceptors.size());
-        
+        Exception primaryFailure = null;
+
         try {
             for (ExecutionInterceptor interceptor : interceptors) {
                 enteredInterceptors.add(interceptor);
@@ -104,16 +105,24 @@ public class DefaultSqlEngine implements SqlEngine {
             invokeSuccessCallbacks(enteredInterceptors, invocation);
             return result;
             
-        } catch (Exception e) {
+        } catch (Exception failure) {
+            primaryFailure = failure;
             invocation.complete(
                 plan.getStatementType() == ExecutionPlan.StatementType.SELECT ? 0 : context.getUpdateCount(),
                 context.getQueryResults() == null ? 0 : context.getQueryResults().size(),
-                e
+                failure
             );
-            invokeFailureCallbacks(enteredInterceptors, invocation, e);
-            return SqlResult.error(e);
+            invokeFailureCallbacks(enteredInterceptors, invocation, failure);
+            throw new SqlExecutionException(plan, failure);
         } finally {
-            closeExecutionResources(context);
+            Exception cleanupFailure = closeExecutionResources(context);
+            if (cleanupFailure != null) {
+                if (primaryFailure != null) {
+                    appendCleanupFailures(primaryFailure, cleanupFailure);
+                } else {
+                    throw new SqlExecutionException(plan, cleanupFailure);
+                }
+            }
         }
     }
 
@@ -135,21 +144,44 @@ public class DefaultSqlEngine implements SqlEngine {
         }
     }
 
-    private void closeExecutionResources(ExecutionContext context) {
+    private Exception closeExecutionResources(ExecutionContext context) {
+        Exception failure = null;
         try {
             if (context.getResultSet() != null) {
                 context.getResultSet().close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception closeFailure) {
+            failure = closeFailure;
         }
         try {
             if (context.getPreparedStatement() != null) {
                 context.getPreparedStatement().close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception closeFailure) {
+            failure = append(failure, closeFailure);
         }
-        if (context.getConnection() != null && !context.isInTransaction()) {
-            connectionProvider.release(context.getConnection());
+        try {
+            if (context.getConnection() != null && !context.isInTransaction()) {
+                connectionProvider.release(context.getConnection());
+            }
+        } catch (Exception releaseFailure) {
+            failure = append(failure, releaseFailure);
+        }
+        return failure;
+    }
+
+    private Exception append(Exception primary, Exception secondary) {
+        if (primary == null) {
+            return secondary;
+        }
+        primary.addSuppressed(secondary);
+        return primary;
+    }
+
+    private void appendCleanupFailures(Exception primaryFailure, Exception cleanupFailure) {
+        primaryFailure.addSuppressed(cleanupFailure);
+        for (Throwable suppressed : cleanupFailure.getSuppressed()) {
+            primaryFailure.addSuppressed(suppressed);
         }
     }
     

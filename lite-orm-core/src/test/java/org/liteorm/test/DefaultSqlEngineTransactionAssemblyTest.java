@@ -13,8 +13,8 @@ import java.sql.Connection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class DefaultSqlEngineTransactionAssemblyTest {
 
@@ -42,7 +42,7 @@ class DefaultSqlEngineTransactionAssemblyTest {
                 ExecutionPlan.SqlSource.ANNOTATION
             ));
 
-            assertFalse(result.hasError());
+            assertEquals(1, result.getUpdateCount());
             assertSame(transaction.getConnection(), connections.connection);
         } finally {
             engine.rollback(transaction);

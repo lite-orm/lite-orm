@@ -80,9 +80,6 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("        ExecutionPlan plan = ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
         code.append("        SqlResult result = sqlEngine.execute(plan);\n");
-        code.append("        if (result.hasError()) {\n");
-        code.append("            throw new RuntimeException(\"SQL execution failed: \" + plan.getStatementId(), result.getException());\n");
-        code.append("        }\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));

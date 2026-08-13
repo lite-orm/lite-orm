@@ -7,6 +7,9 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * 生成代码质量测试
  * 
@@ -164,17 +167,17 @@ public class GeneratedCodeTest {
     @Test
     @DisplayName("测试错误处理代码")
     public void testErrorHandlingCode() {
-        System.out.println("🧪 测试错误处理代码");
-        
-        System.out.println("✅ 错误检查:");
-        System.out.println("   if (result.hasError()) {");
-        System.out.println("       throw new RuntimeException(...);");
-        System.out.println("   }");
-        
-        System.out.println("✅ 异常包装:");
-        System.out.println("   包含SQL、参数、原始异常");
-        
-        System.out.println("✅ 错误处理代码测试通过");
+        String generatedCode;
+        try {
+            generatedCode = Files.readString(Paths.get(
+                GENERATED_CODE_PATH, "org/liteorm/test/UserMapperImpl.java"));
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
+
+        assertTrue(generatedCode.contains("SqlResult result = sqlEngine.execute(plan);"));
+        assertFalse(generatedCode.contains("result.hasError()"));
+        assertFalse(generatedCode.contains("throw new RuntimeException(\"SQL execution failed"));
     }
 
     @Test
