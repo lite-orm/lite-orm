@@ -26,4 +26,9 @@
         </set>
         WHERE id = #{user.id}
     </update>
+
+    <batch id="insertBatch">
+        INSERT INTO users (id, name, email, age) VALUES
+        (#{item.id}, #{item.name}, #{item.email}, #{item.age})
+    </batch>
 </mapper>

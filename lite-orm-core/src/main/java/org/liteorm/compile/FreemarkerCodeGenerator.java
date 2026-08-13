@@ -3,6 +3,7 @@ package org.liteorm.compile;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
+import org.liteorm.api.ExecutionPlan;
 
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
@@ -125,6 +126,10 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         String returnType = methodModel.returnType();
         boolean isSelect = methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.SELECT;
 
+        if (methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.BATCH) {
+            return "        return result.getBatchUpdateCounts();\n";
+        }
+
         if (!isSelect) {
             if ("void".equals(returnType)) {
                 return "        return;\n";
@@ -162,7 +167,28 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("    private ExecutionPlan ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(methodModel.parameterList()).append(") {\n");
 
-        if (methodModel.providerClassName() != null) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            SqlParameterParser.MethodParameter collection = methodModel.methodParameters().get(0);
+            String elementType = collection.typeName().substring(
+                collection.typeName().indexOf('<') + 1, collection.typeName().lastIndexOf('>'));
+            code.append("        List<Object[]> batchParameters = new ArrayList<>(")
+                .append(collection.runtimeName()).append(".size());\n");
+            code.append("        for (").append(elementType).append(" item : ")
+                .append(collection.runtimeName()).append(") {\n");
+            code.append("            Object[] params = new Object[")
+                .append(methodModel.parameterBindings().size()).append("];\n");
+            for (SqlParameterParser.ParameterBinding binding : methodModel.parameterBindings()) {
+                code.append("            params[").append(binding.index() - 1).append("] = ")
+                    .append(binding.accessCode()).append(";\n");
+            }
+            code.append("            batchParameters.add(params);\n");
+            code.append("        }\n");
+            code.append("        return new BatchSqlTask(")
+                .append(javaString(methodModel.statementId())).append(", ")
+                .append(javaString(methodModel.sqlTemplate())).append(", batchParameters, ")
+                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+                .append(parameterBinderArray(methodModel)).append(");\n");
+        } else if (methodModel.providerClassName() != null) {
             code.append("        BoundSql boundSql = BoundSql.requireValid(")
                 .append(methodModel.providerFieldName()).append(".provide(")
                 .append(methodModel.providerArgumentExpression()).append("), ")

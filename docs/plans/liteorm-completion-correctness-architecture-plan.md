@@ -153,19 +153,21 @@ Assembly
 ### Module F1: Real JDBC Batch
 
 **Files:**
-- Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionPlan.java`
-- Modify or replace: `lite-orm-core/src/main/java/org/liteorm/SimpleSqlExecutor.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/BatchExecutionPlan.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/BatchSqlTask.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/SqlExecutor.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/SimpleSqlExecutor.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/runtime/ExecutionProcessor.java`
 - Modify: compiler model and generator files under `lite-orm-core/src/main/java/org/liteorm/compile`
 - Add H2 fixtures under `lite-orm-examples/basic-mapper`
 
-- [ ] Define batch input and return semantics without overloading a single-row parameter array.
-- [ ] Generate ordered parameter sets for annotation and XML batch methods.
-- [ ] Use `PreparedStatement.addBatch/executeBatch`.
-- [ ] Execute the whole batch on one connection and one transaction boundary.
-- [ ] Define partial-failure behavior and returned update counts.
-- [ ] Delete old batch enums or executor code that no longer matches the contract.
-- [ ] Add concurrent and rollback batch tests.
+- [x] Define `@Batch` and XML `<batch>` methods as one `List<T>` input returning JDBC `int[]` update counts.
+- [x] Generate ordered parameter sets for annotation and XML batch methods as static Java loops.
+- [x] Use `PreparedStatement.addBatch/executeBatch`.
+- [x] Execute the whole batch on one connection and join the active local or Spring transaction boundary.
+- [x] Preserve JDBC `BatchUpdateException` as the cause so partial update counts remain available.
+- [x] Delete the disconnected `SqlExecutor` and `SimpleSqlExecutor` implementations.
+- [x] Add concurrent, local rollback, annotation, XML, empty-batch, and compile-time contract tests.
 
 ### Module F2: Generated Keys
 

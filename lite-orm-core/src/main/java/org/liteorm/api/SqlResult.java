@@ -19,15 +19,20 @@ public class SqlResult {
     private final List<Object[]> queryResults;   // 查询结果的原始数据
     private final int updateCount;               // 更新行数
     private final boolean isQuery;               // 是否为查询操作
+    private final int[] batchUpdateCounts;
     
     // 查询结果构造器
     public static SqlResult forQuery(List<Object[]> results) {
-        return new SqlResult(results, 0, true);
+        return new SqlResult(results, 0, true, null);
     }
     
     // 更新结果构造器
     public static SqlResult forUpdate(int updateCount) {
-        return new SqlResult(null, updateCount, false);
+        return new SqlResult(null, updateCount, false, null);
+    }
+
+    public static SqlResult forBatch(int[] updateCounts) {
+        return new SqlResult(null, 0, false, updateCounts.clone());
     }
     
     // 兼容方法：success for query
@@ -40,10 +45,11 @@ public class SqlResult {
         return forUpdate(updateCount);
     }
     
-    private SqlResult(List<Object[]> queryResults, int updateCount, boolean isQuery) {
+    private SqlResult(List<Object[]> queryResults, int updateCount, boolean isQuery, int[] batchUpdateCounts) {
         this.queryResults = queryResults;
         this.updateCount = updateCount;
         this.isQuery = isQuery;
+        this.batchUpdateCounts = batchUpdateCounts;
     }
     
     // Getters
@@ -57,6 +63,10 @@ public class SqlResult {
     
     public boolean isQuery() {
         return isQuery;
+    }
+
+    public int[] getBatchUpdateCounts() {
+        return batchUpdateCounts == null ? null : batchUpdateCounts.clone();
     }
     
 }

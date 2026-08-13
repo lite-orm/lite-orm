@@ -13,8 +13,11 @@ import org.liteorm.runtime.SqlProcessor;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class UserMapperE2ETest {
@@ -68,6 +71,49 @@ class UserMapperE2ETest {
 
         assertEquals(1, annotationMapper.deleteById(1L));
         assertNull(annotationMapper.findById(1L));
+    }
+
+    @Test
+    void generatedAnnotationMapperExecutesRealJdbcBatch() {
+        int[] counts = annotationMapper.insertBatch(List.of(
+            new User(10L, "Dora", "dora@example.com", 25),
+            new User(11L, "Evan", "evan@example.com", 27)
+        ));
+
+        assertArrayEquals(new int[]{1, 1}, counts);
+        assertEquals(new User(10L, "Dora", "dora@example.com", 25), annotationMapper.findById(10L));
+        assertEquals(new User(11L, "Evan", "evan@example.com", 27), annotationMapper.findById(11L));
+    }
+
+    @Test
+    void generatedXmlMapperExecutesRealJdbcBatch() {
+        int[] counts = xmlMapper.insertBatch(List.of(
+            new User(12L, "Faye", "faye@example.com", 29),
+            new User(13L, "Gabe", "gabe@example.com", 31)
+        ));
+
+        assertArrayEquals(new int[]{1, 1}, counts);
+        assertEquals(new User(12L, "Faye", "faye@example.com", 29), annotationMapper.findById(12L));
+        assertEquals(new User(13L, "Gabe", "gabe@example.com", 31), annotationMapper.findById(13L));
+    }
+
+    @Test
+    void concurrentBatchCallsKeepParameterSetsIsolated() throws Exception {
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> annotationMapper.insertBatch(List.of(
+                new User(20L, "Hana", "hana@example.com", 24),
+                new User(21L, "Ivan", "ivan@example.com", 26)
+            )));
+            var second = executor.submit(() -> annotationMapper.insertBatch(List.of(
+                new User(30L, "Jade", "jade@example.com", 32),
+                new User(31L, "Kyle", "kyle@example.com", 34)
+            )));
+
+            assertArrayEquals(new int[]{1, 1}, first.get(5, TimeUnit.SECONDS));
+            assertArrayEquals(new int[]{1, 1}, second.get(5, TimeUnit.SECONDS));
+        }
+
+        assertEquals(List.of("Hana", "Ivan", "Jade", "Kyle"), annotationMapper.findAllNames());
     }
 
     @Test

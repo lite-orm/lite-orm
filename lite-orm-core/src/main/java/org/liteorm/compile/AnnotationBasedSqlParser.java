@@ -1,6 +1,7 @@
 package org.liteorm.compile;
 
 import org.liteorm.annotation.Delete;
+import org.liteorm.annotation.Batch;
 import org.liteorm.annotation.Insert;
 import org.liteorm.annotation.Select;
 import org.liteorm.annotation.Update;
@@ -98,6 +99,11 @@ public class AnnotationBasedSqlParser implements SqlContentParser {
         Delete deleteAnnotation = method.getAnnotation(Delete.class);
         if (deleteAnnotation != null) {
             return String.join("\n", deleteAnnotation.value());
+        }
+
+        Batch batchAnnotation = method.getAnnotation(Batch.class);
+        if (batchAnnotation != null) {
+            return String.join("\n", batchAnnotation.value());
         }
         
         return null;
@@ -360,6 +366,8 @@ public class AnnotationBasedSqlParser implements SqlContentParser {
             return SqlType.UPDATE;
         } else if (method.getAnnotation(Delete.class) != null) {
             return SqlType.DELETE;
+        } else if (method.getAnnotation(Batch.class) != null) {
+            return SqlType.BATCH;
         } else {
             return SqlType.SELECT; // 默认
         }

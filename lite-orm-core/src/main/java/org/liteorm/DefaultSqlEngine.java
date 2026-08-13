@@ -196,6 +196,8 @@ public class DefaultSqlEngine implements SqlEngine {
             case UPDATE:
             case DELETE:
                 return SqlResult.success(context.getUpdateCount());
+            case BATCH:
+                return SqlResult.forBatch(context.getBatchUpdateCounts());
             default:
                 throw new UnsupportedOperationException("Unsupported SQL type: " + plan.getStatementType());
         }

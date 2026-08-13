@@ -13,4 +13,6 @@ public interface UserXmlMapper {
     List<User> findByIds(@Param("ids") List<Long> ids);
 
     int updateSelective(@Param("user") User user);
+
+    int[] insertBatch(List<User> users);
 }

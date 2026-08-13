@@ -1,6 +1,7 @@
 package org.liteorm.example;
 
 import org.liteorm.annotation.Delete;
+import org.liteorm.annotation.Batch;
 import org.liteorm.annotation.Insert;
 import org.liteorm.annotation.Mapper;
 import org.liteorm.annotation.Param;
@@ -17,6 +18,9 @@ public interface UserMapper {
     @Insert("INSERT INTO users (id, name, email, age) VALUES (#{id}, #{name}, #{email}, #{age})")
     int insert(@Param("id") Long id, @Param("name") String name, @Param("email") String email,
                @Param("age") Integer age);
+
+    @Batch("INSERT INTO users (id, name, email, age) VALUES (#{item.id}, #{item.name}, #{item.email}, #{item.age})")
+    int[] insertBatch(List<User> users);
 
     @Select("SELECT id, name, email, age FROM users WHERE id = #{id}")
     User findById(@Param("id") Long id);

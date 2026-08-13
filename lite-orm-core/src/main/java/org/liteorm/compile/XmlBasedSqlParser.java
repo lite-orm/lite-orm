@@ -218,6 +218,14 @@ public class XmlBasedSqlParser implements SqlContentParser {
                 return element;
             }
         }
+
+        NodeList batchNodes = document.getElementsByTagName("batch");
+        for (int i = 0; i < batchNodes.getLength(); i++) {
+            Element element = (Element) batchNodes.item(i);
+            if (methodName.equals(element.getAttribute("id"))) {
+                return element;
+            }
+        }
         
         return null;
     }

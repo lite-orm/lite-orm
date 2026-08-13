@@ -24,6 +24,7 @@ When XML and a SQL annotation define the same Mapper method, XML wins because it
 
 - Statements: `select`, `insert`, `update`, `delete`.
 - Dynamic tags: `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, `include`.
+- Real JDBC batch: LiteORM `@Batch` or XML `<batch>` with one `List<T>` argument and an `int[]` return value.
 - Results declared with `resultType` when the Java return type can be mapped as a scalar, record, JavaBean, or list of one of those types.
 - A controlled OGNL-like subset in `test` and `bind`: null, boolean, string and number comparisons; `and` and `or`; simple property paths; array `length`; collection `size()`; and string concatenation in `bind`.
 

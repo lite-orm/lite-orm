@@ -2,6 +2,7 @@ package org.liteorm.runtime;
 
 import org.liteorm.ExecutionContext;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.BatchExecutionPlan;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -36,9 +37,18 @@ public class ExecutionProcessor implements SqlProcessor {
                     int updateCount = statement.executeUpdate();
                     context.setUpdateCount(updateCount);
                     break;
+
+                case BATCH:
+                    BatchExecutionPlan batchPlan = (BatchExecutionPlan) plan;
+                    for (Object[] parameters : batchPlan.getBatchParameters()) {
+                        ParameterProcessor.bind(statement, parameters, plan.getParameterBinders());
+                        statement.addBatch();
+                    }
+                    context.setBatchUpdateCounts(batchPlan.getBatchParameters().isEmpty()
+                        ? new int[0]
+                        : statement.executeBatch());
+                    break;
                     
-                default:
-                    throw new UnsupportedOperationException("Unsupported SQL type: " + plan.getStatementType());
             }
             
         } catch (SQLException e) {

@@ -39,6 +39,8 @@ import org.liteorm.annotation.Update;
 
 The dynamic XML fixture is `lite-orm-examples/basic-mapper/src/main/resources/org/liteorm/example/UserXmlMapper.xml`. It covers `where`, `if`, `foreach`, and `set` with real H2 assertions.
 
+Use LiteORM `@Batch` or XML `<batch>` when the desired behavior is JDBC `PreparedStatement.addBatch/executeBatch`. A normal XML `<insert>` with `<foreach>` remains one dynamically generated multi-value SQL statement rather than a JDBC batch.
+
 ## 4. Replace Runtime OGNL Assumptions
 
 LiteORM does not execute OGNL. Supported OGNL-like syntax is translated to native Java during annotation processing.

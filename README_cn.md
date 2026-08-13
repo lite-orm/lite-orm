@@ -73,6 +73,7 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
 - XML-backed Mapper 方法。
 - `@Param`、`param1`、`arg0`、`list`、`collection`、`array` 等常见参数命名。
 - 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`。
+- JDBC 批处理：注解 `@Batch` 与 XML `<batch>`，编译期生成逐项参数绑定循环，返回 JDBC `int[]` 更新计数。
 - 静态执行计划、静态参数绑定、基础静态结果映射。
 - LiteORM 本地事务和 Spring 托管事务参与。
 

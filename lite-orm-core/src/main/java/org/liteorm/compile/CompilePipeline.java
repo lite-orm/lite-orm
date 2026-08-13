@@ -187,7 +187,9 @@ public class CompilePipeline {
             sqlInfo == null ? "" : sqlInfo.sqlTemplate(), List.of());
         if (sqlInfo != null && !sqlInfo.isDynamic()) {
             try {
-                parameterResult = parameterParser.parseSql(sqlInfo.sqlTemplate(), methodParameters);
+                parameterResult = sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
+                    ? parseBatchParameters(mapperInterface, method, sqlInfo.sqlTemplate(), methodParameters)
+                    : parameterParser.parseSql(sqlInfo.sqlTemplate(), methodParameters);
             } catch (Exception e) {
                 throw new CompileException("Failed to resolve SQL parameters for " +
                     mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": " + e.getMessage(), e);
@@ -201,9 +203,14 @@ public class CompilePipeline {
         String methodName = method.getSimpleName().toString();
         String returnType = method.getReturnType().toString();
         String parameterList = buildParameterList(method);
-        ResultMapping resultMapping = adapterBindings.rowMapperFieldName() == null
-            ? generateResultMapping(mapperInterface, method, returnType)
-            : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "");
+        if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
+            validateBatchMethod(mapperInterface, method, returnType, sqlInfo);
+        }
+        ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
+            ? new ResultMapping("", "")
+            : adapterBindings.rowMapperFieldName() == null
+                ? generateResultMapping(mapperInterface, method, returnType)
+                : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "");
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -639,6 +646,41 @@ public class CompilePipeline {
             case DELETE -> ExecutionPlan.StatementType.DELETE;
             case BATCH -> ExecutionPlan.StatementType.BATCH;
         };
+    }
+
+    private SqlParameterParser.SqlParseResult parseBatchParameters(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String sql,
+            List<SqlParameterParser.MethodParameter> methodParameters) throws CompileException {
+        validateBatchMethod(mapperInterface, method, method.getReturnType().toString(), null);
+        String elementType = batchElementType(methodParameters.get(0).typeName());
+        SqlParameterParser.MethodParameter item = new SqlParameterParser.MethodParameter(
+            "item", "item", elementType, List.of("item")
+        );
+        return parameterParser.parseSql(sql, List.of(item));
+    }
+
+    private void validateBatchMethod(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String returnType,
+            SqlContentParser.SqlParseResult sqlInfo) throws CompileException {
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        if (method.getParameters().size() != 1
+                || !method.getParameters().get(0).asType().toString().startsWith("java.util.List<")) {
+            throw new CompileException(location + ": batch methods require exactly one java.util.List<T> parameter");
+        }
+        if (!"int[]".equals(returnType)) {
+            throw new CompileException(location + ": batch methods must return int[]");
+        }
+        if (sqlInfo != null && sqlInfo.isDynamic()) {
+            throw new CompileException(location + ": dynamic SQL is not supported for JDBC batch methods");
+        }
+    }
+
+    private String batchElementType(String listType) {
+        return listType.substring(listType.indexOf('<') + 1, listType.lastIndexOf('>'));
     }
 
     private ExecutionPlan.SqlSource mapSourceType(SqlContentParser.SqlSourceType sourceType) {

@@ -29,17 +29,8 @@ public class ParameterProcessor implements SqlProcessor {
             PreparedStatement statement = connection.prepareStatement(plan.getSql());
             
             // 绑定参数（防SQL注入）
-            Object[] parameters = plan.getParameters();
-            ParameterBinder<?>[] binders = plan.getParameterBinders();
-            if (parameters != null) {
-                for (int i = 0; i < parameters.length; i++) {
-                    ParameterBinder<Object> binder = binderAt(binders, i);
-                    if (parameters[i] != null && binder != null) {
-                        binder.bind(statement, i + 1, parameters[i]);
-                    } else {
-                        statement.setObject(i + 1, parameters[i]);
-                    }
-                }
+            if (plan.getStatementType() != ExecutionPlan.StatementType.BATCH) {
+                bind(statement, plan.getParameters(), plan.getParameterBinders());
             }
             
             context.setPreparedStatement(statement);
@@ -49,8 +40,23 @@ public class ParameterProcessor implements SqlProcessor {
         }
     }
 
+    static void bind(PreparedStatement statement, Object[] parameters, ParameterBinder<?>[] binders)
+            throws SQLException {
+        if (parameters == null) {
+            return;
+        }
+        for (int index = 0; index < parameters.length; index++) {
+            ParameterBinder<Object> binder = binderAt(binders, index);
+            if (parameters[index] != null && binder != null) {
+                binder.bind(statement, index + 1, parameters[index]);
+            } else {
+                statement.setObject(index + 1, parameters[index]);
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
-    private ParameterBinder<Object> binderAt(ParameterBinder<?>[] binders, int index) {
+    private static ParameterBinder<Object> binderAt(ParameterBinder<?>[] binders, int index) {
         if (binders == null || index >= binders.length) {
             return null;
         }

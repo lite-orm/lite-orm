@@ -11,6 +11,7 @@ import javax.sql.DataSource;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,6 +58,20 @@ class LocalTransactionIntegrationTest {
 
         assertEquals(new User(1L, "Alice", "alice@example.com", 30), mapper.findById(1L));
         assertEquals(new User(2L, "Bob", "bob@example.com", 28), mapper.findById(2L));
+    }
+
+    @Test
+    void rollbackRemovesEveryWriteFromGeneratedJdbcBatch() {
+        TransactionContext transaction = begin();
+
+        assertEquals(2, mapper.insertBatch(List.of(
+            new User(10L, "Dora", "dora@example.com", 25),
+            new User(11L, "Evan", "evan@example.com", 27)
+        )).length);
+        rollback(transaction);
+
+        assertNull(mapper.findById(10L));
+        assertNull(mapper.findById(11L));
     }
 
     @Test
