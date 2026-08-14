@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.JdbcConnectionProvider;
+import org.liteorm.api.SqlEngine;
 import org.liteorm.runtime.ExecutionProcessor;
 import org.liteorm.runtime.ParameterProcessor;
 import org.liteorm.runtime.ResultProcessor;
@@ -22,9 +23,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -291,6 +294,26 @@ class UserMapperE2ETest {
             new User(1L, "Alice", "updated@example.com", 31),
             annotationMapper.findById(1L)
         );
+    }
+
+    @Test
+    void xmlSetRejectsAllEmptyAssignmentsBeforeExecutingJdbc() {
+        AtomicBoolean engineInvoked = new AtomicBoolean();
+        UserXmlMapper mapper = new UserXmlMapperImpl((SqlEngine) plan -> {
+            engineInvoked.set(true);
+            throw new AssertionError("SQL engine must not execute an empty dynamic set");
+        });
+
+        IllegalStateException failure = assertThrows(
+            IllegalStateException.class,
+            () -> mapper.updateSelective(new User(1L, null, null, null))
+        );
+
+        assertEquals(
+            "Dynamic <set> produced no assignments [statementId=org.liteorm.example.UserXmlMapper.updateSelective]",
+            failure.getMessage()
+        );
+        assertFalse(engineInvoked.get());
     }
 
     @Test

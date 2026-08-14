@@ -378,12 +378,16 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 }
                 code.append(indent).append("String normalizedSet").append(index)
                     .append(" = normalizeSetClause(").append(innerSql).append(".toString());\n");
-                code.append(indent).append("if (!normalizedSet").append(index).append(".isBlank()) {\n");
-                code.append(indent).append("    ").append(sqlVar).append(".append(\" SET \").append(normalizedSet")
-                    .append(index).append(");\n");
-                code.append(indent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(indent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(indent).append("if (normalizedSet").append(index).append(".isBlank()) {\n");
+                code.append(indent).append("    throw new IllegalStateException(")
+                    .append(javaString("Dynamic <set> produced no assignments [statementId="
+                        + methodModel.statementId() + "]"))
+                    .append(");\n");
                 code.append(indent).append("}\n");
+                code.append(indent).append(sqlVar).append(".append(\" SET \").append(normalizedSet")
+                    .append(index).append(");\n");
+                code.append(indent).append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
+                code.append(indent).append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
             }
             case TRIM -> {
                 AstNode.TrimNode trimNode = (AstNode.TrimNode) astNode;

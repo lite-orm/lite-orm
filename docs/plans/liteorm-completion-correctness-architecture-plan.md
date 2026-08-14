@@ -221,8 +221,8 @@ Assembly
 
 - [x] Reject invalid `<choose>` structures: unsupported children, more than one `<otherwise>`, and `<when>` after `<otherwise>`.
 - [x] Detect missing and cyclic `<include>` references with deterministic compiler diagnostics.
-- [ ] Define and test an all-empty `<set>` update as a pre-JDBC failure rather than emitting invalid SQL.
-- [ ] Run the full reactor, generated-source reflection scan, and `git diff --check`; then commit F5 in English.
+- [x] Define and test an all-empty `<set>` update as a pre-JDBC failure rather than emitting invalid SQL.
+- [x] Run the full reactor, generated-source reflection scan, and `git diff --check`; then commit F5 in English.
 
 | XML feature | Intended compile-time behavior | Current verification / gap |
 | --- | --- | --- |
@@ -230,7 +230,7 @@ Assembly
 | `<choose>/<when>/<otherwise>` | Emit first-match native Java branching with at most one fallback. | Nested coverage exists; invalid child order/cardinality still needs rejection tests. |
 | `<foreach>` | Emit a typed Java loop with ordered JDBC parameters and separators. | List/array coverage exists; empty collections, nested loops, scope leakage, and unsupported attributes need real tests. |
 | `<where>` | Emit `WHERE` only for non-empty content and remove leading `AND`/`OR`. | Basic coverage exists; whitespace and nested-empty behavior need real assertions. |
-| `<set>` | Emit `SET` only for non-empty content and remove trailing commas. | Basic coverage exists; all-empty update behavior must be defined and rejected or tested. |
+| `<set>` | Emit `SET` only for non-empty content and remove trailing commas. | Parameter order is covered; all-empty assignments fail while building the generated execution plan, before the SQL engine or JDBC is invoked. |
 | `<trim>` | Apply prefix/suffix and override tokens at runtime to generated fragments. | Basic nested coverage exists; case/whitespace normalization needs real assertions. |
 | `<bind>` | Translate the expression to a scoped native Java local variable. | Mixed, bind-only, and included-fragment generation are covered. |
 | `<include>` | Resolve SQL fragments during compilation; no runtime XML lookup. | Text and multi-node dynamic fragments are covered; missing/cyclic references still need deterministic diagnostics. |
