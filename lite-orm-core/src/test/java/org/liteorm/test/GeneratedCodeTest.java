@@ -178,6 +178,8 @@ public class GeneratedCodeTest {
         assertTrue(generatedCode.contains("SqlResult result = sqlEngine.execute(plan);"));
         assertFalse(generatedCode.contains("result.hasError()"));
         assertFalse(generatedCode.contains("throw new RuntimeException(\"SQL execution failed"));
+        assertTrue(generatedCode.contains("return (long) result.getUpdateCount();"));
+        assertFalse(generatedCode.contains("List resultList"));
     }
 
     @Test

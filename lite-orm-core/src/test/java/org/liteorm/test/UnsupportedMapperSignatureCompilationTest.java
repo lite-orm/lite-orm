@@ -163,6 +163,26 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void primitiveSingleResultFailsBecauseZeroRowsCannotBeRepresented() throws Exception {
+        assertUnsupportedMethod(
+            "PrimitiveSingleResultMapper",
+            "@Select(\"SELECT COUNT(*) FROM users\") long count();",
+            "count",
+            "primitive SELECT return types cannot represent zero rows"
+        );
+    }
+
+    @Test
+    void boxedUpdateReturnTypeFailsAtCompileTime() throws Exception {
+        assertUnsupportedMethod(
+            "BoxedUpdateResultMapper",
+            "@org.liteorm.annotation.Update(\"UPDATE users SET name = #{name}\") Integer update(String name);",
+            "update",
+            "write methods must return void, int, or long"
+        );
+    }
+
+    @Test
     void complexXmlResultMapFailsWithMigrationGuidance() throws Exception {
         assertUnsupportedMethod(
             "ComplexResultMapMapper",

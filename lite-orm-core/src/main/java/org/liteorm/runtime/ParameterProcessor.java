@@ -50,7 +50,7 @@ public class ParameterProcessor implements SqlProcessor {
         }
         for (int index = 0; index < parameters.length; index++) {
             ParameterBinder<Object> binder = binderAt(binders, index);
-            if (parameters[index] != null && binder != null) {
+            if (binder != null) {
                 binder.bind(statement, index + 1, parameters[index]);
             } else {
                 statement.setObject(index + 1, parameters[index]);

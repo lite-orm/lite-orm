@@ -4,6 +4,7 @@ import org.liteorm.api.ParameterBinder;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Types;
 
 public class JsonValueBinder implements ParameterBinder<JsonValue> {
 
@@ -12,6 +13,10 @@ public class JsonValueBinder implements ParameterBinder<JsonValue> {
 
     @Override
     public void bind(PreparedStatement statement, int index, JsonValue value) throws SQLException {
-        statement.setString(index, value.value());
+        if (value == null || value.value() == null) {
+            statement.setNull(index, Types.VARCHAR);
+        } else {
+            statement.setString(index, value.value());
+        }
     }
 }

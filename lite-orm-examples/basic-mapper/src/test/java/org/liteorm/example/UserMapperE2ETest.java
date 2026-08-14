@@ -11,7 +11,14 @@ import org.liteorm.runtime.ResultProcessor;
 import org.liteorm.runtime.SqlProcessor;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class UserMapperE2ETest {
 
@@ -27,6 +35,8 @@ class UserMapperE2ETest {
     private UserXmlMapper xmlMapper;
     private UserMetadataMapper metadataMapper;
     private GeneratedKeyMapperFixture generatedKeyMapper;
+    private SingleResultMapperFixture singleResultMapper;
+    private JdbcTypeMapperFixture jdbcTypeMapper;
     private UserMapper auditedMapper;
     private List<String> auditEvents;
 
@@ -41,6 +51,13 @@ class UserMapperE2ETest {
                 + "name VARCHAR(100), email VARCHAR(200), age INT)");
             statement.execute("DROP TABLE IF EXISTS user_metadata");
             statement.execute("CREATE TABLE user_metadata (user_id BIGINT PRIMARY KEY, payload VARCHAR(500))");
+            statement.execute("DROP TABLE IF EXISTS jdbc_types");
+            statement.execute("CREATE TABLE jdbc_types (id BIGINT PRIMARY KEY, quantity INT, "
+                + "amount DECIMAL(18, 2), business_date DATE, created_at TIMESTAMP, "
+                + "occurred_at TIMESTAMP WITH TIME ZONE, status VARCHAR(20), payload VARBINARY, enabled BOOLEAN, "
+                + "required_count BIGINT NOT NULL, required_quantity INT NOT NULL, small_value SMALLINT NOT NULL, "
+                + "tiny_value TINYINT NOT NULL, ratio DOUBLE NOT NULL, score REAL NOT NULL, "
+                + "required_enabled BOOLEAN NOT NULL, code CHAR(1) NOT NULL)");
         }
 
         JdbcConnectionProvider connectionProvider = new JdbcConnectionProvider(dataSource);
@@ -48,6 +65,8 @@ class UserMapperE2ETest {
         xmlMapper = new UserXmlMapperImpl(connectionProvider);
         metadataMapper = new UserMetadataMapperImpl(connectionProvider);
         generatedKeyMapper = new GeneratedKeyMapperFixtureImpl(connectionProvider);
+        singleResultMapper = new SingleResultMapperFixtureImpl(connectionProvider);
+        jdbcTypeMapper = new JdbcTypeMapperFixtureImpl(connectionProvider);
         auditEvents = new java.util.ArrayList<>();
         MigrationAuditInterceptor firstAuditInterceptor = new MigrationAuditInterceptor("first", auditEvents);
         MigrationAuditInterceptor secondAuditInterceptor = new MigrationAuditInterceptor("second", auditEvents);
@@ -68,6 +87,99 @@ class UserMapperE2ETest {
         Long id = generatedKeyMapper.insert("Generated", "generated@example.com", 27);
 
         assertEquals(new User(id, "Generated", "generated@example.com", 27), annotationMapper.findById(id));
+    }
+
+    @Test
+    void singleResultMethodRejectsMoreThanOneRow() {
+        annotationMapper.insert(1L, "Alice", "alice@example.com", 30);
+        annotationMapper.insert(2L, "Bob", "bob@example.com", 28);
+
+        RuntimeException failure = assertThrows(RuntimeException.class, singleResultMapper::findName);
+
+        assertEquals("org.liteorm.api.NonUniqueResultException", failure.getClass().getName());
+        assertEquals(
+            "Expected at most one row for org.liteorm.example.SingleResultMapperFixture.findName but found 2",
+            failure.getMessage()
+        );
+    }
+
+    @Test
+    void generatedMapperConvertsCommonJdbcTypesAndPreservesSqlNulls() throws Exception {
+        Instant occurredAt = Instant.parse("2026-08-14T01:23:45Z");
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "INSERT INTO jdbc_types VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+            statement.setLong(1, 1L);
+            statement.setInt(2, 7);
+            statement.setBigDecimal(3, new BigDecimal("123.45"));
+            statement.setObject(4, LocalDate.of(2026, 8, 14));
+            statement.setObject(5, LocalDateTime.of(2026, 8, 14, 9, 30));
+            statement.setObject(6, OffsetDateTime.ofInstant(occurredAt, ZoneOffset.UTC));
+            statement.setString(7, JdbcStatus.ACTIVE.name());
+            statement.setBytes(8, new byte[]{1, 2, 3});
+            statement.setBoolean(9, true);
+            statement.setLong(10, 99L);
+            statement.setInt(11, 8);
+            statement.setShort(12, (short) 6);
+            statement.setByte(13, (byte) 4);
+            statement.setDouble(14, 1.5D);
+            statement.setFloat(15, 2.5F);
+            statement.setBoolean(16, true);
+            statement.setString(17, "Z");
+            statement.executeUpdate();
+
+            statement.setLong(1, 2L);
+            for (int index = 2; index <= 9; index++) {
+                statement.setObject(index, null);
+            }
+            statement.setLong(10, 0L);
+            statement.setInt(11, 0);
+            statement.setShort(12, (short) 0);
+            statement.setByte(13, (byte) 0);
+            statement.setDouble(14, 0D);
+            statement.setFloat(15, 0F);
+            statement.setBoolean(16, false);
+            statement.setString(17, "N");
+            statement.executeUpdate();
+        }
+
+        JdbcTypesRow populated = jdbcTypeMapper.findById(1L);
+        assertEquals(1L, populated.id());
+        assertEquals(7, populated.quantity());
+        assertEquals(new BigDecimal("123.45"), populated.amount());
+        assertEquals(LocalDate.of(2026, 8, 14), populated.businessDate());
+        assertEquals(LocalDateTime.of(2026, 8, 14, 9, 30), populated.createdAt());
+        assertEquals(occurredAt, populated.occurredAt());
+        assertEquals(JdbcStatus.ACTIVE, populated.status());
+        assertArrayEquals(new byte[]{1, 2, 3}, populated.payload());
+        assertEquals(true, populated.enabled());
+        assertEquals(99L, populated.requiredCount());
+        assertEquals(8, populated.requiredQuantity());
+        assertEquals((short) 6, populated.smallValue());
+        assertEquals((byte) 4, populated.tinyValue());
+        assertEquals(1.5D, populated.ratio());
+        assertEquals(2.5F, populated.score());
+        assertEquals(true, populated.requiredEnabled());
+        assertEquals('Z', populated.code());
+
+        JdbcTypesRow nullable = jdbcTypeMapper.findById(2L);
+        assertEquals(2L, nullable.id());
+        assertNull(nullable.quantity());
+        assertNull(nullable.amount());
+        assertNull(nullable.businessDate());
+        assertNull(nullable.createdAt());
+        assertNull(nullable.occurredAt());
+        assertNull(nullable.status());
+        assertNull(nullable.payload());
+        assertNull(nullable.enabled());
+        assertEquals(0L, nullable.requiredCount());
+        assertEquals(0, nullable.requiredQuantity());
+        assertEquals((short) 0, nullable.smallValue());
+        assertEquals((byte) 0, nullable.tinyValue());
+        assertEquals(0D, nullable.ratio());
+        assertEquals(0F, nullable.score());
+        assertEquals(false, nullable.requiredEnabled());
+        assertEquals('N', nullable.code());
     }
 
     @Test

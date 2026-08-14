@@ -51,6 +51,9 @@ public interface UserMapper {
      */
     @Update("UPDATE users SET name = #{name}, email = #{email}, age = #{age} WHERE id = #{id}")
     int update(Long id, String name, String email, Integer age);
+
+    @Update("UPDATE users SET age = #{age} WHERE id = #{id}")
+    long updateAge(Long id, Integer age);
     
     /**
      * 删除用户 - 测试简单#{param}

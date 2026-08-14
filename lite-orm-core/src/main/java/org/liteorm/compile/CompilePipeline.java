@@ -207,6 +207,8 @@ public class CompilePipeline {
         ExecutionPlan.StatementType statementType = providerBinding == null
             ? mapStatementType(sqlInfo.sqlType())
             : providerBinding.statementType();
+        validateSingleResultReturnType(mapperInterface, method, statementType, returnType);
+        validateWriteReturnType(mapperInterface, method, statementType, returnType, generatedKey);
         if (generatedKey) {
             validateGeneratedKeyMethod(
                 mapperInterface, method, returnType, statementType, sqlInfo, providerBinding);
@@ -713,6 +715,39 @@ public class CompilePipeline {
         }
     }
 
+    private void validateSingleResultReturnType(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutionPlan.StatementType statementType,
+            String returnType) throws CompileException {
+        if (statementType != ExecutionPlan.StatementType.SELECT
+                || returnType.startsWith("java.util.List<")
+                || !method.getReturnType().getKind().isPrimitive()) {
+            return;
+        }
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        throw new CompileException(
+            location + ": primitive SELECT return types cannot represent zero rows; use a wrapper type");
+    }
+
+    private void validateWriteReturnType(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutionPlan.StatementType statementType,
+            String returnType,
+            boolean generatedKey) throws CompileException {
+        if (statementType == ExecutionPlan.StatementType.SELECT
+                || statementType == ExecutionPlan.StatementType.BATCH
+                || generatedKey
+                || "void".equals(returnType)
+                || "int".equals(returnType)
+                || "long".equals(returnType)) {
+            return;
+        }
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        throw new CompileException(location + ": write methods must return void, int, or long");
+    }
+
     private String batchElementType(String listType) {
         return listType.substring(listType.indexOf('<') + 1, listType.lastIndexOf('>'));
     }
@@ -771,7 +806,7 @@ public class CompilePipeline {
      */
     private ResultMapping generateSingleMapping(
             TypeElement mapperInterface, ExecutableElement method, String objectType) throws CompileException {
-        String scalarMapping = generateScalarMapping(objectType, "row[0]");
+        String scalarMapping = generateValueMapping(objectType, "row[0]");
         if (scalarMapping != null) {
             return new ResultMapping(scalarMapping, "");
         }
@@ -792,16 +827,34 @@ public class CompilePipeline {
     private String generateScalarMapping(String objectType, String valueExpression) {
         return switch (objectType) {
             case "java.lang.String" -> "(java.lang.String)" + valueExpression;
-            case "java.lang.Long", "long" -> "((java.lang.Number)" + valueExpression + ").longValue()";
-            case "java.lang.Integer", "int" -> "((java.lang.Number)" + valueExpression + ").intValue()";
-            case "java.lang.Short", "short" -> "((java.lang.Number)" + valueExpression + ").shortValue()";
-            case "java.lang.Byte", "byte" -> "((java.lang.Number)" + valueExpression + ").byteValue()";
-            case "java.lang.Double", "double" -> "((java.lang.Number)" + valueExpression + ").doubleValue()";
-            case "java.lang.Float", "float" -> "((java.lang.Number)" + valueExpression + ").floatValue()";
-            case "java.lang.Boolean", "boolean" -> "(java.lang.Boolean)" + valueExpression;
-            case "java.lang.Character", "char" -> "(java.lang.Character)" + valueExpression;
+            case "java.lang.Long", "long" -> "ResultValueConverters.toLong(" + valueExpression + ")";
+            case "java.lang.Integer", "int" -> "ResultValueConverters.toInteger(" + valueExpression + ")";
+            case "java.lang.Short", "short" -> "ResultValueConverters.toShort(" + valueExpression + ")";
+            case "java.lang.Byte", "byte" -> "ResultValueConverters.toByte(" + valueExpression + ")";
+            case "java.lang.Double", "double" -> "ResultValueConverters.toDouble(" + valueExpression + ")";
+            case "java.lang.Float", "float" -> "ResultValueConverters.toFloat(" + valueExpression + ")";
+            case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + valueExpression + ")";
+            case "java.lang.Boolean", "boolean" -> "ResultValueConverters.toBoolean(" + valueExpression + ")";
+            case "java.lang.Character", "char" -> "ResultValueConverters.toCharacter(" + valueExpression + ")";
+            case "java.time.LocalDate" -> "ResultValueConverters.toLocalDate(" + valueExpression + ")";
+            case "java.time.LocalDateTime" -> "ResultValueConverters.toLocalDateTime(" + valueExpression + ")";
+            case "java.time.Instant" -> "ResultValueConverters.toInstant(" + valueExpression + ")";
+            case "byte[]" -> "(byte[])" + valueExpression;
             default -> null;
         };
+    }
+
+    private String generateValueMapping(String objectType, String valueExpression) {
+        String scalarMapping = generateScalarMapping(objectType, valueExpression);
+        if (scalarMapping != null) {
+            return scalarMapping;
+        }
+        TypeElement typeElement = elementUtils.getTypeElement(objectType);
+        if (typeElement != null && typeElement.getKind() == javax.lang.model.element.ElementKind.ENUM) {
+            return valueExpression + " == null ? null : " + objectType + ".valueOf("
+                + valueExpression + ".toString())";
+        }
+        return null;
     }
     
     /**
@@ -823,7 +876,7 @@ public class CompilePipeline {
                 mapping.append(", ");
             }
             
-            String convertedValue = generateScalarMapping(componentType, "row[" + i + "]");
+            String convertedValue = generateValueMapping(componentType, "row[" + i + "]");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested record component " + objectType + "." + componentName
@@ -882,7 +935,7 @@ public class CompilePipeline {
                 .orElseThrow(() -> unsupportedResultMapping(mapperInterface, mapperMethod,
                     objectType + " is missing public setter " + setterName));
             String parameterType = setter.getParameters().get(0).asType().toString();
-            String convertedValue = generateScalarMapping(parameterType, "row[" + index + "]");
+            String convertedValue = generateValueMapping(parameterType, "row[" + index + "]");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");

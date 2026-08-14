@@ -138,18 +138,22 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             if ("void".equals(returnType)) {
                 return "        return;\n";
             }
-            return "        return (" + returnType + ") (Integer) result.getUpdateCount();\n";
+            if ("long".equals(returnType)) {
+                return "        return (long) result.getUpdateCount();\n";
+            }
+            return "        return result.getUpdateCount();\n";
         }
 
         if (returnType.contains("List<")) {
+            String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
             return """
                 List<Object[]> rows = result.getQueryResults();
-                List resultList = new ArrayList(rows.size());
+                List<%s> resultList = new ArrayList<>(rows.size());
                 for (Object[] row : rows) {
                     resultList.add(%s);
                 }
                 return resultList;
-                """.formatted(methodModel.resultMappingCode()).indent(8);
+                """.formatted(elementType, methodModel.resultMappingCode()).indent(8);
         }
 
         if ("void".equals(returnType)) {
@@ -161,9 +165,12 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             if (rows == null || rows.isEmpty()) {
                 return null;
             }
+            if (rows.size() > 1) {
+                throw new NonUniqueResultException(%s, rows.size());
+            }
             Object[] row = rows.get(0);
             return %s;
-            """.formatted(methodModel.resultMappingCode()).indent(8);
+            """.formatted(javaString(methodModel.statementId()), methodModel.resultMappingCode()).indent(8);
     }
 
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
