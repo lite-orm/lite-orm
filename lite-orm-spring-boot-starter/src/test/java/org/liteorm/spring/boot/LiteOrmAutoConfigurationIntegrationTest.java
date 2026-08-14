@@ -2,11 +2,16 @@ package org.liteorm.spring.boot;
 
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
+import org.liteorm.DefaultSqlEngine;
+import org.liteorm.api.ConnectionProvider;
 import org.liteorm.spring.boot.fixture.SpringUser;
 import org.liteorm.spring.boot.fixture.SpringUserMapper;
 import org.liteorm.api.SqlEngine;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
+import org.liteorm.api.SqlResult;
+import org.liteorm.api.TransactionCoordinator;
+import org.liteorm.runtime.ConnectionProcessor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -65,6 +71,42 @@ class LiteOrmAutoConfigurationIntegrationTest {
         contextRunner.withPropertyValues("lite-orm.enabled=false").run(context -> {
             assertEquals(0, context.getBeansOfType(SpringUserMapper.class).size());
             assertEquals(0, context.getBeansOfType(SpringConnectionProvider.class).size());
+        });
+    }
+
+    @Test
+    void usesUserProvidedConnectionProviderTransactionCoordinatorAndEngine() {
+        contextRunner.withUserConfiguration(RuntimeOverrideConfiguration.class).run(context -> {
+            assertSame(context.getBean("customConnectionProvider"), context.getBean(ConnectionProvider.class));
+            assertSame(context.getBean("customSqlEngine"), context.getBean(SqlEngine.class));
+        });
+
+        contextRunner.withUserConfiguration(TransactionCoordinatorOverrideConfiguration.class).run(context -> {
+            TransactionCoordinator coordinator = context.getBean(TransactionCoordinator.class);
+            DefaultSqlEngine engine = (DefaultSqlEngine) context.getBean(SqlEngine.class);
+            List<?> processors = (List<?>) ReflectionTestUtils.getField(engine, "processors");
+            ConnectionProcessor connectionProcessor = (ConnectionProcessor) processors.get(0);
+
+            assertSame(coordinator, ReflectionTestUtils.getField(connectionProcessor, "transactionCoordinator"));
+        });
+    }
+
+    @Test
+    void invalidGeneratedMapperFailsStartupWithDiagnostic() {
+        contextRunner.withPropertyValues("lite-orm.mapper-packages=org.liteorm.spring.boot.invalid")
+            .run(context -> {
+                Throwable failure = context.getStartupFailure();
+                assertNotNull(failure);
+                assertTrue(failure.getMessage().contains("Invalid generated LiteORM mapper"), failure::getMessage);
+            });
+    }
+
+    @Test
+    void duplicateMapperBeanFailsStartupWithDiagnostic() {
+        contextRunner.withUserConfiguration(DuplicateMapperConfiguration.class).run(context -> {
+            Throwable failure = context.getStartupFailure();
+            assertNotNull(failure);
+            assertTrue(failure.getMessage().contains("Duplicate LiteORM mapper bean"), failure::getMessage);
         });
     }
 
@@ -189,6 +231,51 @@ class LiteOrmAutoConfigurationIntegrationTest {
         @Bean
         PlatformTransactionManager transactionManager(DataSource dataSource) {
             return new DataSourceTransactionManager(dataSource);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class RuntimeOverrideConfiguration {
+
+        @Bean
+        ConnectionProvider customConnectionProvider() {
+            return new ConnectionProvider() {
+                @Override
+                public Connection acquire() {
+                    return null;
+                }
+
+                @Override
+                public void release(Connection connection) {
+                }
+            };
+        }
+
+        @Bean
+        SqlEngine customSqlEngine() {
+            return plan -> SqlResult.success(0);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class TransactionCoordinatorOverrideConfiguration {
+
+        @Bean
+        TransactionCoordinator transactionCoordinator() {
+            return () -> null;
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class DuplicateMapperConfiguration {
+
+        @Bean
+        SpringUserMapper springUserMapper() {
+            return (SpringUserMapper) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{SpringUserMapper.class},
+                (proxy, method, args) -> null
+            );
         }
     }
 

@@ -47,7 +47,7 @@ The XML equivalent uses `<batch id="insertBatch">`. LiteORM generates the per-it
 Standalone local transactions use one shared engine/coordinator instance:
 
 ```java
-StandaloneSqlEngine sqlEngine = new StandaloneSqlEngine(connectionProvider);
+StandaloneSqlEngine sqlEngine = LiteOrm.standalone(connectionProvider);
 UserMapper mapper = new UserMapperImpl(sqlEngine);
 TransactionContext transaction = sqlEngine.begin();
 try {

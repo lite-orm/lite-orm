@@ -1,9 +1,10 @@
 package org.liteorm.spring.boot;
 
-import org.liteorm.DefaultSqlEngine;
+import org.liteorm.LiteOrm;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.SqlEngine;
+import org.liteorm.api.TransactionCoordinator;
 import org.liteorm.runtime.*;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -51,6 +52,7 @@ public class LiteOrmAutoConfiguration {
     @ConditionalOnMissingBean
     public SqlEngine liteOrmSqlEngine(
             ConnectionProvider connectionProvider,
+            ObjectProvider<TransactionCoordinator> transactionCoordinatorProvider,
             ObjectProvider<ExecutionInterceptor> interceptorProvider) {
         // 构建处理器链
         List<SqlProcessor> processors = new ArrayList<>();
@@ -79,10 +81,10 @@ public class LiteOrmAutoConfiguration {
         // 6. 结果处理器
         processors.add(new ResultProcessor());
         
-        return new DefaultSqlEngine(
-            connectionProvider,
-            processors,
-            interceptorProvider.orderedStream().toList()
-        );
+        return LiteOrm.engine(connectionProvider)
+            .transactionCoordinator(transactionCoordinatorProvider.getIfAvailable(() -> () -> null))
+            .processors(processors)
+            .interceptors(interceptorProvider.orderedStream().toList())
+            .build();
     }
 }

@@ -67,6 +67,10 @@ The starter scans those packages at application startup, registers generated imp
 
 The starter uses the application `DataSource`. Inside Spring `@Transactional` boundaries it reuses Spring's transaction-bound connection; outside a Spring transaction each Mapper call uses the DataSource's normal auto-commit behavior and releases JDBC resources after execution.
 
+For standalone applications, use `LiteOrm.standalone(connectionProvider)` to assemble the local-transaction engine. Use `LiteOrm.engine(connectionProvider)` when supplying explicit transaction, processor, or interceptor strategies. Generated Mapper constructors remain limited to `SqlEngine` and `ConnectionProvider`.
+
+Spring Boot assembles the same core engine graph through this facade. Application beans can replace `ConnectionProvider`, `TransactionCoordinator`, or the complete `SqlEngine`; ordered `ExecutionInterceptor` beans are collected automatically. Invalid generated Mapper classes and duplicate Mapper bean names fail startup with explicit diagnostics.
+
 ## SQL Provider Escape Hatch
 
 Use `@UseSqlProvider` only for exceptional SQL that cannot be represented by the supported annotation/XML subset. A provider is a compile-time-known `SqlProvider<P>` with an accessible no-arg constructor and returns immutable `BoundSql` with ordered `BoundParameter` values. Generated code keeps one provider instance and calls it directly; it does not use reflective provider dispatch.

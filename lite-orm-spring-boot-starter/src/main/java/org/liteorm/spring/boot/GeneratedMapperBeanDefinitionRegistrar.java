@@ -7,6 +7,8 @@ import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
+import org.springframework.beans.factory.BeanDefinitionStoreException;
+import org.springframework.beans.factory.config.RuntimeBeanReference;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -64,19 +66,30 @@ final class GeneratedMapperBeanDefinitionRegistrar
         try {
             Class<?> implementationClass = ClassUtils.forName(className, ClassUtils.getDefaultClassLoader());
             Class<?> mapperInterface = findMapperInterface(implementationClass);
-            if (mapperInterface == null || !hasSqlEngineConstructor(implementationClass)) {
-                return;
+            if (mapperInterface == null) {
+                throw new BeanDefinitionStoreException(
+                    "Invalid generated LiteORM mapper " + className + ": no @Mapper interface is implemented");
+            }
+            if (!hasSqlEngineConstructor(implementationClass)) {
+                throw new BeanDefinitionStoreException(
+                    "Invalid generated LiteORM mapper " + className + ": missing public SqlEngine constructor");
             }
 
             String beanName = Character.toLowerCase(mapperInterface.getSimpleName().charAt(0))
                 + mapperInterface.getSimpleName().substring(1);
             if (registry.containsBeanDefinition(beanName)) {
-                return;
+                BeanDefinition existing = registry.getBeanDefinition(beanName);
+                if (className.equals(existing.getBeanClassName())) {
+                    return;
+                }
+                throw new BeanDefinitionStoreException(
+                    "Duplicate LiteORM mapper bean '" + beanName + "': " + className
+                        + " conflicts with " + existing.getResourceDescription());
             }
 
             AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder
                 .genericBeanDefinition(implementationClass)
-                .addConstructorArgReference("liteOrmSqlEngine")
+                .addConstructorArgValue(new RuntimeBeanReference(SqlEngine.class))
                 .getBeanDefinition();
             registry.registerBeanDefinition(beanName, beanDefinition);
         } catch (ClassNotFoundException e) {

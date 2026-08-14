@@ -263,11 +263,11 @@ Assembly
 
 ### Module A1: Component Assembly
 
-- [ ] Introduce a readable standalone assembly facade/factory.
-- [ ] Keep generated Mapper constructors minimal and stable.
-- [ ] Make Spring auto-configuration assemble the same core component graph with Spring strategies.
-- [ ] Provide user override points for connection provider, transaction coordinator, engine, and interceptors.
-- [ ] Add startup diagnostics for invalid or duplicate Mapper registration.
+- [x] Introduce `LiteOrm.standalone(...)` and `LiteOrm.engine(...)` as readable standalone assembly entry points.
+- [x] Keep generated Mapper constructors limited to `SqlEngine` and `ConnectionProvider`.
+- [x] Make Spring auto-configuration assemble the same core component graph through `LiteOrm.engine(...)` with Spring strategies.
+- [x] Provide user override points for connection provider, transaction coordinator, engine, and ordered interceptors.
+- [x] Add startup diagnostics for invalid generated Mapper classes and duplicate Mapper bean names.
 
 ### Module A2: End-to-End Architecture Review
 
