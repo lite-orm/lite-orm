@@ -34,6 +34,7 @@ public class ExecutionContext {
     private List<Object[]> queryResults;  // 查询结果
     private int updateCount;              // 更新行数
     private int[] batchUpdateCounts;
+    private Object generatedKey;
     
     // 自定义属性 - 用于Processor之间传递额外数据
     private Map<String, Object> attributes = new HashMap<>();
@@ -101,6 +102,14 @@ public class ExecutionContext {
 
     public void setBatchUpdateCounts(int[] batchUpdateCounts) {
         this.batchUpdateCounts = batchUpdateCounts;
+    }
+
+    public Object getGeneratedKey() {
+        return generatedKey;
+    }
+
+    public void setGeneratedKey(Object generatedKey) {
+        this.generatedKey = generatedKey;
     }
     
     /**

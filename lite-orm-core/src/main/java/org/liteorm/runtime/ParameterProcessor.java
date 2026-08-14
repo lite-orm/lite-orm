@@ -7,6 +7,7 @@ import org.liteorm.api.ParameterBinder;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 /**
  * 参数处理器
@@ -26,7 +27,9 @@ public class ParameterProcessor implements SqlProcessor {
         
         try {
             // 创建PreparedStatement
-            PreparedStatement statement = connection.prepareStatement(plan.getSql());
+            PreparedStatement statement = plan.returnsGeneratedKey()
+                ? connection.prepareStatement(plan.getSql(), Statement.RETURN_GENERATED_KEYS)
+                : connection.prepareStatement(plan.getSql());
             
             // 绑定参数（防SQL注入）
             if (plan.getStatementType() != ExecutionPlan.StatementType.BATCH) {

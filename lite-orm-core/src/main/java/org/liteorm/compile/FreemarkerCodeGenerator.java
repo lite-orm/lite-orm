@@ -130,6 +130,10 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             return "        return result.getBatchUpdateCounts();\n";
         }
 
+        if (methodModel.generatedKey()) {
+            return "        return ((Number) result.getGeneratedKey()).longValue();\n";
+        }
+
         if (!isSelect) {
             if ("void".equals(returnType)) {
                 return "        return;\n";
@@ -225,6 +229,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(methodModel.requiresTransaction()).append(", ")
                 .append(javaString(methodModel.resultType())).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+                .append(methodModel.generatedKey()).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         } else {
@@ -236,6 +241,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(methodModel.requiresTransaction()).append(", ")
                 .append(javaString(methodModel.resultType())).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+                .append(methodModel.generatedKey()).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         }

@@ -20,19 +20,24 @@ public class SqlResult {
     private final int updateCount;               // 更新行数
     private final boolean isQuery;               // 是否为查询操作
     private final int[] batchUpdateCounts;
+    private final Object generatedKey;
     
     // 查询结果构造器
     public static SqlResult forQuery(List<Object[]> results) {
-        return new SqlResult(results, 0, true, null);
+        return new SqlResult(results, 0, true, null, null);
     }
     
     // 更新结果构造器
     public static SqlResult forUpdate(int updateCount) {
-        return new SqlResult(null, updateCount, false, null);
+        return new SqlResult(null, updateCount, false, null, null);
+    }
+
+    public static SqlResult forGeneratedKey(int updateCount, Object generatedKey) {
+        return new SqlResult(null, updateCount, false, null, generatedKey);
     }
 
     public static SqlResult forBatch(int[] updateCounts) {
-        return new SqlResult(null, 0, false, updateCounts.clone());
+        return new SqlResult(null, 0, false, updateCounts.clone(), null);
     }
     
     // 兼容方法：success for query
@@ -45,11 +50,17 @@ public class SqlResult {
         return forUpdate(updateCount);
     }
     
-    private SqlResult(List<Object[]> queryResults, int updateCount, boolean isQuery, int[] batchUpdateCounts) {
+    private SqlResult(
+            List<Object[]> queryResults,
+            int updateCount,
+            boolean isQuery,
+            int[] batchUpdateCounts,
+            Object generatedKey) {
         this.queryResults = queryResults;
         this.updateCount = updateCount;
         this.isQuery = isQuery;
         this.batchUpdateCounts = batchUpdateCounts;
+        this.generatedKey = generatedKey;
     }
     
     // Getters
@@ -67,6 +78,10 @@ public class SqlResult {
 
     public int[] getBatchUpdateCounts() {
         return batchUpdateCounts == null ? null : batchUpdateCounts.clone();
+    }
+
+    public Object getGeneratedKey() {
+        return generatedKey;
     }
     
 }

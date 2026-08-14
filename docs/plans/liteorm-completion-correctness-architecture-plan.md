@@ -171,11 +171,12 @@ Assembly
 
 ### Module F2: Generated Keys
 
-- [ ] Add an explicit generated-key annotation/API under `org.liteorm.annotation`.
-- [ ] Validate supported key target types and writable locations at compile time.
-- [ ] Generate `RETURN_GENERATED_KEYS` statement creation only for opted-in methods.
-- [ ] Map one generated key back to a record replacement, mutable bean field, or explicit return value according to the chosen API.
-- [ ] Add H2 integration tests and compile-time failure tests.
+- [x] Add an explicit generated-key annotation/API under `org.liteorm.annotation`.
+- [x] Support only an explicit Mapper return value of `long` or `Long` in the first version; do not mutate input beans or replace records implicitly.
+- [x] Restrict generated keys to opted-in static `INSERT` methods and reject batch, provider, dynamic SQL, and unsupported return-type combinations at compile time.
+- [x] Generate `RETURN_GENERATED_KEYS` statement creation only for opted-in methods.
+- [x] Read exactly one generated key and close its `ResultSet` before the statement and ordinary connection.
+- [x] Add H2 integration tests and compile-time failure tests.
 
 ### Module F3: Type and Null Semantics
 

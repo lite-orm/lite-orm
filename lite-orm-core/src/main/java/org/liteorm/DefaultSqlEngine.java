@@ -193,6 +193,10 @@ public class DefaultSqlEngine implements SqlEngine {
             case SELECT:
                 return SqlResult.success(context.getQueryResults());
             case INSERT:
+                if (plan.returnsGeneratedKey()) {
+                    return SqlResult.forGeneratedKey(context.getUpdateCount(), context.getGeneratedKey());
+                }
+                return SqlResult.success(context.getUpdateCount());
             case UPDATE:
             case DELETE:
                 return SqlResult.success(context.getUpdateCount());

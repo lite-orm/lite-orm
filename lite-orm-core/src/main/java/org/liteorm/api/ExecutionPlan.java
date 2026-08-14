@@ -28,6 +28,10 @@ public interface ExecutionPlan {
 
     SqlSource getSourceType();
 
+    default boolean returnsGeneratedKey() {
+        return false;
+    }
+
     default ParameterBinder<?>[] getParameterBinders() {
         return null;
     }

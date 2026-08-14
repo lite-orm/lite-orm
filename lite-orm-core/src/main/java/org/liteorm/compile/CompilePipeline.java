@@ -203,6 +203,14 @@ public class CompilePipeline {
         String methodName = method.getSimpleName().toString();
         String returnType = method.getReturnType().toString();
         String parameterList = buildParameterList(method);
+        boolean generatedKey = method.getAnnotation(org.liteorm.annotation.GeneratedKey.class) != null;
+        ExecutionPlan.StatementType statementType = providerBinding == null
+            ? mapStatementType(sqlInfo.sqlType())
+            : providerBinding.statementType();
+        if (generatedKey) {
+            validateGeneratedKeyMethod(
+                mapperInterface, method, returnType, statementType, sqlInfo, providerBinding);
+        }
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, sqlInfo);
         }
@@ -218,12 +226,13 @@ public class CompilePipeline {
             parameterList,
             "build" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1) + "ExecutionPlan",
             mapperInterface.getQualifiedName() + "." + methodName,
-            providerBinding == null ? mapStatementType(sqlInfo.sqlType()) : providerBinding.statementType(),
+            statementType,
             providerBinding == null ? mapSourceType(sqlInfo.sourceType()) : ExecutionPlan.SqlSource.GENERATED,
             providerBinding == null ? (sqlInfo.isDynamic() ? sqlInfo.sqlTemplate() : parameterResult.processedSql()) : "",
             providerBinding == null && sqlInfo.isDynamic(),
             providerBinding == null ? requiresTransaction(sqlInfo.sqlType())
                 : providerBinding.statementType() != ExecutionPlan.StatementType.SELECT,
+            generatedKey,
             returnType,
             resultMapping.expression(),
             resultMapping.helperCode(),
@@ -676,6 +685,31 @@ public class CompilePipeline {
         }
         if (sqlInfo != null && sqlInfo.isDynamic()) {
             throw new CompileException(location + ": dynamic SQL is not supported for JDBC batch methods");
+        }
+    }
+
+    private void validateGeneratedKeyMethod(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String returnType,
+            ExecutionPlan.StatementType statementType,
+            SqlContentParser.SqlParseResult sqlInfo,
+            ProviderBinding providerBinding) throws CompileException {
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        if (providerBinding != null) {
+            throw new CompileException(location + ": generated keys are not supported with SQL providers");
+        }
+        if (statementType == ExecutionPlan.StatementType.BATCH) {
+            throw new CompileException(location + ": generated keys are not supported for batch methods");
+        }
+        if (statementType != ExecutionPlan.StatementType.INSERT) {
+            throw new CompileException(location + ": generated keys require an INSERT statement");
+        }
+        if (sqlInfo != null && sqlInfo.isDynamic()) {
+            throw new CompileException(location + ": generated keys require static SQL");
+        }
+        if (!"long".equals(returnType) && !"java.lang.Long".equals(returnType)) {
+            throw new CompileException(location + ": generated-key methods must return long or java.lang.Long");
         }
     }
 

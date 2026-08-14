@@ -36,6 +36,9 @@ public class ExecutionProcessor implements SqlProcessor {
                 case DELETE:
                     int updateCount = statement.executeUpdate();
                     context.setUpdateCount(updateCount);
+                    if (plan.returnsGeneratedKey()) {
+                        readGeneratedKey(statement, context);
+                    }
                     break;
 
                 case BATCH:
@@ -53,6 +56,18 @@ public class ExecutionProcessor implements SqlProcessor {
             
         } catch (SQLException e) {
             throw new RuntimeException("Failed to execute SQL: " + plan.getSql(), e);
+        }
+    }
+
+    private void readGeneratedKey(PreparedStatement statement, ExecutionContext context) throws SQLException {
+        ResultSet generatedKeys = statement.getGeneratedKeys();
+        context.setResultSet(generatedKeys);
+        if (!generatedKeys.next()) {
+            throw new SQLException("JDBC returned no generated key");
+        }
+        context.setGeneratedKey(generatedKeys.getObject(1));
+        if (generatedKeys.next()) {
+            throw new SQLException("JDBC returned more than one generated key");
         }
     }
 }

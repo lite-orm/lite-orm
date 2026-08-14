@@ -24,6 +24,7 @@ public class SqlTask implements ExecutionPlan {
     private final boolean requiresTransaction;          // 是否需要事务
     private final String resultType;                    // 结果类型
     private final ExecutionPlan.SqlSource sourceType;   // SQL来源
+    private final boolean returnsGeneratedKey;
     private final ParameterBinder<?>[] parameterBinders;
     private final RowMapper<?> rowMapper;
     
@@ -43,6 +44,13 @@ public class SqlTask implements ExecutionPlan {
     public SqlTask(String statementId, String sql, Object[] parameters, SqlType sqlType,
                    boolean requiresTransaction, String resultType, ExecutionPlan.SqlSource sourceType,
                    ParameterBinder<?>[] parameterBinders, RowMapper<?> rowMapper) {
+        this(statementId, sql, parameters, sqlType, requiresTransaction, resultType, sourceType,
+            false, parameterBinders, rowMapper);
+    }
+
+    public SqlTask(String statementId, String sql, Object[] parameters, SqlType sqlType,
+                   boolean requiresTransaction, String resultType, ExecutionPlan.SqlSource sourceType,
+                   boolean returnsGeneratedKey, ParameterBinder<?>[] parameterBinders, RowMapper<?> rowMapper) {
         this.statementId = statementId;
         this.sql = sql;
         this.parameters = parameters;
@@ -51,6 +59,7 @@ public class SqlTask implements ExecutionPlan {
         this.requiresTransaction = requiresTransaction;
         this.resultType = resultType;
         this.sourceType = sourceType;
+        this.returnsGeneratedKey = returnsGeneratedKey;
         this.parameterBinders = parameterBinders;
         this.rowMapper = rowMapper;
     }
@@ -73,6 +82,7 @@ public class SqlTask implements ExecutionPlan {
         this.requiresTransaction = requiresTransaction;
         this.resultType = resultType;
         this.sourceType = sourceType;
+        this.returnsGeneratedKey = false;
         this.parameterBinders = null;
         this.rowMapper = null;
     }
@@ -134,6 +144,11 @@ public class SqlTask implements ExecutionPlan {
     @Override
     public SqlSource getSourceType() {
         return sourceType;
+    }
+
+    @Override
+    public boolean returnsGeneratedKey() {
+        return returnsGeneratedKey;
     }
 
     @Override
