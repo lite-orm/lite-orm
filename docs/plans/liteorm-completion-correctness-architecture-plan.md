@@ -271,20 +271,20 @@ Assembly
 
 ### Module A2: End-to-End Architecture Review
 
-- [ ] Document upstream inputs, compile-time transformations, generated artifacts, runtime components, downstream JDBC resources, and user-facing APIs.
-- [ ] Review package boundaries and dependency direction.
-- [ ] Review every public interface for SRP, OCP, LSP, ISP, and DIP.
-- [ ] Review applicable GoF 23 patterns and remove accidental or ceremonial patterns.
-- [ ] Inventory every `SqlProcessor`, its required predecessor state, produced state, ordering constraint, optionality, failure semantics, and real user extension requirement.
-- [ ] Evaluate whether Chain of Responsibility is correct for an ORM execution pipeline by separating fixed JDBC phases from optional cross-cutting behavior; compare it explicitly with Template Method, Strategy, Interceptor, and Decorator.
-- [ ] Treat connection acquisition, statement preparation, parameter binding, execution, result extraction, and cleanup as fixed physical phases unless evidence shows that arbitrary chain reordering is a valid user requirement.
-- [ ] Decide whether the current processor chain improves readability and type safety; replace fixed physical phases with one explicit execution lifecycle if it does not.
+- [x] Document upstream inputs, compile-time transformations, generated artifacts, runtime components, downstream JDBC resources, and user-facing APIs.
+- [x] Review package boundaries and dependency direction.
+- [x] Review every public interface for SRP, OCP, LSP, ISP, and DIP.
+- [x] Review applicable GoF 23 patterns and reject accidental or ceremonial patterns.
+- [x] Inventory every `SqlProcessor`, its required predecessor state, produced state, ordering constraint, optionality, failure semantics, and real user extension requirement.
+- [x] Evaluate Chain of Responsibility against Template Method, Strategy, Interceptor, and Decorator; conclude it is incorrect for mandatory JDBC phases.
+- [x] Treat connection acquisition, statement preparation, parameter binding, execution, result extraction, and cleanup as fixed physical phases.
+- [x] Decide to replace the processor chain with one explicit execution lifecycle after characterization tests.
 - [ ] Move logging, audit, slow-query monitoring, metrics, tracing, and similar before/after concerns to typed `ExecutionInterceptor` callbacks instead of string-keyed `ExecutionContext` attributes.
-- [ ] Decide the final `ExecutionContext` fate: remove it entirely or narrow it to a package-private JDBC resource scope with explicit connection ownership and no generic `Map<String, Object>`.
-- [ ] If a resource scope remains, model mutually exclusive query, update, batch, and generated-key outcomes as typed immutable results rather than nullable fields on one mutable context.
+- [x] Decide to replace public `ExecutionContext` with at most a package-private JDBC resource scope with explicit connection ownership and no generic `Map<String, Object>`.
+- [x] Keep mutually exclusive query, update, batch, and generated-key outcomes in immutable `SqlResult` rather than public mutable context fields.
 - [ ] Add characterization tests before lifecycle refactoring and verify resource-close order, suppressed cleanup failures, local/Spring transaction connection ownership, interceptor ordering, generated keys, batch execution, and concurrent Mapper reuse after the refactor.
 - [ ] Review generated source readability, naming, exception messages, and debugging experience.
-- [ ] Record accepted trade-offs and rejected alternatives.
+- [x] Record accepted trade-offs and rejected alternatives in `docs/architecture/liteorm-architecture-review.md`.
 
 ### Module A3: Remove Legacy Code and Tests
 
