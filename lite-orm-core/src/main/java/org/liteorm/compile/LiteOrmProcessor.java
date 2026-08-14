@@ -53,7 +53,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
         this.typeUtils = processingEnv.getTypeUtils();
         
         // 初始化编译管道
-        this.compilePipeline = new CompilePipeline(elementUtils, typeUtils, messager);
+        this.compilePipeline = new CompilePipeline(elementUtils, typeUtils, messager, filer);
         
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processor initialized");
     }

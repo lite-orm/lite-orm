@@ -7,11 +7,13 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import javax.annotation.processing.Filer;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -38,46 +40,38 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 2024/10/01
  */
 public class XmlBasedSqlParser implements SqlContentParser {
-    
-    private static final Map<String, Document> xmlCache = new ConcurrentHashMap<>();
-    private static final Map<String, Map<String, Element>> sqlFragmentCache = new ConcurrentHashMap<>();
-    
-    // 线程本地变量，存储当前解析的XML路径（用于include片段引用）
-    private static final ThreadLocal<String> currentXmlPath = new ThreadLocal<>();
-    private static final ThreadLocal<Deque<String>> currentIncludePath =
-        ThreadLocal.withInitial(ArrayDeque::new);
+
+    private final Filer filer;
+    private final Map<String, XmlResource> xmlCache = new ConcurrentHashMap<>();
+
+    public XmlBasedSqlParser() {
+        this(null);
+    }
+
+    public XmlBasedSqlParser(Filer filer) {
+        this.filer = filer;
+    }
     
     @Override
     public SqlParseResult parseSql(ExecutableElement method) {
-        try {
-            // 1. 获取XML文件路径
-            String xmlPath = getXmlPath(method);
-            if (xmlPath == null) {
-                return null;
-            }
-
-            // 设置当前XML路径（用于include引用）
-            currentXmlPath.set(xmlPath);
-
-            // 2. 解析XML文件
-            Document document = getXmlDocument(xmlPath);
-            if (document == null) {
-                return null;
-            }
-
-            // 3. 查找对应的SQL语句
-            String methodName = method.getSimpleName().toString();
-            Element sqlElement = findSqlElement(document, methodName);
-            if (sqlElement == null) {
-                return null;
-            }
-
-            // 4. 解析SQL内容
-            return parseSqlElement(sqlElement, method);
-        } finally {
-            currentXmlPath.remove();
-            currentIncludePath.remove();
+        String xmlPath = getXmlPath(method);
+        if (xmlPath == null) {
+            return null;
         }
+
+        XmlResource xmlResource = getXmlResource(xmlPath);
+        if (xmlResource == null) {
+            return null;
+        }
+
+        String methodName = method.getSimpleName().toString();
+        Element sqlElement = findSqlElement(xmlResource.document(), methodName);
+        if (sqlElement == null) {
+            return null;
+        }
+
+        ParseContext context = new ParseContext(xmlResource.fragments(), new ArrayDeque<>());
+        return parseSqlElement(sqlElement, method, context);
     }
     
     @Override
@@ -88,7 +82,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
 
     public boolean hasMapperResource(ExecutableElement method) {
         String xmlPath = getXmlPath(method);
-        return xmlPath != null && getXmlDocument(xmlPath) != null;
+        return xmlPath != null && getXmlResource(xmlPath) != null;
     }
     
     @Override
@@ -119,7 +113,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 获取XML文档
      */
-    private Document getXmlDocument(String xmlPath) {
+    private XmlResource getXmlResource(String xmlPath) {
         return xmlCache.computeIfAbsent(xmlPath, path -> {
             try (InputStream is = openXmlStream(path)) {
                 if (is == null) {
@@ -132,12 +126,8 @@ public class XmlBasedSqlParser implements SqlContentParser {
                 factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
                 DocumentBuilder builder = factory.newDocumentBuilder();
                 builder.setEntityResolver((publicId, systemId) -> new InputSource(new StringReader("")));
-                Document doc = builder.parse(is);
-                
-                // 缓存SQL片段
-                cacheSqlFragments(xmlPath, doc);
-                
-                return doc;
+                Document document = builder.parse(is);
+                return new XmlResource(document, collectSqlFragments(document));
             } catch (ParserConfigurationException | SAXException | IOException e) {
                 System.err.println("XML文件解析失败: " + path + ", " + e.getMessage());
                 return null;
@@ -146,12 +136,25 @@ public class XmlBasedSqlParser implements SqlContentParser {
     }
 
     private InputStream openXmlStream(String xmlPath) throws IOException {
+        String relativePath = xmlPath.startsWith("/") ? xmlPath.substring(1) : xmlPath;
+        if (filer != null) {
+            for (StandardLocation location : List.of(
+                    StandardLocation.CLASS_PATH,
+                    StandardLocation.CLASS_OUTPUT,
+                    StandardLocation.SOURCE_PATH)) {
+                try {
+                    return filer.getResource(location, "", relativePath).openInputStream();
+                } catch (IOException | IllegalArgumentException ignored) {
+                    // Try the next location and then the standalone fallbacks.
+                }
+            }
+        }
+
         InputStream classpathStream = getClass().getResourceAsStream(xmlPath);
         if (classpathStream != null) {
             return classpathStream;
         }
 
-        String relativePath = xmlPath.startsWith("/") ? xmlPath.substring(1) : xmlPath;
         String userDir = System.getProperty("user.dir");
         List<Path> candidates = List.of(
             Path.of(userDir, "src", "main", "resources", relativePath),
@@ -172,7 +175,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 缓存SQL片段
      */
-    private void cacheSqlFragments(String xmlPath, Document document) {
+    private Map<String, Element> collectSqlFragments(Document document) {
         Map<String, Element> fragments = new HashMap<>();
         NodeList sqlNodes = document.getElementsByTagName("sql");
         
@@ -184,9 +187,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
             }
         }
         
-        if (!fragments.isEmpty()) {
-            sqlFragmentCache.put(xmlPath, fragments);
-        }
+        return Map.copyOf(fragments);
     }
     
     /**
@@ -239,7 +240,8 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 解析SQL元素
      */
-    private SqlParseResult parseSqlElement(Element sqlElement, ExecutableElement method) {
+    private SqlParseResult parseSqlElement(
+            Element sqlElement, ExecutableElement method, ParseContext context) {
         validateStatementAttributes(sqlElement);
         validateResultMapping(sqlElement);
         validateSupportedTags(sqlElement);
@@ -251,7 +253,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
         List<ParameterInfo> parameters = parseParameters(method);
         
         // 解析AST节点
-        AstNode astNode = isDynamic ? parseAstNode(sqlElement) : null;
+        AstNode astNode = isDynamic ? parseAstNode(sqlElement, context) : null;
         
         return new SqlParseResult(
             sqlContent,
@@ -406,8 +408,8 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 解析AST节点 - 递归解析整个XML结构
      */
-    private AstNode parseAstNode(Element sqlElement) {
-        List<AstNode> children = parseChildNodes(sqlElement);
+    private AstNode parseAstNode(Element sqlElement, ParseContext context) {
+        List<AstNode> children = parseChildNodes(sqlElement, context);
         if (children.isEmpty()) {
             return new AstNode.TextNode(getSqlContent(sqlElement));
         }
@@ -420,7 +422,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 递归解析子节点
      */
-    private List<AstNode> parseChildNodes(Element element) {
+    private List<AstNode> parseChildNodes(Element element, ParseContext context) {
         List<AstNode> nodes = new ArrayList<>();
         NodeList childNodes = element.getChildNodes();
         
@@ -434,7 +436,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
                 }
             } else if (node.getNodeType() == Node.ELEMENT_NODE) {
                 Element childElement = (Element) node;
-                AstNode astNode = parseElementNode(childElement);
+                AstNode astNode = parseElementNode(childElement, context);
                 if (astNode != null) {
                     nodes.add(astNode);
                 }
@@ -447,30 +449,30 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 解析元素节点，根据标签名返回对应的AstNode
      */
-    private AstNode parseElementNode(Element element) {
+    private AstNode parseElementNode(Element element, ParseContext context) {
         String tagName = element.getTagName().toLowerCase();
         
         switch (tagName) {
             case "if":
-                return parseIfElement(element);
+                return parseIfElement(element, context);
             case "foreach":
-                return parseForeachElement(element);
+                return parseForeachElement(element, context);
             case "choose":
-                return parseChooseElement(element);
+                return parseChooseElement(element, context);
             case "when":
-                return parseWhenElement(element);
+                return parseWhenElement(element, context);
             case "otherwise":
-                return parseOtherwiseElement(element);
+                return parseOtherwiseElement(element, context);
             case "where":
-                return parseWhereElement(element);
+                return parseWhereElement(element, context);
             case "set":
-                return parseSetElement(element);
+                return parseSetElement(element, context);
             case "trim":
-                return parseTrimElement(element);
+                return parseTrimElement(element, context);
             case "bind":
                 return parseBindElement(element);
             case "include":
-                return parseIncludeElement(element);
+                return parseIncludeElement(element, context);
             default:
                 throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
         }
@@ -479,75 +481,75 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 解析IF元素
      */
-    private AstNode parseIfElement(Element element) {
+    private AstNode parseIfElement(Element element, ParseContext context) {
         String test = element.getAttribute("test");
-        List<AstNode> children = parseChildNodes(element);
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.IfNode(test, children);
     }
     
     /**
      * 解析FOREACH元素
      */
-    private AstNode parseForeachElement(Element element) {
+    private AstNode parseForeachElement(Element element, ParseContext context) {
         String collection = element.getAttribute("collection");
         String item = element.getAttribute("item");
         String separator = element.getAttribute("separator");
         String open = element.getAttribute("open");
         String close = element.getAttribute("close");
-        List<AstNode> children = parseChildNodes(element);
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.ForeachNode(collection, item, separator, open, close, children);
     }
     
     /**
      * 解析CHOOSE元素
      */
-    private AstNode parseChooseElement(Element element) {
-        List<AstNode> children = parseChildNodes(element);
+    private AstNode parseChooseElement(Element element, ParseContext context) {
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.ChooseNode(children);
     }
     
     /**
      * 解析WHEN元素
      */
-    private AstNode parseWhenElement(Element element) {
+    private AstNode parseWhenElement(Element element, ParseContext context) {
         String test = element.getAttribute("test");
-        List<AstNode> children = parseChildNodes(element);
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.WhenNode(test, children);
     }
     
     /**
      * 解析OTHERWISE元素
      */
-    private AstNode parseOtherwiseElement(Element element) {
-        List<AstNode> children = parseChildNodes(element);
+    private AstNode parseOtherwiseElement(Element element, ParseContext context) {
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.OtherwiseNode(children);
     }
     
     /**
      * 解析WHERE元素
      */
-    private AstNode parseWhereElement(Element element) {
-        List<AstNode> children = parseChildNodes(element);
+    private AstNode parseWhereElement(Element element, ParseContext context) {
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.WhereNode(children);
     }
     
     /**
      * 解析SET元素
      */
-    private AstNode parseSetElement(Element element) {
-        List<AstNode> children = parseChildNodes(element);
+    private AstNode parseSetElement(Element element, ParseContext context) {
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.SetNode(children);
     }
     
     /**
      * 解析TRIM元素
      */
-    private AstNode parseTrimElement(Element element) {
+    private AstNode parseTrimElement(Element element, ParseContext context) {
         String prefix = element.getAttribute("prefix");
         String suffix = element.getAttribute("suffix");
         String prefixOverrides = element.getAttribute("prefixOverrides");
         String suffixOverrides = element.getAttribute("suffixOverrides");
-        List<AstNode> children = parseChildNodes(element);
+        List<AstNode> children = parseChildNodes(element, context);
         return new AstNode.TrimNode(prefix, suffix, prefixOverrides, suffixOverrides, children);
     }
     
@@ -563,40 +565,32 @@ public class XmlBasedSqlParser implements SqlContentParser {
     /**
      * 解析INCLUDE元素
      */
-    private AstNode parseIncludeElement(Element element) {
+    private AstNode parseIncludeElement(Element element, ParseContext context) {
         String refId = element.getAttribute("refid");
-        
-        // 尝试从缓存中获取片段
-        String xmlPath = currentXmlPath.get();
-        if (xmlPath != null) {
-            Map<String, Element> fragments = sqlFragmentCache.get(xmlPath);
-            if (fragments != null) {
-                Element fragmentElement = fragments.get(refId);
-                if (fragmentElement == null) {
-                    throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
-                }
-                Deque<String> includePath = currentIncludePath.get();
-                if (includePath.contains(refId)) {
-                    List<String> cycle = new ArrayList<>(includePath);
-                    cycle.add(refId);
-                    throw new IllegalArgumentException(
-                        "Cyclic XML <include> reference: " + String.join(" -> ", cycle)
-                    );
-                }
-                includePath.addLast(refId);
-                try {
-                    validateSupportedTags(fragmentElement);
-                    List<AstNode> fragmentNodes = parseChildNodes(fragmentElement);
-                    if (fragmentNodes.size() == 1) {
-                        return fragmentNodes.get(0);
-                    }
-                    return new AstNode.ContainerNode(fragmentNodes);
-                } finally {
-                    includePath.removeLast();
-                }
-            }
+
+        Element fragmentElement = context.fragments().get(refId);
+        if (fragmentElement == null) {
+            throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
         }
-        throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
+        Deque<String> includePath = context.includePath();
+        if (includePath.contains(refId)) {
+            List<String> cycle = new ArrayList<>(includePath);
+            cycle.add(refId);
+            throw new IllegalArgumentException(
+                "Cyclic XML <include> reference: " + String.join(" -> ", cycle)
+            );
+        }
+        includePath.addLast(refId);
+        try {
+            validateSupportedTags(fragmentElement);
+            List<AstNode> fragmentNodes = parseChildNodes(fragmentElement, context);
+            if (fragmentNodes.size() == 1) {
+                return fragmentNodes.get(0);
+            }
+            return new AstNode.ContainerNode(fragmentNodes);
+        } finally {
+            includePath.removeLast();
+        }
     }
     
     /**
@@ -613,5 +607,11 @@ public class XmlBasedSqlParser implements SqlContentParser {
         }
         
         return parameters;
+    }
+
+    private record XmlResource(Document document, Map<String, Element> fragments) {
+    }
+
+    private record ParseContext(Map<String, Element> fragments, Deque<String> includePath) {
     }
 }

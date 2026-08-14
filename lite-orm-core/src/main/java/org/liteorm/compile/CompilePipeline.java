@@ -3,6 +3,7 @@ package org.liteorm.compile;
 import org.liteorm.api.ExecutionPlan;
 
 import javax.annotation.processing.Messager;
+import javax.annotation.processing.Filer;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -44,17 +45,21 @@ public class CompilePipeline {
     private final Messager messager;
     
     public CompilePipeline(Elements elementUtils, Types typeUtils) {
-        this(elementUtils, typeUtils, null);
+        this(elementUtils, typeUtils, null, null);
     }
 
     public CompilePipeline(Elements elementUtils, Types typeUtils, Messager messager) {
+        this(elementUtils, typeUtils, messager, null);
+    }
+
+    public CompilePipeline(Elements elementUtils, Types typeUtils, Messager messager, Filer filer) {
         this.elementUtils = elementUtils;
         this.typeUtils = typeUtils;
         this.messager = messager;
         
         // 初始化解析器（按优先级排序）
         this.sqlParsers = Arrays.asList(
-            new XmlBasedSqlParser(),           // 优先级最高：XML覆盖注解
+            new XmlBasedSqlParser(filer),      // 优先级最高：XML覆盖注解
             new AnnotationBasedSqlParser()     // 注解解析器
         );
         

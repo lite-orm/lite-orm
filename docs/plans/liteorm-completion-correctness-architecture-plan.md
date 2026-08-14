@@ -254,10 +254,10 @@ Assembly
 
 ### Module R2: Compiler Concurrency and Cache Isolation
 
-- [ ] Replace static XML DOM caches if they can leak across compiler invocations or classpaths.
-- [ ] Add parallel compilation tests for different Mapper XML files with identical resource names in isolated directories.
-- [ ] Verify include resolution has no cross-thread state leak.
-- [ ] Remove ThreadLocal parser state if explicit parse context is clearer.
+- [x] Replace static XML DOM caches with parser-instance resources scoped to one annotation-processing task.
+- [x] Add parallel compilation tests for different Mapper XML files with identical resource names in isolated directories.
+- [x] Verify identically named include fragments resolve from the correct compiler classpath without cross-thread state leak.
+- [x] Replace ThreadLocal XML/include state with an explicit per-parse context.
 
 ## Phase P3: Assembly and Architecture Review
 
