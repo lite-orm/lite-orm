@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.diagnostics.DuplicateOtherwiseMapper">
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT 'value'
+        <choose>
+            <when test="value != null">WHERE value = #{value}</when>
+            <otherwise>WHERE 1 = 1</otherwise>
+            <otherwise>WHERE 1 = 0</otherwise>
+        </choose>
+    </select>
+</mapper>

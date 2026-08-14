@@ -86,7 +86,7 @@ class FreemarkerCodeGeneratorTest {
 
         assertTrue(code.contains("if (name != null && !name.isEmpty())"));
         assertTrue(code.contains("parameters.add(name);"));
-        assertTrue(code.contains("sql.append(\"?\");"));
+        assertTrue(code.contains("appendSqlFragment(sql, \"?\");"));
     }
 
     @Test

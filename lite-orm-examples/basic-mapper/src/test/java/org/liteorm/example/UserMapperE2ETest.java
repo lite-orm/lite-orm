@@ -256,6 +256,30 @@ class UserMapperE2ETest {
     }
 
     @Test
+    void xmlNestedDynamicTagsPreserveScopeWhitespaceAndParameterOrder() {
+        annotationMapper.insert(1L, "Alice", "alice@example.com", 30);
+        annotationMapper.insert(2L, "Bob", "bob@example.com", 25);
+        annotationMapper.insert(3L, "Alicia", "alicia@example.com", 40);
+        annotationMapper.insert(4L, "Carol", "carol@example.com", 35);
+
+        assertEquals(
+            List.of(
+                new User(1L, "Alice", "alice@example.com", 30),
+                new User(3L, "Alicia", "alicia@example.com", 40)
+            ),
+            xmlMapper.searchAdvanced("Ali", 100, List.of(1L, 3L, 4L))
+        );
+        assertEquals(
+            List.of(
+                new User(3L, "Alicia", "alicia@example.com", 40),
+                new User(4L, "Carol", "carol@example.com", 35)
+            ),
+            xmlMapper.searchAdvanced(null, 35, List.of())
+        );
+        assertEquals(4, xmlMapper.searchAdvanced(null, null, null).size());
+    }
+
+    @Test
     void xmlSetPreservesParameterOrderWhenOptionalAssignmentsAreSkipped() {
         annotationMapper.insert(1L, "Alice", "alice@example.com", 30);
 

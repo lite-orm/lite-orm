@@ -212,10 +212,17 @@ Assembly
 ### Module F5: SQL and XML Compatibility Closure
 
 - [x] Build a behavior matrix for all supported dynamic tags and edge cases.
-- [ ] Add real tests for nested `choose/trim/foreach`, empty values, bind scope, include scope, and whitespace normalization.
+- [x] Add real tests for nested `choose/trim/foreach`, empty values, bind scope, include scope, and whitespace normalization.
 - [x] Keep complex `resultMap` unsupported until a separate design is approved.
 - [x] Ensure unsupported XML attributes and elements fail rather than being ignored.
-- [ ] Delete legacy parser tests that only print expected behavior.
+- [x] Delete legacy parser tests that only print expected behavior.
+
+**Remaining F5 closure tasks:**
+
+- [x] Reject invalid `<choose>` structures: unsupported children, more than one `<otherwise>`, and `<when>` after `<otherwise>`.
+- [ ] Detect missing and cyclic `<include>` references with deterministic compiler diagnostics.
+- [ ] Define and test an all-empty `<set>` update as a pre-JDBC failure rather than emitting invalid SQL.
+- [ ] Run the full reactor, generated-source reflection scan, and `git diff --check`; then commit F5 in English.
 
 | XML feature | Intended compile-time behavior | Current verification / gap |
 | --- | --- | --- |
@@ -225,14 +232,14 @@ Assembly
 | `<where>` | Emit `WHERE` only for non-empty content and remove leading `AND`/`OR`. | Basic coverage exists; whitespace and nested-empty behavior need real assertions. |
 | `<set>` | Emit `SET` only for non-empty content and remove trailing commas. | Basic coverage exists; all-empty update behavior must be defined and rejected or tested. |
 | `<trim>` | Apply prefix/suffix and override tokens at runtime to generated fragments. | Basic nested coverage exists; case/whitespace normalization needs real assertions. |
-| `<bind>` | Translate the expression to a scoped native Java local variable. | Supported in mixed dynamic SQL; bind-only dynamic detection and scope leakage need tests. |
-| `<include>` | Resolve SQL fragments during compilation; no runtime XML lookup. | Supported in mixed dynamic SQL; include-only dynamic detection and nested include scope need tests. |
+| `<bind>` | Translate the expression to a scoped native Java local variable. | Mixed, bind-only, and included-fragment generation are covered. |
+| `<include>` | Resolve SQL fragments during compilation; no runtime XML lookup. | Text and multi-node dynamic fragments are covered; missing/cyclic references still need deterministic diagnostics. |
 | `#{...}` | Emit `?`, value slot, and aligned Binder slot. | Static and dynamic paths covered; nested dynamic ordering remains part of F5 tests. |
 | `${...}` | Allow only compile-time-approved safe substitution roots. | Safety validation exists; nested fragment coverage remains to verify. |
 | `resultMap` | Fail compilation until a separate complex mapping design is approved. | Existing failure coverage; keep unsupported. |
 | Unknown XML elements | Fail compilation rather than ignore them. | Existing unsupported-element fixture; retain and strengthen if needed. |
-| Unknown/missing XML attributes | Fail compilation rather than silently use empty/default values. | Not closed; add explicit validation per supported element. |
-| SQL whitespace | Produce stable executable SQL without token concatenation or accidental blank clauses. | Helpers exist; real nested H2 assertions and generated-plan assertions remain. |
+| Unknown/missing XML attributes | Fail compilation rather than silently use empty/default values. | Required and unknown attribute diagnostics are covered. |
+| SQL whitespace | Produce stable executable SQL without token concatenation or accidental blank clauses. | Nested H2 coverage verifies `trim`, included fragments, and parameter placeholders use stable separators. |
 
 ## Phase P2: Concurrency and Thread Safety
 
@@ -303,6 +310,15 @@ Assembly
 - [ ] Document Java version, Maven coordinates, processor setup, supported subset, transaction modes, concurrency contract, extensions, and known gaps.
 - [ ] Add CI commands for full tests and optional benchmarks.
 - [ ] Run final architecture review and `mvn clean test`.
+
+### Module O3: Compiler Dependency Simplification (Low Priority)
+
+- [ ] Replace `templates/mapper-impl.ftl` with deterministic Java source assembly after F5, P2, and P3 are complete.
+- [ ] Move the fixed Mapper class shell and dynamic SQL helper methods into a focused Java source writer without changing generated public constructors or Mapper behavior.
+- [ ] Rename `FreemarkerCodeGenerator` to a technology-neutral name such as `JavaSourceCodeGenerator`.
+- [ ] Remove `${.now}` and add a reproducible-generation test proving identical inputs produce byte-for-byte identical Java source.
+- [ ] Delete the FreeMarker template, remove the Core FreeMarker dependency and parent dependency-management entry, and verify packaged resources no longer contain `/templates`.
+- [ ] Run generated-source compilation tests, `mvn clean test`, and dependency analysis before committing the simplification.
 
 ## Deferred Backlog
 

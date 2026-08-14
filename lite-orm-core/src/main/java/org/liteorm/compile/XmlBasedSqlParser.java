@@ -304,8 +304,40 @@ public class XmlBasedSqlParser implements SqlContentParser {
                 element, Set.of("prefix", "suffix", "prefixOverrides", "suffixOverrides"), Set.of());
             case "bind" -> validateElementAttributes(element, Set.of("name", "value"), Set.of("name", "value"));
             case "include" -> validateElementAttributes(element, Set.of("refid"), Set.of("refid"));
-            case "choose", "otherwise", "where", "set" -> validateElementAttributes(element, Set.of(), Set.of());
+            case "choose" -> {
+                validateElementAttributes(element, Set.of(), Set.of());
+                validateChooseStructure(element);
+            }
+            case "otherwise", "where", "set" -> validateElementAttributes(element, Set.of(), Set.of());
             default -> throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
+        }
+    }
+
+    private void validateChooseStructure(Element chooseElement) {
+        boolean otherwiseSeen = false;
+        NodeList children = chooseElement.getChildNodes();
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            String childName = ((Element) child).getTagName().toLowerCase();
+            if ("when".equals(childName)) {
+                if (otherwiseSeen) {
+                    throw new IllegalArgumentException("XML <otherwise> must be the last child of <choose>");
+                }
+                continue;
+            }
+            if ("otherwise".equals(childName)) {
+                if (otherwiseSeen) {
+                    throw new IllegalArgumentException("XML <choose> supports at most one <otherwise>");
+                }
+                otherwiseSeen = true;
+                continue;
+            }
+            throw new IllegalArgumentException(
+                "XML <choose> only supports <when> and <otherwise> children"
+            );
         }
     }
 
@@ -543,14 +575,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
                     if (fragmentNodes.size() == 1) {
                         return fragmentNodes.get(0);
                     }
-                    // 多个节点，需要合并（这里简化处理，实际可能需要一个容器节点）
-                    StringBuilder content = new StringBuilder();
-                    for (AstNode node : fragmentNodes) {
-                        if (node instanceof AstNode.TextNode) {
-                            content.append(((AstNode.TextNode) node).text()).append(" ");
-                        }
-                    }
-                    return new AstNode.TextNode(content.toString().trim());
+                    return new AstNode.ContainerNode(fragmentNodes);
                 }
             }
         }

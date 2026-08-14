@@ -134,6 +134,36 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void chooseRejectsUnsupportedChildElements() throws Exception {
+        assertUnsupportedMethod(
+            "InvalidChooseChildMapper",
+            "ValueRow findValue(String value);",
+            "findValue",
+            "XML <choose> only supports <when> and <otherwise> children"
+        );
+    }
+
+    @Test
+    void chooseRejectsMultipleOtherwiseBranches() throws Exception {
+        assertUnsupportedMethod(
+            "DuplicateOtherwiseMapper",
+            "ValueRow findValue(String value);",
+            "findValue",
+            "XML <choose> supports at most one <otherwise>"
+        );
+    }
+
+    @Test
+    void chooseRejectsWhenAfterOtherwise() throws Exception {
+        assertUnsupportedMethod(
+            "WhenAfterOtherwiseMapper",
+            "ValueRow findValue(String value);",
+            "findValue",
+            "XML <otherwise> must be the last child of <choose>"
+        );
+    }
+
+    @Test
     void dollarSubstitutionIsRejectedWithMapperMethodAndExpression() throws Exception {
         assertUnsupportedMethod(
             "UnsafeDollarMapper",

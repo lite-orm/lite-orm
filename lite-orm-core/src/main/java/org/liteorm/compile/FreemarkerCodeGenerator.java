@@ -404,7 +404,8 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(javaString(trimNode.prefixOverrides())).append(", ")
                     .append(javaString(trimNode.suffixOverrides())).append(");\n");
                 code.append(indent).append("if (!normalizedTrim").append(index).append(".isBlank()) {\n");
-                code.append(indent).append("    ").append(sqlVar).append(".append(normalizedTrim").append(index).append(");\n");
+                code.append(indent).append("    appendSqlFragment(").append(sqlVar).append(", normalizedTrim")
+                    .append(index).append(");\n");
                 code.append(indent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
                 code.append(indent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
                 code.append(indent).append("}\n");
@@ -430,7 +431,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         while (hashMatcher.find()) {
             String literal = text.substring(cursor, hashMatcher.start());
             appendLiteral(code, literal, sqlVar, indent);
-            code.append(indent).append(sqlVar).append(".append(\"?\");\n");
+            code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", \"?\");\n");
             code.append(indent).append(paramsVar).append(".add(")
                 .append(toJavaAccess(hashMatcher.group(1).trim(), methodModel, false, localRoots)).append(");\n");
             code.append(indent).append(bindersVar).append(".add(")

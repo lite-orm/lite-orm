@@ -160,6 +160,7 @@ class CustomAdapterCompilationTest {
             public interface XmlStandaloneDynamicMapper {
                 Long includeOnly(Long id);
                 Long bindOnly(String name);
+                Long includeDynamic(String name);
             }
             """);
 
@@ -169,6 +170,8 @@ class CustomAdapterCompilationTest {
         assertTrue(generated.contains("SELECT id FROM users WHERE id ="), generated);
         assertTrue(generated.contains("Object pattern = \"%\" + name + \"%\";"), generated);
         assertTrue(generated.contains("parameters.add(pattern);"), generated);
+        assertTrue(generated.contains("Object includedPattern = \"%\" + name + \"%\";"), generated);
+        assertTrue(generated.contains("parameters.add(includedPattern);"), generated);
     }
 
     @Test

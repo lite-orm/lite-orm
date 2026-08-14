@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mapper namespace="org.liteorm.example.UserXmlMapper">
+    <sql id="userColumns">id, name, email, age</sql>
+
     <select id="findByEmail" resultType="org.liteorm.example.User">
         SELECT id, name, email, age FROM users WHERE email = #{email}
     </select>
@@ -14,6 +16,31 @@
                 </foreach>
             </if>
         </where>
+        ORDER BY id
+    </select>
+
+    <select id="searchAdvanced" resultType="org.liteorm.example.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <bind name="namePattern" value="'%' + name + '%'"/>
+        <trim prefix="WHERE" prefixOverrides="AND |OR ">
+            <choose>
+                <when test="name != null and name != ''">
+                    AND name LIKE #{namePattern}
+                </when>
+                <when test="minimumAge != null">
+                    AND age &gt;= #{minimumAge}
+                </when>
+                <otherwise>
+                    AND 1 = 1
+                </otherwise>
+            </choose>
+            <if test="ids != null and ids.size() > 0">
+                AND id IN
+                <foreach collection="ids" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </trim>
         ORDER BY id
     </select>
 
