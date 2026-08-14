@@ -10,6 +10,12 @@ LiteORM keeps generated Mapper code as the default. Extensions are narrow, expli
 | Typed extension | Extension class, generic compatibility, visibility, constructor, and invocation are compile-time-bound | Explicit provider, binder, mapper, or interceptor code runs |
 | Raw JDBC | Outside LiteORM generation guarantees | Application owns SQL, binding, mapping, resources, and diagnostics |
 
+## Concurrency Contract
+
+Generated Mapper implementations and the standard SQL engines are designed for concurrent reuse. Each Mapper call builds its own execution plan and execution context, while standalone transaction state and Spring transaction-bound connections remain isolated by thread.
+
+Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. A SQL engine also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. LiteORM does not clone extension instances per call and currently provides no stateful-adapter factory contract.
+
 ## SQL Provider
 
 Use `@UseSqlProvider` on a Mapper method with a concrete `SqlProvider<P>` implementation.
@@ -29,7 +35,7 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 - The implementation must be visible, concrete, and have an accessible no-arg constructor.
 - Generated execution carries a direct binder reference; there is no global reflective type-handler lookup.
 - Null values bypass the custom binder and bind SQL `NULL`.
-- The current binder contract applies to static annotation or XML SQL; dynamic SQL and providers are rejected explicitly.
+- Dynamic SQL carries generated binder slots aligned with emitted parameters. Providers carry binder metadata through typed `BoundParameter` values.
 
 ## Row Mapper
 

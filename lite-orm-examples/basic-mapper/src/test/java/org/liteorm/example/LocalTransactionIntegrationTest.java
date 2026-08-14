@@ -12,11 +12,15 @@ import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LocalTransactionIntegrationTest {
 
@@ -126,6 +130,47 @@ class LocalTransactionIntegrationTest {
                 throw new AssertionError(exception);
             }
         }
+    }
+
+    @Test
+    void localTransactionsAreThreadIsolatedAndRemoveThreadLocalState() throws Exception {
+        CountDownLatch writesReady = new CountDownLatch(2);
+        CountDownLatch finishTransactions = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var committed = executor.submit(() -> {
+                TransactionContext transaction = begin();
+                assertEquals(1, mapper.insert(100L, "Committed", "committed@example.com", 40));
+                assertEquals(new User(100L, "Committed", "committed@example.com", 40), mapper.findById(100L));
+                writesReady.countDown();
+                finishTransactions.await(5, TimeUnit.SECONDS);
+                commit(transaction);
+
+                TransactionContext next = begin();
+                rollback(next);
+                return null;
+            });
+            var rolledBack = executor.submit(() -> {
+                TransactionContext transaction = begin();
+                assertEquals(1, mapper.insert(101L, "Rolled Back", "rolled-back@example.com", 41));
+                assertEquals(new User(101L, "Rolled Back", "rolled-back@example.com", 41), mapper.findById(101L));
+                writesReady.countDown();
+                finishTransactions.await(5, TimeUnit.SECONDS);
+                rollback(transaction);
+
+                TransactionContext next = begin();
+                rollback(next);
+                return null;
+            });
+
+            assertTrue(writesReady.await(5, TimeUnit.SECONDS));
+            finishTransactions.countDown();
+            committed.get(5, TimeUnit.SECONDS);
+            rolledBack.get(5, TimeUnit.SECONDS);
+        }
+
+        assertEquals(new User(100L, "Committed", "committed@example.com", 40), mapper.findById(100L));
+        assertNull(mapper.findById(101L));
     }
 
     private TransactionContext begin() {

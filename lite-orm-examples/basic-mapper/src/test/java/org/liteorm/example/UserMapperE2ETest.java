@@ -20,7 +20,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserMapperE2ETest {
 
@@ -239,6 +242,46 @@ class UserMapperE2ETest {
         }
 
         assertEquals(List.of("Hana", "Ivan", "Jade", "Kyle"), annotationMapper.findAllNames());
+    }
+
+    @Test
+    void oneGeneratedMapperAndEngineKeepConcurrentCallsIsolated() throws Exception {
+        UserMapper sharedMapper = new UserMapperImpl(
+            new DefaultSqlEngine(new JdbcConnectionProvider(dataSource))
+        );
+        int workerCount = 8;
+        CountDownLatch ready = new CountDownLatch(workerCount);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(workerCount)) {
+            List<java.util.concurrent.Future<User>> futures = new ArrayList<>();
+            for (int index = 0; index < workerCount; index++) {
+                int worker = index;
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await(5, TimeUnit.SECONDS);
+                    long id = 100L + worker;
+                    User expected = new User(
+                        id,
+                        "worker-" + worker,
+                        "worker-" + worker + "@example.com",
+                        20 + worker
+                    );
+                    assertEquals(1, sharedMapper.insert(
+                        expected.id(), expected.name(), expected.email(), expected.age()
+                    ));
+                    assertEquals(expected, sharedMapper.findById(id));
+                    return expected;
+                }));
+            }
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            for (var future : futures) {
+                User expected = future.get(5, TimeUnit.SECONDS);
+                assertEquals(expected, sharedMapper.findById(expected.id()));
+            }
+        }
     }
 
     @Test

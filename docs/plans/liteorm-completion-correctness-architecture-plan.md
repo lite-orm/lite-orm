@@ -245,12 +245,12 @@ Assembly
 
 ### Module R1: Runtime Concurrency
 
-- [ ] Add multithreaded H2 tests reusing one generated Mapper and one engine.
-- [ ] Verify execution contexts, statements, results, and transaction state never cross threads.
-- [ ] Verify local transactions are isolated and ThreadLocal state is always removed.
-- [ ] Verify Spring transaction-bound connections remain isolated by thread.
-- [ ] Document that Provider, Binder, RowMapper, and Interceptor singleton instances must be thread-safe and stateless or externally synchronized.
-- [ ] Add a compile-time or construction-time factory option only if real use cases require stateful adapters.
+- [x] Add multithreaded H2 tests reusing one generated Mapper and one engine.
+- [x] Verify execution contexts, statements, results, and transaction state never cross threads.
+- [x] Verify local transactions are isolated and ThreadLocal state is always removed.
+- [x] Verify Spring transaction-bound connections remain isolated by thread.
+- [x] Document that Provider, Binder, RowMapper, and Interceptor singleton instances must be thread-safe and stateless or externally synchronized.
+- [x] Do not add an adapter factory until a real stateful-adapter use case requires one; the current contract explicitly requires thread-safe extension instances.
 
 ### Module R2: Compiler Concurrency and Cache Isolation
 

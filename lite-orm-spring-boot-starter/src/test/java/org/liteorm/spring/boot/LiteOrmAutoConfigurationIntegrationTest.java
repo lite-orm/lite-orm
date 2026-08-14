@@ -26,12 +26,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LiteOrmAutoConfigurationIntegrationTest {
 
@@ -100,6 +104,52 @@ class LiteOrmAutoConfigurationIntegrationTest {
 
             assertEquals(new SpringUser(20L, "Dora"), mapper.findById(20L));
             assertEquals(new SpringUser(21L, "Evan"), mapper.findById(21L));
+        });
+    }
+
+    @Test
+    void springTransactionBoundConnectionsRemainThreadIsolated() {
+        contextRunner.run(context -> {
+            SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
+            PlatformTransactionManager transactionManager = context.getBean(PlatformTransactionManager.class);
+            TrackingDataSource dataSource = context.getBean(TrackingDataSource.class);
+            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+            CountDownLatch writesReady = new CountDownLatch(2);
+            CountDownLatch finishTransactions = new CountDownLatch(1);
+            dataSource.resetCounts();
+
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                var committed = executor.submit(() -> {
+                    transaction.executeWithoutResult(status -> {
+                        mapper.insert(100L, "Committed");
+                        assertEquals(new SpringUser(100L, "Committed"), mapper.findById(100L));
+                        writesReady.countDown();
+                        await(finishTransactions);
+                    });
+                    return null;
+                });
+                var rolledBack = executor.submit(() -> {
+                    transaction.executeWithoutResult(status -> {
+                        mapper.insert(101L, "Rolled Back");
+                        assertEquals(new SpringUser(101L, "Rolled Back"), mapper.findById(101L));
+                        writesReady.countDown();
+                        await(finishTransactions);
+                        status.setRollbackOnly();
+                    });
+                    return null;
+                });
+
+                assertTrue(writesReady.await(5, TimeUnit.SECONDS));
+                assertEquals(2, dataSource.acquisitions());
+                finishTransactions.countDown();
+                committed.get(5, TimeUnit.SECONDS);
+                rolledBack.get(5, TimeUnit.SECONDS);
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+
+            assertEquals(new SpringUser(100L, "Committed"), mapper.findById(100L));
+            assertNull(mapper.findById(101L));
         });
     }
 
@@ -182,6 +232,17 @@ class LiteOrmAutoConfigurationIntegrationTest {
         void resetCounts() {
             acquisitions.set(0);
             releases.set(0);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting for concurrent transaction");
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(failure);
         }
     }
 
