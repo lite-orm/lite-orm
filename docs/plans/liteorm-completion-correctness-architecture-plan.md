@@ -282,7 +282,7 @@ Assembly
 - [ ] Move logging, audit, slow-query monitoring, metrics, tracing, and similar before/after concerns to typed `ExecutionInterceptor` callbacks instead of string-keyed `ExecutionContext` attributes.
 - [x] Decide to replace public `ExecutionContext` with at most a package-private JDBC resource scope with explicit connection ownership and no generic `Map<String, Object>`.
 - [x] Keep mutually exclusive query, update, batch, and generated-key outcomes in immutable `SqlResult` rather than public mutable context fields.
-- [ ] Add characterization tests before lifecycle refactoring and verify resource-close order, suppressed cleanup failures, local/Spring transaction connection ownership, interceptor ordering, generated keys, batch execution, and concurrent Mapper reuse after the refactor.
+- [x] Add characterization tests before lifecycle refactoring for resource-close order, primary and cleanup failure suppression, local/Spring transaction connection ownership, interceptor ordering, generated keys, batch execution, and concurrent Mapper reuse; rerun them after the refactor.
 - [ ] Review generated source readability, naming, exception messages, and debugging experience.
 - [x] Record accepted trade-offs and rejected alternatives in `docs/architecture/liteorm-architecture-review.md`.
 

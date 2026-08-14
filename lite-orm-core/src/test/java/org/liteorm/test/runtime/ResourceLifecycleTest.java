@@ -70,6 +70,31 @@ class ResourceLifecycleTest {
         assertEquals(List.of("resultSet.close", "statement.close", "connection.release"), events);
     }
 
+    @Test
+    void cleanupFailureAfterSuccessfulExecutionBecomesThePrimarySqlFailure() {
+        List<String> events = new ArrayList<>();
+        SQLException resultSetCloseFailure = new SQLException("result set close failed");
+        SQLException statementCloseFailure = new SQLException("statement close failed");
+        RuntimeException releaseFailure = new RuntimeException("connection release failed");
+        Connection connection = connection(events);
+        PreparedStatement statement = statement(events, statementCloseFailure);
+        ResultSet resultSet = resultSet(events, resultSetCloseFailure);
+        DefaultSqlEngine engine = engine(connection, events, releaseFailure, context -> {
+            context.setPreparedStatement(statement);
+            context.setResultSet(resultSet);
+            context.setQueryResults(List.of());
+        });
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () -> engine.execute(selectPlan()));
+
+        assertSame(resultSetCloseFailure, failure.getCause());
+        assertArrayEquals(
+            new Throwable[]{statementCloseFailure, releaseFailure},
+            resultSetCloseFailure.getSuppressed()
+        );
+        assertEquals(List.of("resultSet.close", "statement.close", "connection.release"), events);
+    }
+
     private DefaultSqlEngine engine(Connection connection, List<String> events, ContextAction action) {
         return engine(connection, events, null, action);
     }
