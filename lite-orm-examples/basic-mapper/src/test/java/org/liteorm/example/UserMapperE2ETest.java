@@ -331,6 +331,10 @@ class UserMapperE2ETest {
             List.of(new UserMetadata(1L, blue), new UserMetadata(3L, blue)),
             metadataMapper.findByPayload(blue)
         );
+        assertEquals(
+            List.of(new UserMetadata(1L, blue), new UserMetadata(3L, blue)),
+            metadataMapper.findByPayloadDynamically(blue)
+        );
         assertEquals(new UserMetadata(2L, red), metadataMapper.findByUserId(2L));
         assertEquals(new UserMetadata(4L, new JsonValue(null)), metadataMapper.findByUserId(4L));
         assertNull(metadataMapper.findByUserId(999L));

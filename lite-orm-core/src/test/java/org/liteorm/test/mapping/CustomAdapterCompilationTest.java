@@ -74,6 +74,82 @@ class CustomAdapterCompilationTest {
     }
 
     @Test
+    void generatesBinderSlotsForDynamicSqlParameters() throws Exception {
+        Compilation result = compile("DynamicBinderMapper", """
+            package org.liteorm.test.mappingfixture;
+
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+            import org.liteorm.annotation.UseParameterBinder;
+            import org.liteorm.api.ParameterBinder;
+            import java.sql.*;
+
+            record JsonValue(String value) {}
+
+            class JsonBinder implements ParameterBinder<JsonValue> {
+                public JsonBinder() {}
+                public void bind(PreparedStatement statement, int index, JsonValue value) throws SQLException {
+                    statement.setString(index, value == null ? null : value.value());
+                }
+            }
+
+            @Mapper
+            public interface DynamicBinderMapper {
+                @Select({"<script>", "SELECT payload FROM adapter_values",
+                    "<if test='payload != null'>WHERE payload = #{payload}</if>", "</script>"})
+                String find(@UseParameterBinder(JsonBinder.class) JsonValue payload);
+            }
+            """);
+
+        assertTrue(result.succeeded(), () -> result.diagnostics().toString());
+        String generated = Files.readString(result.generatedDirectory()
+            .resolve("org/liteorm/test/mappingfixture/DynamicBinderMapperImpl.java"));
+        assertTrue(generated.contains("List<ParameterBinder<?>> binders = new ArrayList<>();"), generated);
+        assertTrue(generated.contains("binders.add(findPayloadParameterBinder);"), generated);
+        assertTrue(generated.contains("binders.toArray(new ParameterBinder<?>[0])"), generated);
+        assertFalse(generated.contains("Class.forName"), generated);
+        assertFalse(generated.contains("Method.invoke"), generated);
+    }
+
+    @Test
+    void generatesDirectRowMapperForXmlSingleAndListResults() throws Exception {
+        Compilation result = compile("XmlRowMapperMapper", """
+            package org.liteorm.test.mappingfixture;
+
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.UseRowMapper;
+            import org.liteorm.api.RowMapper;
+            import java.sql.*;
+            import java.util.List;
+
+            record Result(Long id) {}
+
+            class ResultRowMapper implements RowMapper<Result> {
+                public ResultRowMapper() {}
+                public Result map(ResultSet resultSet) throws SQLException { return new Result(resultSet.getLong(1)); }
+            }
+
+            @Mapper
+            public interface XmlRowMapperMapper {
+                @UseRowMapper(ResultRowMapper.class)
+                Result findOne(Long id);
+
+                @UseRowMapper(ResultRowMapper.class)
+                List<Result> findAll(Long id);
+            }
+            """);
+
+        assertTrue(result.succeeded(), () -> result.diagnostics().toString());
+        String generated = Files.readString(result.generatedDirectory()
+            .resolve("org/liteorm/test/mappingfixture/XmlRowMapperMapperImpl.java"));
+        assertTrue(generated.contains("findOneRowMapper"), generated);
+        assertTrue(generated.contains("findAllRowMapper"), generated);
+        assertTrue(generated.contains("ExecutionPlan.SqlSource.XML"), generated);
+        assertFalse(generated.contains("Class.forName"), generated);
+        assertFalse(generated.contains("Method.invoke"), generated);
+    }
+
+    @Test
     void rejectsIncompatibleRowMapperTarget() throws Exception {
         Compilation result = compile("WrongRowMapper", source(
             "@UseRowMapper(StringRowMapper.class) Result find();",
@@ -87,6 +163,69 @@ class CustomAdapterCompilationTest {
             "Result find(@UseParameterBinder(StringBinder.class) JsonValue payload);",
             "class StringBinder implements ParameterBinder<String> { public void bind(PreparedStatement ps, int index, String value) throws SQLException {} }"));
         assertFailure(result, "WrongBinderMapper#find", "parameter binder target type");
+    }
+
+    @Test
+    void rejectsWholeParameterBinderForDynamicPropertyExpression() throws Exception {
+        Compilation result = compile("DynamicPropertyBinderMapper", """
+            package org.liteorm.test.mappingfixture;
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.*;
+            import java.sql.*;
+            record Filter(String value) {}
+            class FilterBinder implements ParameterBinder<Filter> {
+                public FilterBinder() {}
+                public void bind(PreparedStatement statement, int index, Filter value) throws SQLException {}
+            }
+            @Mapper public interface DynamicPropertyBinderMapper {
+                @Select({"<script>", "SELECT 1", "<if test='filter != null'>WHERE value = #{filter.value}</if>", "</script>"})
+                Long find(@UseParameterBinder(FilterBinder.class) Filter filter);
+            }
+            """);
+
+        assertFailure(result, "DynamicPropertyBinderMapper.find", "must bind the whole Mapper parameter");
+    }
+
+    @Test
+    void rejectsCollectionBinderImplicitlyAppliedToForeachItems() throws Exception {
+        Compilation result = compile("ForeachBinderMapper", """
+            package org.liteorm.test.mappingfixture;
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.*;
+            import java.sql.*;
+            import java.util.List;
+            class StringListBinder implements ParameterBinder<List<String>> {
+                public StringListBinder() {}
+                public void bind(PreparedStatement statement, int index, List<String> value) throws SQLException {}
+            }
+            @Mapper public interface ForeachBinderMapper {
+                @Select({"<script>", "SELECT 1 WHERE value IN", "<foreach collection='values' item='item' open='(' separator=',' close=')'>#{item}</foreach>", "</script>"})
+                Long find(@UseParameterBinder(StringListBinder.class) List<String> values);
+            }
+            """);
+
+        assertFailure(result, "ForeachBinderMapper.find", "collection parameter binder cannot bind foreach items");
+    }
+
+    @Test
+    void rejectsRowMapperOnWriteMethod() throws Exception {
+        Compilation result = compile("WriteRowMapper", """
+            package org.liteorm.test.mappingfixture;
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.*;
+            import java.sql.*;
+            class LongRowMapper implements RowMapper<Long> {
+                public LongRowMapper() {}
+                public Long map(ResultSet resultSet) throws SQLException { return resultSet.getLong(1); }
+            }
+            @Mapper public interface WriteRowMapper {
+                @Update("UPDATE users SET name = 'x'")
+                @UseRowMapper(LongRowMapper.class)
+                int update();
+            }
+            """);
+
+        assertFailure(result, "WriteRowMapper#update", "row mapper requires a SELECT method");
     }
 
     private String source(String method, String adapter) {

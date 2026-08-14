@@ -58,6 +58,53 @@ class SqlProviderCompilationTest {
             .resolve("org/liteorm/test/providerfixture/ValidProviderMapperImpl.java"));
         assertTrue(generated.contains("private final org.liteorm.test.providerfixture.IdProvider findSqlProvider = new org.liteorm.test.providerfixture.IdProvider();"), generated);
         assertTrue(generated.contains("findSqlProvider.provide(query)"), generated);
+        assertTrue(generated.contains("boundSql.parameterBinders()"), generated);
+        assertFalse(generated.contains("Class.forName"), generated);
+        assertFalse(generated.contains("Method.invoke"), generated);
+    }
+
+    @Test
+    void generatesDirectRowMapperForProviderSingleAndListResults() throws Exception {
+        Compilation result = compile("ProviderRowMapperMapper", """
+            package org.liteorm.test.providerfixture;
+
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.*;
+            import java.sql.*;
+            import java.util.List;
+
+            record Query(Long id) {}
+            record Result(Long id) {}
+
+            class ResultProvider implements SqlProvider<Query> {
+                public ResultProvider() {}
+                public BoundSql provide(Query query) {
+                    return new BoundSql("SELECT id FROM users WHERE id = ?", List.of(BoundParameter.of(query.id())));
+                }
+            }
+
+            class ResultRowMapper implements RowMapper<Result> {
+                public ResultRowMapper() {}
+                public Result map(ResultSet resultSet) throws SQLException { return new Result(resultSet.getLong(1)); }
+            }
+
+            @Mapper
+            public interface ProviderRowMapperMapper {
+                @UseSqlProvider(value = ResultProvider.class, statementType = ExecutionPlan.StatementType.SELECT)
+                @UseRowMapper(ResultRowMapper.class)
+                Result findOne(Query query);
+
+                @UseSqlProvider(value = ResultProvider.class, statementType = ExecutionPlan.StatementType.SELECT)
+                @UseRowMapper(ResultRowMapper.class)
+                List<Result> findAll(Query query);
+            }
+            """);
+
+        assertTrue(result.succeeded(), () -> result.diagnostics().toString());
+        String generated = Files.readString(result.generatedDirectory()
+            .resolve("org/liteorm/test/providerfixture/ProviderRowMapperMapperImpl.java"));
+        assertTrue(generated.contains("findOneRowMapper"), generated);
+        assertTrue(generated.contains("findAllRowMapper"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }
@@ -97,6 +144,24 @@ class SqlProviderCompilationTest {
             Result find(Query query, String extra);
             """, "class IdProvider implements SqlProvider<Query> { public BoundSql provide(Query query) { return new BoundSql(\"SELECT 1\", List.of()); } }"));
         assertFailure(result, "MultipleParameterProviderMapper#find", "wrap multiple values in a record");
+    }
+
+    @Test
+    void rejectsMapperParameterBinderAnnotationForProviderMethods() throws Exception {
+        Compilation result = compile("ProviderBinderAnnotationMapper", source("""
+            @UseSqlProvider(value = IdProvider.class, statementType = ExecutionPlan.StatementType.SELECT)
+            Result find(@org.liteorm.annotation.UseParameterBinder(QueryBinder.class) Query query);
+            """, """
+            class IdProvider implements SqlProvider<Query> {
+                public IdProvider() {}
+                public BoundSql provide(Query query) { return new BoundSql("SELECT 1", List.of()); }
+            }
+            class QueryBinder implements ParameterBinder<Query> {
+                public QueryBinder() {}
+                public void bind(java.sql.PreparedStatement statement, int index, Query value) {}
+            }
+            """));
+        assertFailure(result, "ProviderBinderAnnotationMapper#find", "typed BoundParameter contract");
     }
 
     private String source(String method, String provider) {

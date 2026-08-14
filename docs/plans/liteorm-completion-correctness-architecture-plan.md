@@ -189,11 +189,25 @@ Assembly
 
 ### Module F4: Extension Combination Completion
 
-- [ ] Decide and implement custom binders in dynamic SQL using generated binder slots per emitted parameter.
-- [ ] Decide and implement provider-bound custom parameters or document a typed `BoundParameter` binder extension.
-- [ ] Verify row mappers for single and list results with providers and XML.
-- [ ] Reject ambiguous combinations at compile time.
-- [ ] Keep every extension invocation direct and reflection-free.
+- [x] Decide and implement custom binders in dynamic SQL using generated binder slots per emitted parameter.
+- [x] Decide and implement provider-bound custom parameters through a typed `BoundParameter<T>` binder extension.
+- [x] Verify row mappers for single and list results with providers and XML.
+- [x] Reject ambiguous combinations at compile time.
+- [x] Keep every extension invocation direct and reflection-free.
+
+**Execution TODO (follow in order):**
+
+- [x] Design dynamic SQL binder slots as a generated list aligned one-to-one with emitted JDBC parameters.
+- [x] Implement dynamic SQL binder compilation and generated binder propagation; verified by `CustomAdapterCompilationTest#generatesBinderSlotsForDynamicSqlParameters` and the H2 metadata Mapper scenario.
+- [x] Define and implement the Provider parameter-binding contract with typed `BoundParameter` binder metadata.
+- [x] Verify custom `RowMapper` combinations for Provider and XML single/list results.
+- [x] Reject ambiguous extension combinations, including whole-parameter binders applied to property expressions and collection binders implicitly applied to `foreach` items.
+- [x] Verify generated extension paths contain no reflection or runtime adapter lookup.
+- [x] Run focused F4 tests, `mvn clean test`, and `git diff --check`; then update the F4 checkboxes and commit in English.
+- [ ] Continue with F5 SQL/XML compatibility closure.
+- [ ] Continue with P2 concurrency and thread-safety verification.
+- [ ] Continue with P3 assembly, transaction integration, and architecture review.
+- [ ] Continue with P4 benchmarks, optimization, and release readiness only after correctness and architecture work are complete.
 
 ### Module F5: SQL and XML Compatibility Closure
 

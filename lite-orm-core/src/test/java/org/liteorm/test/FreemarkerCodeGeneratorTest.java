@@ -70,7 +70,7 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            List.of(),
+            java.util.Collections.singletonList(null),
             null,
             List.of(new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0"))),
             List.of(),
@@ -109,7 +109,7 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            List.of(),
+            java.util.Arrays.asList(null, null, null),
             null,
             List.of(
                 new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0")),

@@ -2,7 +2,7 @@ package org.liteorm.api;
 
 import java.util.List;
 
-public record BoundSql(String sql, List<BoundParameter> parameters) {
+public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
 
     public BoundSql {
         if (sql == null || sql.isBlank()) {
@@ -23,5 +23,9 @@ public record BoundSql(String sql, List<BoundParameter> parameters) {
 
     public Object[] parameterValues() {
         return parameters.stream().map(BoundParameter::value).toArray(Object[]::new);
+    }
+
+    public ParameterBinder<?>[] parameterBinders() {
+        return parameters.stream().map(BoundParameter::binder).toArray(ParameterBinder<?>[]::new);
     }
 }

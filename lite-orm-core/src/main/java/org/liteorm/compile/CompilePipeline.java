@@ -261,9 +261,9 @@ public class CompilePipeline {
 
         boolean hasBinder = method.getParameters().stream()
             .anyMatch(parameter -> findAnnotation(parameter, "org.liteorm.annotation.UseParameterBinder") != null);
-        if (hasBinder && (providerBinding != null || sqlInfo == null || sqlInfo.isDynamic())) {
+        if (hasBinder && providerBinding != null) {
             throw new CompileException(methodLocation
-                + ": custom parameter binders currently require static annotation or XML SQL");
+                + ": provider parameter binders require the typed BoundParameter contract");
         }
 
         java.util.Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters =
@@ -285,20 +285,27 @@ public class CompilePipeline {
             addAdapterField(fields, binderElement, fieldName);
         }
 
-        for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
-            String root = binding.expression().split("\\.", 2)[0];
-            VariableElement parameter = findMethodParameter(method, methodParameters, root);
-            MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
-            if (adapterField == null) {
-                binderFields.add(null);
-                continue;
+        if (sqlInfo != null && sqlInfo.isDynamic()) {
+            for (VariableElement parameter : method.getParameters()) {
+                MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
+                binderFields.add(adapterField == null ? null : adapterField.fieldName());
             }
-            if (binding.expression().contains(".")) {
-                throw new CompileException(methodLocation
-                    + ": custom parameter binder must bind the whole Mapper parameter, not property "
-                    + binding.expression());
+        } else {
+            for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
+                String root = binding.expression().split("\\.", 2)[0];
+                VariableElement parameter = findMethodParameter(method, methodParameters, root);
+                MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
+                if (adapterField == null) {
+                    binderFields.add(null);
+                    continue;
+                }
+                if (binding.expression().contains(".")) {
+                    throw new CompileException(methodLocation
+                        + ": custom parameter binder must bind the whole Mapper parameter, not property "
+                        + binding.expression());
+                }
+                binderFields.add(adapterField.fieldName());
             }
-            binderFields.add(adapterField.fieldName());
         }
 
         AnnotationMirror rowMapperAnnotation = findAnnotation(method, "org.liteorm.annotation.UseRowMapper");
