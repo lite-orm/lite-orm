@@ -220,7 +220,7 @@ Assembly
 **Remaining F5 closure tasks:**
 
 - [x] Reject invalid `<choose>` structures: unsupported children, more than one `<otherwise>`, and `<when>` after `<otherwise>`.
-- [ ] Detect missing and cyclic `<include>` references with deterministic compiler diagnostics.
+- [x] Detect missing and cyclic `<include>` references with deterministic compiler diagnostics.
 - [ ] Define and test an all-empty `<set>` update as a pre-JDBC failure rather than emitting invalid SQL.
 - [ ] Run the full reactor, generated-source reflection scan, and `git diff --check`; then commit F5 in English.
 

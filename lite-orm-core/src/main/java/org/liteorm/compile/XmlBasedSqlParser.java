@@ -17,7 +17,9 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +44,8 @@ public class XmlBasedSqlParser implements SqlContentParser {
     
     // 线程本地变量，存储当前解析的XML路径（用于include片段引用）
     private static final ThreadLocal<String> currentXmlPath = new ThreadLocal<>();
+    private static final ThreadLocal<Deque<String>> currentIncludePath =
+        ThreadLocal.withInitial(ArrayDeque::new);
     
     @Override
     public SqlParseResult parseSql(ExecutableElement method) {
@@ -72,6 +76,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
             return parseSqlElement(sqlElement, method);
         } finally {
             currentXmlPath.remove();
+            currentIncludePath.remove();
         }
     }
     
@@ -567,21 +572,31 @@ public class XmlBasedSqlParser implements SqlContentParser {
             Map<String, Element> fragments = sqlFragmentCache.get(xmlPath);
             if (fragments != null) {
                 Element fragmentElement = fragments.get(refId);
-                if (fragmentElement != null) {
+                if (fragmentElement == null) {
+                    throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
+                }
+                Deque<String> includePath = currentIncludePath.get();
+                if (includePath.contains(refId)) {
+                    List<String> cycle = new ArrayList<>(includePath);
+                    cycle.add(refId);
+                    throw new IllegalArgumentException(
+                        "Cyclic XML <include> reference: " + String.join(" -> ", cycle)
+                    );
+                }
+                includePath.addLast(refId);
+                try {
                     validateSupportedTags(fragmentElement);
-                    // 递归解析片段内容
                     List<AstNode> fragmentNodes = parseChildNodes(fragmentElement);
-                    // 如果只有一个节点，直接返回
                     if (fragmentNodes.size() == 1) {
                         return fragmentNodes.get(0);
                     }
                     return new AstNode.ContainerNode(fragmentNodes);
+                } finally {
+                    includePath.removeLast();
                 }
             }
         }
-        
-        // 如果找不到片段，返回IncludeNode（让后续处理决定如何处理）
-        return new AstNode.IncludeNode(refId);
+        throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
     }
     
     /**

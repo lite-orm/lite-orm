@@ -164,6 +164,26 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void missingIncludeReferenceFailsDuringXmlParsing() throws Exception {
+        assertUnsupportedMethod(
+            "MissingIncludeMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "Unknown XML <include> refid 'missingFragment'"
+        );
+    }
+
+    @Test
+    void cyclicIncludeReferenceReportsDeterministicPath() throws Exception {
+        assertUnsupportedMethod(
+            "CyclicIncludeMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "Cyclic XML <include> reference: first -> second -> first"
+        );
+    }
+
+    @Test
     void dollarSubstitutionIsRejectedWithMapperMethodAndExpression() throws Exception {
         assertUnsupportedMethod(
             "UnsafeDollarMapper",
