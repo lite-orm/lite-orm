@@ -150,6 +150,28 @@ class CustomAdapterCompilationTest {
     }
 
     @Test
+    void treatsStandaloneXmlBindAndIncludeAsCompileTimeDynamicSql() throws Exception {
+        Compilation result = compile("XmlStandaloneDynamicMapper", """
+            package org.liteorm.test.mappingfixture;
+
+            import org.liteorm.annotation.Mapper;
+
+            @Mapper
+            public interface XmlStandaloneDynamicMapper {
+                Long includeOnly(Long id);
+                Long bindOnly(String name);
+            }
+            """);
+
+        assertTrue(result.succeeded(), () -> result.diagnostics().toString());
+        String generated = Files.readString(result.generatedDirectory()
+            .resolve("org/liteorm/test/mappingfixture/XmlStandaloneDynamicMapperImpl.java"));
+        assertTrue(generated.contains("SELECT id FROM users WHERE id ="), generated);
+        assertTrue(generated.contains("Object pattern = \"%\" + name + \"%\";"), generated);
+        assertTrue(generated.contains("parameters.add(pattern);"), generated);
+    }
+
+    @Test
     void rejectsIncompatibleRowMapperTarget() throws Exception {
         Compilation result = compile("WrongRowMapper", source(
             "@UseRowMapper(StringRowMapper.class) Result find();",

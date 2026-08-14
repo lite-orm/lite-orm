@@ -114,6 +114,26 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void missingRequiredXmlAttributeFailsAtCompileTime() throws Exception {
+        assertUnsupportedMethod(
+            "MissingIfTestMapper",
+            "ValueRow findValue(String value);",
+            "findValue",
+            "XML <if> requires non-blank attribute 'test'"
+        );
+    }
+
+    @Test
+    void unknownXmlAttributeFailsAtCompileTime() throws Exception {
+        assertUnsupportedMethod(
+            "UnknownForeachAttributeMapper",
+            "ValueRow findValue(java.util.List<String> values);",
+            "findValue",
+            "Unsupported XML attribute 'seperator' on <foreach>"
+        );
+    }
+
+    @Test
     void dollarSubstitutionIsRejectedWithMapperMethodAndExpression() throws Exception {
         assertUnsupportedMethod(
             "UnsafeDollarMapper",

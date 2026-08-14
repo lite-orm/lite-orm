@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -234,6 +235,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
      * 解析SQL元素
      */
     private SqlParseResult parseSqlElement(Element sqlElement, ExecutableElement method) {
+        validateStatementAttributes(sqlElement);
         validateResultMapping(sqlElement);
         validateSupportedTags(sqlElement);
         String sqlType = sqlElement.getTagName().toUpperCase();
@@ -267,6 +269,13 @@ public class XmlBasedSqlParser implements SqlContentParser {
         );
     }
 
+    private void validateStatementAttributes(Element sqlElement) {
+        Set<String> allowedAttributes = "select".equalsIgnoreCase(sqlElement.getTagName())
+            ? Set.of("id", "resultType", "resultMap")
+            : Set.of("id");
+        validateElementAttributes(sqlElement, allowedAttributes, Set.of("id"));
+    }
+
     private void validateSupportedTags(Element element) {
         NodeList childNodes = element.getChildNodes();
         for (int i = 0; i < childNodes.getLength(); i++) {
@@ -280,7 +289,42 @@ public class XmlBasedSqlParser implements SqlContentParser {
             if (!isSupportedDynamicTag(tagName)) {
                 throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
             }
+            validateDynamicElementAttributes(childElement, tagName);
             validateSupportedTags(childElement);
+        }
+    }
+
+    private void validateDynamicElementAttributes(Element element, String tagName) {
+        switch (tagName) {
+            case "if", "when" -> validateElementAttributes(element, Set.of("test"), Set.of("test"));
+            case "foreach" -> validateElementAttributes(
+                element, Set.of("collection", "item", "separator", "open", "close"),
+                Set.of("collection", "item"));
+            case "trim" -> validateElementAttributes(
+                element, Set.of("prefix", "suffix", "prefixOverrides", "suffixOverrides"), Set.of());
+            case "bind" -> validateElementAttributes(element, Set.of("name", "value"), Set.of("name", "value"));
+            case "include" -> validateElementAttributes(element, Set.of("refid"), Set.of("refid"));
+            case "choose", "otherwise", "where", "set" -> validateElementAttributes(element, Set.of(), Set.of());
+            default -> throw new IllegalArgumentException("Unsupported XML tag <" + tagName + ">");
+        }
+    }
+
+    private void validateElementAttributes(Element element, Set<String> allowed, Set<String> required) {
+        var attributes = element.getAttributes();
+        for (int index = 0; index < attributes.getLength(); index++) {
+            String attributeName = attributes.item(index).getNodeName();
+            if (!allowed.contains(attributeName)) {
+                throw new IllegalArgumentException(
+                    "Unsupported XML attribute '" + attributeName + "' on <" + element.getTagName() + ">"
+                );
+            }
+        }
+        for (String attributeName : required) {
+            if (!element.hasAttribute(attributeName) || element.getAttribute(attributeName).isBlank()) {
+                throw new IllegalArgumentException(
+                    "XML <" + element.getTagName() + "> requires non-blank attribute '" + attributeName + "'"
+                );
+            }
         }
     }
 
@@ -317,7 +361,9 @@ public class XmlBasedSqlParser implements SqlContentParser {
                sqlElement.getElementsByTagName("choose").getLength() > 0 ||
                sqlElement.getElementsByTagName("where").getLength() > 0 ||
                sqlElement.getElementsByTagName("set").getLength() > 0 ||
-               sqlElement.getElementsByTagName("trim").getLength() > 0;
+               sqlElement.getElementsByTagName("trim").getLength() > 0 ||
+               sqlElement.getElementsByTagName("bind").getLength() > 0 ||
+               sqlElement.getElementsByTagName("include").getLength() > 0;
     }
     
     /**
@@ -490,6 +536,7 @@ public class XmlBasedSqlParser implements SqlContentParser {
             if (fragments != null) {
                 Element fragmentElement = fragments.get(refId);
                 if (fragmentElement != null) {
+                    validateSupportedTags(fragmentElement);
                     // 递归解析片段内容
                     List<AstNode> fragmentNodes = parseChildNodes(fragmentElement);
                     // 如果只有一个节点，直接返回

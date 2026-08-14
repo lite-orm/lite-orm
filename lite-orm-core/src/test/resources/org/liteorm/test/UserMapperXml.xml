@@ -29,7 +29,7 @@
     </select>
     
     <!-- 动态插入 -->
-    <insert id="insertUser" parameterType="org.liteorm.test.User">
+    <insert id="insertUser">
         INSERT INTO users
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="name != null">name,</if>
@@ -45,7 +45,7 @@
     </insert>
     
     <!-- 动态更新 -->
-    <update id="updateUser" parameterType="org.liteorm.test.User">
+    <update id="updateUser">
         UPDATE users
         <set>
             <if test="name != null">name = #{name},</if>
@@ -56,7 +56,7 @@
     </update>
     
     <!-- 批量操作 -->
-    <insert id="batchInsert" parameterType="java.util.List">
+    <insert id="batchInsert">
         INSERT INTO users (name, age, email) VALUES
         <foreach collection="list" item="user" separator=",">
             (#{user.name}, #{user.age}, #{user.email})

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<mapper namespace="org.liteorm.test.mappingfixture.XmlStandaloneDynamicMapper">
+    <sql id="idSelection">SELECT id FROM users WHERE id = #{id}</sql>
+
+    <select id="includeOnly" resultType="java.lang.Long">
+        <include refid="idSelection"/>
+    </select>
+
+    <select id="bindOnly" resultType="java.lang.Long">
+        <bind name="pattern" value="'%' + name + '%'"/>
+        SELECT id FROM users WHERE name LIKE #{pattern}
+    </select>
+</mapper>

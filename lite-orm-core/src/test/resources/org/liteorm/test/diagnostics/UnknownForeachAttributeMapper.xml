@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.diagnostics.UnknownForeachAttributeMapper">
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT 'value' WHERE value IN
+        <foreach collection="values" item="value" open="(" close=")" seperator=",">
+            #{value}
+        </foreach>
+    </select>
+</mapper>

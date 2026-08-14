@@ -204,18 +204,35 @@ Assembly
 - [x] Reject ambiguous extension combinations, including whole-parameter binders applied to property expressions and collection binders implicitly applied to `foreach` items.
 - [x] Verify generated extension paths contain no reflection or runtime adapter lookup.
 - [x] Run focused F4 tests, `mvn clean test`, and `git diff --check`; then update the F4 checkboxes and commit in English.
-- [ ] Continue with F5 SQL/XML compatibility closure.
+- [x] Continue with F5 SQL/XML compatibility closure.
 - [ ] Continue with P2 concurrency and thread-safety verification.
 - [ ] Continue with P3 assembly, transaction integration, and architecture review.
 - [ ] Continue with P4 benchmarks, optimization, and release readiness only after correctness and architecture work are complete.
 
 ### Module F5: SQL and XML Compatibility Closure
 
-- [ ] Build a behavior matrix for all supported dynamic tags and edge cases.
+- [x] Build a behavior matrix for all supported dynamic tags and edge cases.
 - [ ] Add real tests for nested `choose/trim/foreach`, empty values, bind scope, include scope, and whitespace normalization.
-- [ ] Keep complex `resultMap` unsupported until a separate design is approved.
-- [ ] Ensure unsupported XML attributes and elements fail rather than being ignored.
+- [x] Keep complex `resultMap` unsupported until a separate design is approved.
+- [x] Ensure unsupported XML attributes and elements fail rather than being ignored.
 - [ ] Delete legacy parser tests that only print expected behavior.
+
+| XML feature | Intended compile-time behavior | Current verification / gap |
+| --- | --- | --- |
+| `<if test>` | Translate the supported expression subset to native Java and emit its body conditionally. | Nested cases exist; empty-body and missing-attribute failures still need real tests. |
+| `<choose>/<when>/<otherwise>` | Emit first-match native Java branching with at most one fallback. | Nested coverage exists; invalid child order/cardinality still needs rejection tests. |
+| `<foreach>` | Emit a typed Java loop with ordered JDBC parameters and separators. | List/array coverage exists; empty collections, nested loops, scope leakage, and unsupported attributes need real tests. |
+| `<where>` | Emit `WHERE` only for non-empty content and remove leading `AND`/`OR`. | Basic coverage exists; whitespace and nested-empty behavior need real assertions. |
+| `<set>` | Emit `SET` only for non-empty content and remove trailing commas. | Basic coverage exists; all-empty update behavior must be defined and rejected or tested. |
+| `<trim>` | Apply prefix/suffix and override tokens at runtime to generated fragments. | Basic nested coverage exists; case/whitespace normalization needs real assertions. |
+| `<bind>` | Translate the expression to a scoped native Java local variable. | Supported in mixed dynamic SQL; bind-only dynamic detection and scope leakage need tests. |
+| `<include>` | Resolve SQL fragments during compilation; no runtime XML lookup. | Supported in mixed dynamic SQL; include-only dynamic detection and nested include scope need tests. |
+| `#{...}` | Emit `?`, value slot, and aligned Binder slot. | Static and dynamic paths covered; nested dynamic ordering remains part of F5 tests. |
+| `${...}` | Allow only compile-time-approved safe substitution roots. | Safety validation exists; nested fragment coverage remains to verify. |
+| `resultMap` | Fail compilation until a separate complex mapping design is approved. | Existing failure coverage; keep unsupported. |
+| Unknown XML elements | Fail compilation rather than ignore them. | Existing unsupported-element fixture; retain and strengthen if needed. |
+| Unknown/missing XML attributes | Fail compilation rather than silently use empty/default values. | Not closed; add explicit validation per supported element. |
+| SQL whitespace | Produce stable executable SQL without token concatenation or accidental blank clauses. | Helpers exist; real nested H2 assertions and generated-plan assertions remain. |
 
 ## Phase P2: Concurrency and Thread Safety
 
