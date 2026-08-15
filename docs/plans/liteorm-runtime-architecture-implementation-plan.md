@@ -469,15 +469,15 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - Delete: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/SpringConnectionProvider.java`
 - Add tests: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/SpringTransactionTest.java`
 
-- [ ] Write RED tests that `getConnection()` delegates to `DataSourceUtils` semantics and reuses Spring's thread-bound connection.
-- [ ] Write RED tests that commit and rollback are no-ops while Spring manages the active transaction.
-- [ ] Write RED tests that calls outside Spring transactions release their connection through `DataSourceUtils`.
-- [ ] Implement the Spring transaction facade with lazy connection acquisition and ownership-aware close behavior.
-- [ ] Ensure core remains free of Spring classes.
-- [ ] Delete `SpringConnectionProvider` after assembly migrates.
-- [ ] Run starter transaction tests and `mvn clean test`.
-- [ ] Commit with `feat: integrate spring transaction factory`.
-- [ ] Push immediately.
+- [x] Write RED tests that `getConnection()` delegates to `DataSourceUtils` semantics and reuses Spring's thread-bound connection.
+- [x] Write RED tests that commit and rollback are no-ops while Spring manages the active transaction.
+- [x] Write RED tests that calls outside Spring transactions release their connection through `DataSourceUtils`.
+- [x] Implement the Spring transaction facade with lazy connection acquisition and ownership-aware close behavior.
+- [x] Ensure core remains free of Spring classes.
+- [x] Delete `SpringConnectionProvider` after assembly migrates.
+- [x] Run starter transaction tests and `mvn clean test`.
+- [x] Commit with `feat: integrate spring transaction factory`.
+- [x] Push immediately.
 
 **Completion criteria:** Spring owns boundary timing while LiteORM receives a transaction handle with the same executor-facing contract as core.
 
