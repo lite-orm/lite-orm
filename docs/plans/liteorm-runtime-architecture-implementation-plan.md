@@ -267,17 +267,17 @@ Do not combine independently reviewable modules into one commit.
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/transaction/SimpleTransactionTest.java`
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/transaction/SimpleTransactionConcurrencyTest.java`
 
-- [ ] Write RED tests for lazy `DataSource#getConnection`, auto-commit restoration, commit, rollback, close, commit failure followed by rollback, and suppressed cleanup failures.
-- [ ] Write RED tests proving a transaction callback reuses one connection across multiple Mapper/executor calls on the same thread.
-- [ ] Write RED tests proving calls outside a transaction callback obtain and close independent auto-commit handles.
-- [ ] Write RED concurrency tests proving two threads never observe each other's bound root transaction.
-- [ ] Implement a private thread-bound scope inside the simple transaction package; do not expose a mutable context object.
-- [ ] Make nested callbacks join the current root transaction and let only the outer callback commit, roll back, and release it.
-- [ ] Roll back the root transaction when the callback throws; preserve rollback/close failures as suppressed exceptions.
-- [ ] Remove the thread binding in every terminal path.
-- [ ] Run focused transaction tests and core tests.
-- [ ] Commit with `feat: implement simple jdbc transactions`.
-- [ ] Push immediately.
+- [x] Write RED tests for lazy `DataSource#getConnection`, auto-commit restoration, commit, rollback, close, commit failure followed by rollback, and suppressed cleanup failures.
+- [x] Write RED tests proving a transaction callback reuses one connection across multiple Mapper/executor calls on the same thread.
+- [x] Write RED tests proving calls outside a transaction callback obtain and close independent auto-commit handles.
+- [x] Write RED concurrency tests proving two threads never observe each other's bound root transaction.
+- [x] Implement a private thread-bound scope inside the simple transaction package; do not expose a mutable context object.
+- [x] Make nested callbacks join the current root transaction and let only the outer callback commit, roll back, and release it.
+- [x] Roll back the root transaction when the callback throws; preserve rollback/close failures as suppressed exceptions.
+- [x] Remove the thread binding in every terminal path.
+- [x] Run focused transaction tests and core tests.
+- [x] Commit with `feat: implement simple jdbc transactions`.
+- [x] Push immediately.
 
 **Completion criteria:** Core provides correct local transactions without managing a pool or leaking transaction state between calls or threads.
 
