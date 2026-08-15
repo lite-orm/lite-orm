@@ -439,20 +439,21 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 
 **Files:**
 - Create or replace: `lite-orm-core/src/main/java/org/liteorm/LiteOrm.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/JdbcAssembly.java`
 - Delete: `lite-orm-core/src/main/java/org/liteorm/DefaultSqlEngine.java`
 - Delete: `lite-orm-core/src/main/java/org/liteorm/StandaloneSqlEngine.java`
 - Delete: `lite-orm-core/src/main/java/org/liteorm/JdbcConnectionProvider.java`
 - Delete: `lite-orm-core/src/main/java/org/liteorm/LocalTransactionCoordinator.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/LiteOrmAssemblyTest.java`
 
-- [ ] Write RED assembly tests for creating `JdbcSqlExecutor` and `SimpleTransactionalExecutor` from one `DataSource` and ordered interceptors.
-- [ ] Define `LiteOrm.jdbc(DataSource)` as a small builder/factory for one executor graph; do not return a roleless runtime container.
-- [ ] Expose the built `SqlExecutor` and standalone `TransactionalExecutor` explicitly.
-- [ ] Reject null DataSources, null interceptors, and duplicate interceptor instances with clear configuration errors.
-- [ ] Delete old engine, standalone, connection-provider, and transaction-coordinator implementations after all call sites migrate.
-- [ ] Run assembly, runtime, transaction, and full reactor tests.
-- [ ] Commit with `refactor: simplify core runtime assembly`.
-- [ ] Push immediately.
+- [x] Write RED assembly tests for creating `JdbcSqlExecutor` and `SimpleTransactionalExecutor` from one `DataSource` and ordered interceptors.
+- [x] Define `LiteOrm.jdbc(DataSource)` as a small builder/factory for one executor graph; do not return a roleless runtime container.
+- [x] Expose the built `SqlExecutor` and standalone `TransactionalExecutor` explicitly.
+- [x] Reject null DataSources, null interceptors, and duplicate interceptor instances with clear configuration errors.
+- [x] Delete old engine, standalone, connection-provider, and transaction-coordinator implementations after all call sites migrate.
+- [x] Run assembly, runtime, transaction, and full reactor tests.
+- [x] Commit with `refactor: simplify core runtime assembly`.
+- [x] Push immediately.
 
 **Completion criteria:** Public assembly names describe the components users receive; no class is named for a deployment mode instead of its domain responsibility.
 
