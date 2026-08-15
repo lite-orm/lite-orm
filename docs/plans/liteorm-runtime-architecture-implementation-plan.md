@@ -489,14 +489,14 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/LiteOrmProperties.java`
 - Modify tests under: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot`
 
-- [ ] Write RED tests that generated Mapper beans receive `SqlExecutor`, not `SqlEngine` or connection abstractions.
-- [ ] Replace processor assembly with `JdbcSqlExecutor(SpringTransactionFactory, interceptors)`.
-- [ ] Preserve ordered interceptor collection and explicit startup diagnostics.
-- [ ] Verify Mapper calls join `@Transactional` and non-transactional calls release resources.
-- [ ] Verify singleton Mapper/executor use remains safe under concurrent Spring calls.
-- [ ] Run starter tests and `mvn clean test`.
-- [ ] Commit with `refactor: assemble spring mappers with sql executor`.
-- [ ] Push immediately.
+- [x] Write RED tests that generated Mapper beans receive `SqlExecutor`, not `SqlEngine` or connection abstractions.
+- [x] Replace processor assembly with `JdbcSqlExecutor(SpringTransactionFactory, interceptors)`.
+- [x] Preserve ordered interceptor collection and explicit startup diagnostics.
+- [x] Verify Mapper calls join `@Transactional` and non-transactional calls release resources.
+- [x] Verify singleton Mapper/executor use remains safe under concurrent Spring calls.
+- [x] Run starter tests and `mvn clean test`.
+- [x] Commit with `refactor: assemble spring mappers with sql executor`.
+- [x] Push immediately.
 
 **Completion criteria:** Spring auto-configuration assembles the same executor contract without inheriting standalone transaction APIs.
 

@@ -8,7 +8,6 @@ import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
-import org.springframework.beans.factory.config.RuntimeBeanReference;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -89,7 +88,7 @@ final class GeneratedMapperBeanDefinitionRegistrar
 
             AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder
                 .genericBeanDefinition(implementationClass)
-                .addConstructorArgValue(new RuntimeBeanReference(SqlExecutor.class))
+                .setAutowireMode(AbstractBeanDefinition.AUTOWIRE_CONSTRUCTOR)
                 .getBeanDefinition();
             registry.registerBeanDefinition(beanName, beanDefinition);
         } catch (ClassNotFoundException e) {
