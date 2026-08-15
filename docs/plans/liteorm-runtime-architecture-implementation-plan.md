@@ -285,28 +285,40 @@ Do not combine independently reviewable modules into one commit.
 
 ## Phase R2.5: Complete the Core Role Foundation
 
-> **Priority gate:** Do not implement or migrate `JdbcSqlExecutor`, Spring integration, generated
-> DataSource dispatch, or legacy cleanup until every R2.5 module is complete. This phase fixes the
+> **Priority gate:** The obsolete engine/processor runtime is removed first. Do not implement or
+> migrate `JdbcSqlExecutor`, Spring transaction integration, or generated DataSource dispatch until
+> every remaining R2.5 module is complete. This phase fixes the
 > role model, dependency direction, ownership, and assembly boundaries before lifecycle code.
 
-### Module R2.5.1: Finalize Execution Observation Contracts
+### Module R2.5.1: Remove Legacy Runtime and Finalize Observation Contracts
 
 **Files:**
+- Delete: `lite-orm-core/src/main/java/org/liteorm/DefaultSqlEngine.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/StandaloneSqlEngine.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/ExecutionContext.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/LiteOrm.java`
+- Delete: obsolete connection, coordinator, processor-chain, and global configuration types
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInterceptor.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInvocation.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInvocation.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionOutcome.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutionException.java`
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/api/ExecutionObservationContractTest.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/architecture/LegacyRuntimeRemovalTest.java`
 
-- [ ] Write RED API tests proving application interceptors can read execution metadata but cannot complete or mutate an invocation.
-- [ ] Keep `ExecutionInvocation` immutable from public callers; lifecycle completion belongs only to the executor implementation.
-- [ ] Remove the generic routing metadata map because DataSource routing has dedicated typed roles and occurs before SQL execution.
-- [ ] Define callback order and failure semantics in Javadoc: `beforeExecution` in registration order, terminal callbacks in reverse order, callback failures never replace an earlier SQL failure.
-- [ ] Keep parameters defensively copied and ensure exception messages never include parameter values.
-- [ ] Run focused API tests and `mvn -pl lite-orm-core test`.
-- [ ] Commit with `refactor: finalize execution observation contracts`.
-- [ ] Push immediately.
+- [x] Write a RED architecture test enumerating every obsolete engine, processor, mutable context, connection-provider, coordinator, and global configuration type.
+- [x] Delete the old runtime closure and tests instead of maintaining compatibility adapters.
+- [x] Use the existing immutable `ExecutionPlan` directly for `beforeExecution`; delete the redundant `ExecutionInvocation` model.
+- [x] Represent terminal metrics/failure with a separate immutable `ExecutionOutcome`.
+- [x] Remove the generic routing metadata map because DataSource routing has dedicated typed roles and occurs before SQL execution.
+- [x] Define callback order and failure semantics in Javadoc: `beforeExecution` in registration order, terminal callbacks in reverse order, callback failures never replace an earlier SQL failure.
+- [x] Keep parameters defensively copied and ensure exception messages never include parameter values.
+- [x] Remove the old Spring default executor/connection-provider assembly; retain generated Mapper registration until Spring transaction roles are implemented.
+- [x] Delete obsolete runtime integration tests and keep compiler/transaction contract tests.
+- [x] Run focused architecture/API tests and `mvn clean test`.
+- [x] Commit with `refactor: remove legacy runtime architecture`.
+- [x] Push immediately.
 
-**Completion criteria:** Observation is a read-only extension boundary, not a mutable execution context or hidden routing channel.
+**Completion criteria:** The repository contains only the compile-time Mapper contracts, immutable execution data, transaction roles, and read-only observation foundation; no old runtime path remains executable.
 
 ### Module R2.5.2: Define Multi-DataSource Roles
 
@@ -631,42 +643,18 @@ Do not combine independently reviewable modules into one commit.
 
 ### Module R7.1: Remove Processor Chain and Mutable Context
 
-**Files:**
-- Delete: `lite-orm-core/src/main/java/org/liteorm/ExecutionContext.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/runtime/SqlProcessor.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/runtime/ConnectionProcessor.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/runtime/ParameterProcessor.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/runtime/ExecutionProcessor.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/runtime/ResultProcessor.java`
-- Delete obsolete tests under: `lite-orm-core/src/test/java/org/liteorm/test`
-
-- [ ] Add an architecture test asserting public APIs and constructors contain no `ExecutionContext` or `SqlProcessor` references.
-- [ ] Verify RED before deletion.
-- [ ] Delete the processor chain and mutable context after equivalent JDBC/interceptor tests are green.
-- [ ] Delete tests that only assert obsolete processor ordering or print demonstrations.
-- [ ] Run `rg "ExecutionContext|SqlProcessor|ConnectionProcessor|ParameterProcessor|ExecutionProcessor|ResultProcessor"` and require no production matches.
-- [ ] Run `mvn clean test`.
-- [ ] Commit with `refactor: remove legacy runtime processor chain`.
-- [ ] Push immediately.
+- [x] Completed early in Module R2.5.1 so the new foundation cannot depend on the processor chain or mutable context.
+- [x] `LegacyRuntimeRemovalTest` prevents the deleted classes from returning.
+- [x] Obsolete processor-order and JDBC-engine tests were deleted; behavior will be rebuilt against `JdbcSqlExecutor` in Phase R3.
 
 **Completion criteria:** The runtime lifecycle is readable from `JdbcSqlExecutor` without tracing mutable state through handlers.
 
 ### Module R7.2: Remove Obsolete Transaction and Configuration Types
 
-**Files:**
-- Delete: `lite-orm-core/src/main/java/org/liteorm/api/ConnectionProvider.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/api/TransactionContext.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/api/TransactionCoordinator.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/api/TransactionOperations.java`
-- Delete: `lite-orm-core/src/main/java/org/liteorm/LiteOrmConfig.java`
-- Delete obsolete tests and documentation references.
-
-- [ ] Add an architecture test asserting the obsolete types are absent from generated source and public constructors.
-- [ ] Delete the types and migrate the final remaining references to `Transaction`, `TransactionFactory`, `TransactionalExecutor`, and `SqlExecutor`.
-- [ ] Search all modules and docs for the deleted type names.
-- [ ] Run `mvn clean test`.
-- [ ] Commit with `refactor: remove obsolete transaction abstractions`.
-- [ ] Push immediately.
+- [x] Completed early in Module R2.5.1 together with the obsolete engines that consumed these types.
+- [x] Core connection ownership now uses `Transaction`; boundary control uses `TransactionalExecutor`.
+- [x] Spring's obsolete connection-provider implementation and default engine assembly were removed pending the new Spring transaction adapter.
+- [x] The unused global mutable `LiteOrmConfig` singleton was deleted.
 
 **Completion criteria:** Connection and transaction ownership have one vocabulary across core and Spring.
 

@@ -10,9 +10,8 @@ It covers:
 - generated `UserMapperImpl` and `UserXmlMapperImpl` classes;
 - XML dynamic `where`, `foreach`, and `set` behavior;
 - a compile-time-bound SQL provider, custom parameter binder, and custom row mapper;
-- an execution interceptor observing generated Mapper execution without changing dispatch;
-- real execution and result assertions against an H2 in-memory database;
-- real JDBC batch execution from both `@Batch` and XML `<batch>` methods.
+- an execution interceptor compiled against the read-only observation contracts;
+- generated JDBC batch plans from both `@Batch` and XML `<batch>` declarations.
 
 If a Mapper method contains both an XML statement and a SQL annotation, LiteORM compiles the XML statement and emits a method-scoped compiler warning explaining that XML overrides the annotation.
 
@@ -28,11 +27,13 @@ Generated sources are written under:
 lite-orm-examples/basic-mapper/target/generated-sources/annotations
 ```
 
-Application code constructs a generated Mapper with a LiteORM `ConnectionProvider`:
+Generated Mapper implementations take the stable `SqlExecutor` role:
 
 ```java
-JdbcConnectionProvider connectionProvider = new JdbcConnectionProvider(dataSource);
-UserMapper mapper = new UserMapperImpl(connectionProvider);
+SqlExecutor sqlExecutor = plan -> {
+    throw new UnsupportedOperationException("Configure JdbcSqlExecutor when available");
+};
+UserMapper mapper = new UserMapperImpl(sqlExecutor);
 ```
 
 JDBC batch methods accept exactly one `List<T>` and return the raw JDBC `int[]` update counts:
@@ -44,17 +45,4 @@ int[] insertBatch(List<User> users);
 
 The XML equivalent uses `<batch id="insertBatch">`. LiteORM generates the per-item parameter loop as Java source; it does not interpret the collection path at runtime.
 
-Standalone local transactions use one shared engine/coordinator instance:
-
-```java
-StandaloneSqlEngine sqlEngine = LiteOrm.standalone(connectionProvider);
-UserMapper mapper = new UserMapperImpl(sqlEngine);
-TransactionContext transaction = sqlEngine.begin();
-try {
-    mapper.insert(1L, "Alice", "alice@example.com", 30);
-    sqlEngine.commit(transaction);
-} catch (Exception failure) {
-    sqlEngine.rollback(transaction);
-    throw failure;
-}
-```
+The obsolete engine/connection-provider examples were removed. End-to-end JDBC and transaction examples will return with `JdbcSqlExecutor` and the new assembly roles.

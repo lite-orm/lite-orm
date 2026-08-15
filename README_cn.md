@@ -58,13 +58,13 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - `XmlBasedSqlParser` 和 `AnnotationBasedSqlParser` 解析 SQL 来源。
   - `AstNode` 表示动态 SQL 结构。
   - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
-  - 当前 JDBC 运行时负责执行计划、事务参与和资源释放。
+  - 已保留不可变执行计划、`SqlExecutor`、事务和观察契约；旧 JDBC 运行时已删除并等待按新角色重新实现。
 - `lite-orm-spring-boot-starter`
   - 提供 Spring Boot 自动配置入口。
   - 扫描并注册编译期生成的 Mapper 实现。
-  - 复用应用 `DataSource` 和 Spring 托管事务连接。
+  - 当前仅保留生成 Mapper 注册入口；默认 JDBC 与 Spring 事务装配将在新地基完成后实现。
 
-编译期核心闭环已经可用。运行时 API 正按照唯一有效的新计划进行收敛：生成 Mapper 最终只依赖 `SqlExecutor`；固定 JDBC 阶段进入一条显式生命周期；现有 processor chain、可变 `ExecutionContext`、旧 SQL task，以及职责重叠的连接/事务抽象将被删除。
+编译期核心闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；固定 JDBC 执行器和 Spring 事务适配将在核心角色、多数据源角色与事务域约束完成后重新实现。
 
 已验证能力包括：
 
@@ -276,10 +276,10 @@ public interface UserMapper {
 
 推荐优先级：
 
-1. 恢复干净基线，并完成 `SqlExecutor`、不可变执行计划和固定 JDBC 生命周期。
-2. 完成 `Transaction`、core 简单事务与 Spring 事务适配，保证并发和资源释放正确。
-3. 完成显式多数据源装配与隔离测试，不引入隐藏路由或分布式事务假象。
-4. 删除 processor chain、`ExecutionContext`、旧 task、旧事务/连接抽象和无效构建资源。
+1. 完成观察、多数据源、事务域和装配角色地基。
+2. 在地基之上实现固定 `JdbcSqlExecutor` 生命周期。
+3. 完成 Spring 事务适配和显式多数据源装配，不引入隐藏路由或分布式事务假象。
+4. 清理无效构建资源并恢复端到端运行示例。
 5. 复核生成源码可读性、整体 SOLID 边界和实际需要的设计模式，再进入性能测试。
 
 判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。

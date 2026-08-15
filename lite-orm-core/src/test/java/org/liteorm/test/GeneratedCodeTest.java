@@ -193,23 +193,6 @@ public class GeneratedCodeTest {
     }
 
     @Test
-    @DisplayName("测试责任链初始化代码")
-    public void testProcessorChainInitialization() {
-        System.out.println("🧪 测试责任链初始化代码");
-        
-        System.out.println("✅ 构造器中创建责任链:");
-        System.out.println("   List<SqlProcessor> processors = new ArrayList<>();");
-        System.out.println("   processors.add(new ConnectionProcessor(...));");
-        System.out.println("   standalone transactions use LocalTransactionCoordinator");
-        System.out.println("   processors.add(new ParameterProcessor());");
-        System.out.println("   processors.add(new ExecutionProcessor());");
-        System.out.println("   processors.add(new ResultProcessor());");
-        System.out.println("   this.sqlExecutor = sqlExecutor;");
-        
-        System.out.println("✅ 责任链初始化代码测试通过");
-    }
-
-    @Test
     @DisplayName("测试生成代码性能特征")
     public void testGeneratedCodePerformanceCharacteristics() {
         System.out.println("🧪 测试生成代码性能特征");

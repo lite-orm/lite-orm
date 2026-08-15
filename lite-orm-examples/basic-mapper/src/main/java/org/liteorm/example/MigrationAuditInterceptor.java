@@ -1,7 +1,8 @@
 package org.liteorm.example;
 
 import org.liteorm.api.ExecutionInterceptor;
-import org.liteorm.api.ExecutionInvocation;
+import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,18 +22,18 @@ public final class MigrationAuditInterceptor implements ExecutionInterceptor {
     }
 
     @Override
-    public void beforeExecution(ExecutionInvocation invocation) {
-        events.add(name + ":before:" + invocation.statementId());
+    public void beforeExecution(ExecutionPlan plan) {
+        events.add(name + ":before:" + plan.getStatementId());
     }
 
     @Override
-    public void afterSuccess(ExecutionInvocation invocation) {
-        events.add(name + ":success:" + invocation.statementId() + ":" + invocation.affectedRows());
+    public void afterSuccess(ExecutionOutcome outcome) {
+        events.add(name + ":success:" + outcome.plan().getStatementId() + ":" + outcome.affectedRows());
     }
 
     @Override
-    public void afterFailure(ExecutionInvocation invocation) {
-        events.add(name + ":failure:" + invocation.statementId());
+    public void afterFailure(ExecutionOutcome outcome) {
+        events.add(name + ":failure:" + outcome.plan().getStatementId());
     }
 
     public List<String> events() {

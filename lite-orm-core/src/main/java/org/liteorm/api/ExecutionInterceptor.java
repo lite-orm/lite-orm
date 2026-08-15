@@ -2,12 +2,22 @@ package org.liteorm.api;
 
 public interface ExecutionInterceptor {
 
-    default void beforeExecution(ExecutionInvocation invocation) {
+    /**
+     * Called in registration order before transaction or connection acquisition.
+     */
+    default void beforeExecution(ExecutionPlan plan) {
     }
 
-    default void afterSuccess(ExecutionInvocation invocation) {
+    /**
+     * Called in reverse registration order after successful result extraction.
+     */
+    default void afterSuccess(ExecutionOutcome outcome) {
     }
 
-    default void afterFailure(ExecutionInvocation invocation) {
+    /**
+     * Called in reverse registration order after failure. Callback failures must be suppressed
+     * onto the earlier execution failure rather than replace it.
+     */
+    default void afterFailure(ExecutionOutcome outcome) {
     }
 }

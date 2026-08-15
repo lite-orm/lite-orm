@@ -9,7 +9,7 @@ The project is not trying to clone MyBatis feature-for-feature. Its core idea is
 - dynamic SQL rendering code generation
 - deterministic parameter binding
 - static result mapping
-- a thin JDBC runtime pipeline for connection, transaction, statement execution, and result extraction
+- a thin JDBC runtime rebuilt on explicit execution and transaction roles
 
 In short:
 
@@ -22,7 +22,7 @@ The repository currently contains a working core loop:
 - `lite-orm-core`: annotation processor, SQL parsers, dynamic SQL AST, generated Mapper source, execution-plan contracts, and the current JDBC runtime.
 - `lite-orm-spring-boot-starter`: Spring Boot auto-configuration, generated Mapper bean registration, and Spring-managed connection/transaction participation.
 
-The compile-time feature loop is working. The runtime API is now being simplified according to the active architecture plan: generated Mappers will depend only on `SqlExecutor`; fixed JDBC phases will move into one explicit lifecycle; and the transitional processor chain, mutable execution context, legacy SQL tasks, and overlapping connection/transaction abstractions will be removed.
+The compile-time feature loop is working. The obsolete engine, processor chain, mutable execution context, connection-provider/coordinator abstractions, and global runtime configuration have been deleted. Generated Mappers depend only on `SqlExecutor`; the fixed JDBC executor and Spring transaction adapter are intentionally rebuilt after the core role foundation is complete.
 
 Recently verified with:
 
@@ -67,7 +67,7 @@ lite-orm:
 
 The starter scans those packages at application startup and registers generated implementations by their Mapper interface type. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
 
-The starter uses the application `DataSource`. Inside Spring `@Transactional` boundaries it reuses Spring's transaction-bound connection; outside a Spring transaction each Mapper call uses the DataSource's normal auto-commit behavior and releases JDBC resources after execution.
+The starter currently registers generated Mapper implementations and expects an application-provided `SqlExecutor`. Default JDBC and Spring transaction assembly will return only after the new contracts and transaction-domain rules are complete.
 
 The target runtime gives each generated Mapper one `SqlExecutor`. A `JdbcSqlExecutor` is bound to one `TransactionFactory` and therefore one DataSource/transaction domain. Standalone transactions use core `SimpleTransaction` semantics; Spring uses a `SpringTransaction` adapter and continues to control transaction boundary timing.
 
@@ -87,7 +87,7 @@ Both adapters are typed interfaces with compile-time-known implementation classe
 
 ## Execution Interceptors
 
-Register `ExecutionInterceptor` instances around the narrow JDBC execution boundary for logging, metrics, auditing, authorization, or routing observation. Interceptors receive immutable statement identity, final SQL, a defensive copy of ordered parameters, statement/source types, timing, result counts, failure information, and read-only routing metadata. They cannot replace generated SQL, parameter binders, or row mappers.
+Register `ExecutionInterceptor` instances around the future narrow JDBC execution boundary for logging, metrics, auditing, or authorization. `beforeExecution` receives the immutable `ExecutionPlan`; terminal callbacks receive an immutable `ExecutionOutcome`. DataSource routing uses dedicated typed roles rather than generic interceptor metadata.
 
 `beforeExecution` runs in configured order. `afterSuccess` and `afterFailure` unwind in reverse order. Spring Boot collects interceptor beans using Spring ordering. Callback failures still allow JDBC resources to close; failure callback exceptions are attached to the original execution failure as suppressed exceptions.
 
