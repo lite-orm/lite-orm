@@ -510,15 +510,15 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - Add: `lite-orm-core/src/test/java/org/liteorm/test/multidatasource/MultiDataSourceExecutionTest.java`
 - Modify core assembly only if tests expose a missing explicit hook.
 
-- [ ] Create two H2 DataSources with different schemas and identically named Mapper interfaces.
-- [ ] Instantiate the same generated Mapper implementation twice, each with its own `JdbcSqlExecutor` and `SimpleTransactionFactory`.
-- [ ] Verify reads and writes never cross DataSource boundaries.
-- [ ] Verify concurrent transactions on both executors do not share connections or thread-bound roots.
-- [ ] Verify a failure in one DataSource does not roll back or close the other DataSource's transaction.
-- [ ] Keep `ExecutionPlan` free of DataSource keys and routing metadata.
-- [ ] Run the focused isolation test and core tests.
-- [ ] Commit with `test: verify multi datasource executor isolation`.
-- [ ] Push immediately.
+- [x] Create two H2 DataSources with different schemas and identically named Mapper interfaces.
+- [x] Instantiate the same generated Mapper implementation twice, each with its own `JdbcSqlExecutor` and `SimpleTransactionFactory`.
+- [x] Verify reads and writes never cross DataSource boundaries.
+- [x] Verify concurrent transactions on both executors do not share connections or thread-bound roots.
+- [x] Verify a failure in one DataSource does not roll back or close the other DataSource's transaction.
+- [x] Keep `ExecutionPlan` free of DataSource keys and routing metadata.
+- [x] Run the focused isolation test and core tests.
+- [x] Commit with `test: verify multi datasource executor isolation`.
+- [x] Push immediately.
 
 **Completion criteria:** Multiple DataSources work through composition of independent executor graphs with no hidden global state.
 
