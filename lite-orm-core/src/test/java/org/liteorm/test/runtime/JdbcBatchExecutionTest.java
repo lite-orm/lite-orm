@@ -2,7 +2,7 @@ package org.liteorm.test.runtime;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.DefaultSqlEngine;
-import org.liteorm.api.BatchSqlTask;
+import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
@@ -28,7 +28,7 @@ class JdbcBatchExecutionTest {
         PreparedStatement statement = statement(events, new int[]{1, 1});
         Connection connection = connection(statement);
         DefaultSqlEngine engine = new DefaultSqlEngine(provider(connection));
-        BatchSqlTask plan = new BatchSqlTask(
+        BatchExecutionPlan plan = new BatchExecutionPlan(
             "test.Mapper.insertBatch",
             "INSERT INTO users (id, name) VALUES (?, ?)",
             List.of(new Object[]{1L, "Alice"}, new Object[]{2L, "Bob"}),
@@ -50,7 +50,7 @@ class JdbcBatchExecutionTest {
         List<String> events = new ArrayList<>();
         PreparedStatement statement = statement(events, new int[0]);
         DefaultSqlEngine engine = new DefaultSqlEngine(provider(connection(statement)));
-        BatchSqlTask plan = new BatchSqlTask(
+        BatchExecutionPlan plan = new BatchExecutionPlan(
             "test.Mapper.insertBatch",
             "INSERT INTO users (id, name) VALUES (?, ?)",
             List.of(),
@@ -69,7 +69,7 @@ class JdbcBatchExecutionTest {
         BatchUpdateException batchFailure = new BatchUpdateException("duplicate key", new int[]{1, -3});
         PreparedStatement statement = failingStatement(events, batchFailure);
         DefaultSqlEngine engine = new DefaultSqlEngine(provider(connection(statement)));
-        BatchSqlTask plan = new BatchSqlTask(
+        BatchExecutionPlan plan = new BatchExecutionPlan(
             "test.Mapper.insertBatch",
             "INSERT INTO users (id, name) VALUES (?, ?)",
             List.of(new Object[]{1L, "Alice"}, new Object[]{1L, "Duplicate"}),

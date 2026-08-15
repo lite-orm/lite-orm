@@ -5,7 +5,6 @@ import org.liteorm.DefaultSqlEngine;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlExecutionException;
-import org.liteorm.api.SqlTask;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -161,13 +160,11 @@ class ResourceLifecycleTest {
     }
 
     private ExecutionPlan selectPlan() {
-        return new SqlTask(
+        return new ExecutionPlan(
             "test.Mapper.find",
             "SELECT secret FROM users WHERE id = ?",
             new Object[]{"sensitive-value"},
-            SqlTask.SqlType.SELECT,
-            false,
-            "java.lang.String",
+            ExecutionPlan.StatementType.SELECT,
             ExecutionPlan.SqlSource.XML
         );
     }

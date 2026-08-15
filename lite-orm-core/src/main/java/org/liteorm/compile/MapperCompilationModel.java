@@ -28,7 +28,6 @@ public record MapperCompilationModel(
         ExecutionPlan.SqlSource sourceType,
         String sqlTemplate,
         boolean dynamic,
-        boolean requiresTransaction,
         boolean generatedKey,
         String resultType,
         String resultMappingCode,
@@ -53,7 +52,6 @@ public record MapperCompilationModel(
             ExecutionPlan.SqlSource sourceType,
             String sqlTemplate,
             boolean dynamic,
-            boolean requiresTransaction,
             String resultType,
             String resultMappingCode,
             String resultMappingHelperCode,
@@ -68,7 +66,7 @@ public record MapperCompilationModel(
             AstNode astNode
         ) {
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
-                sourceType, sqlTemplate, dynamic, requiresTransaction, false, resultType, resultMappingCode,
+                sourceType, sqlTemplate, dynamic, false, resultType, resultMappingCode,
                 resultMappingHelperCode, providerClassName, providerFieldName, providerArgumentExpression,
                 adapterFields, parameterBinderFields, rowMapperFieldName, methodParameters, parameterBindings,
                 astNode);

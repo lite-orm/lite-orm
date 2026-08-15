@@ -9,7 +9,6 @@ import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.SqlExecutionException;
-import org.liteorm.api.SqlTask;
 import org.liteorm.runtime.SqlProcessor;
 
 import java.lang.reflect.Proxy;
@@ -149,13 +148,11 @@ class ExecutionInterceptorTest {
     }
 
     private ExecutionPlan updatePlan() {
-        return new SqlTask(
+        return new ExecutionPlan(
             "test.Mapper.update",
             "UPDATE users SET name = ?",
             new Object[]{"Alice"},
-            SqlTask.SqlType.UPDATE,
-            true,
-            "int",
+            ExecutionPlan.StatementType.UPDATE,
             ExecutionPlan.SqlSource.ANNOTATION
         );
     }

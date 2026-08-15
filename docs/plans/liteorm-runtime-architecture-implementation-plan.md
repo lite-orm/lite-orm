@@ -178,8 +178,8 @@ Do not combine independently reviewable modules into one commit.
 - [x] Delete `SqlEngine` after all production and test references compile against `SqlExecutor`.
 - [x] Assert generated source contains no `SqlEngine`, `DefaultSqlEngine`, `ConnectionProvider`, or runtime processor imports.
 - [x] Run core generator tests and `mvn clean test`.
-- [ ] Commit with `refactor: replace sql engine with sql executor`.
-- [ ] Push immediately.
+- [x] Commit with `refactor: replace sql engine with sql executor`.
+- [x] Push immediately.
 
 **Completion criteria:** Generated Mappers depend on a role-oriented execution interface and no longer know connection or engine assembly details.
 
@@ -193,15 +193,15 @@ Do not combine independently reviewable modules into one commit.
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
 - Modify runtime and generator tests under: `lite-orm-core/src/test/java/org/liteorm/test`
 
-- [ ] Add contract tests for immutable ordered parameters, binder alignment, generated-key metadata, row mapper metadata, statement type, and SQL source.
-- [ ] Verify RED because current plans expose parameter maps, transaction hints, and task compatibility.
-- [ ] Replace the interface/legacy implementations with final immutable plan types using defensive copies.
-- [ ] Remove `getParameterMap()`, `usesParameterMap()`, `requiresTransaction()`, and unused runtime-only result-type strings.
-- [ ] Generate `ExecutionPlan` or `BatchExecutionPlan` directly for annotation, XML, dynamic SQL, provider, generated-key, and batch methods.
-- [ ] Delete every `SqlTask` compatibility branch and update tests to use plans directly.
-- [ ] Run provider, binder, mapping, generated-key, batch, generator, and full reactor tests.
-- [ ] Commit with `refactor: replace legacy sql tasks with immutable plans`.
-- [ ] Push immediately.
+- [x] Add contract tests for immutable ordered parameters, binder alignment, generated-key metadata, row mapper metadata, statement type, and SQL source.
+- [x] Verify RED because current plans expose parameter maps, transaction hints, and task compatibility.
+- [x] Replace the interface/legacy implementations with final immutable plan types using defensive copies.
+- [x] Remove `getParameterMap()`, `usesParameterMap()`, `requiresTransaction()`, and unused runtime-only result-type strings.
+- [x] Generate `ExecutionPlan` or `BatchExecutionPlan` directly for annotation, XML, dynamic SQL, provider, generated-key, and batch methods.
+- [x] Delete every `SqlTask` compatibility branch and update tests to use plans directly.
+- [x] Run provider, binder, mapping, generated-key, batch, generator, and full reactor tests.
+- [x] Commit with `refactor: replace legacy sql tasks with immutable plans`.
+- [x] Push immediately.
 
 **Completion criteria:** Runtime input is immutable, ordered, minimal, and contains no transaction ownership or deployment-routing policy.
 

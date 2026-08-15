@@ -5,7 +5,6 @@ import org.liteorm.DefaultSqlEngine;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.SqlTask;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -26,13 +25,11 @@ class GeneratedKeyExecutionTest {
         PreparedStatement statement = statement(events, generatedKeys);
         Connection connection = connection(events, statement);
         DefaultSqlEngine engine = new DefaultSqlEngine(provider(events, connection));
-        SqlTask plan = new SqlTask(
+        ExecutionPlan plan = new ExecutionPlan(
             "test.Mapper.insert",
             "INSERT INTO users (name) VALUES (?)",
             new Object[]{"Alice"},
-            SqlTask.SqlType.INSERT,
-            true,
-            Long.class.getName(),
+            ExecutionPlan.StatementType.INSERT,
             ExecutionPlan.SqlSource.ANNOTATION,
             true,
             null,

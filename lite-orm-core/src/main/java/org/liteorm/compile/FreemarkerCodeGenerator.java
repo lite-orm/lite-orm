@@ -194,7 +194,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             }
             code.append("            batchParameters.add(params);\n");
             code.append("        }\n");
-            code.append("        return new BatchSqlTask(")
+            code.append("        return new BatchExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append(javaString(methodModel.sqlTemplate())).append(", batchParameters, ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
@@ -204,12 +204,10 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(methodModel.providerFieldName()).append(".provide(")
                 .append(methodModel.providerArgumentExpression()).append("), ")
                 .append(javaString(methodModel.statementId())).append(");\n");
-            code.append("        return new SqlTask(")
+            code.append("        return new ExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", boundSql.sql(), ")
-                .append("boundSql.parameterValues(), SqlTask.SqlType.")
-                .append(methodModel.statementType().name()).append(", ")
-                .append(methodModel.requiresTransaction()).append(", ")
-                .append(javaString(methodModel.resultType())).append(", ExecutionPlan.SqlSource.GENERATED, ")
+                .append("boundSql.parameterValues(), ExecutionPlan.StatementType.")
+                .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, false, ")
                 .append("boundSql.parameterBinders()").append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         } else if (methodModel.dynamic()) {
@@ -231,12 +229,10 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             } else {
                 appendTextNode(code, methodModel.sqlTemplate(), methodModel, "sql", "parameters", "binders", "        ", Set.of());
             }
-            code.append("        return new SqlTask(")
+            code.append("        return new ExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append("sql.toString().trim(), parameters.toArray(new Object[0]), ")
-                .append("SqlTask.SqlType.").append(methodModel.statementType().name()).append(", ")
-                .append(methodModel.requiresTransaction()).append(", ")
-                .append(javaString(methodModel.resultType())).append(", ")
+                .append("ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(methodModel.generatedKey()).append(", ")
                 .append("binders.toArray(new ParameterBinder<?>[0])").append(", ")
@@ -244,11 +240,9 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         } else {
             code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
             code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
-            code.append("        return new SqlTask(")
+            code.append("        return new ExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", ")
-                .append("sql, params, SqlTask.SqlType.").append(methodModel.statementType().name()).append(", ")
-                .append(methodModel.requiresTransaction()).append(", ")
-                .append(javaString(methodModel.resultType())).append(", ")
+                .append("sql, params, ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(methodModel.generatedKey()).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")

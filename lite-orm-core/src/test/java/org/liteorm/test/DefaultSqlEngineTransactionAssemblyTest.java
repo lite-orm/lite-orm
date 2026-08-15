@@ -5,7 +5,6 @@ import org.liteorm.StandaloneSqlEngine;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.SqlTask;
 import org.liteorm.api.TransactionContext;
 
 import java.lang.reflect.Proxy;
@@ -32,13 +31,11 @@ class DefaultSqlEngineTransactionAssemblyTest {
         TransactionContext transaction = engine.begin();
 
         try {
-            SqlResult result = engine.execute(new SqlTask(
+            SqlResult result = engine.execute(new ExecutionPlan(
                 "test.Mapper.update",
                 "UPDATE users SET name = ?",
                 new Object[]{"Alice"},
-                SqlTask.SqlType.UPDATE,
-                true,
-                "int",
+                ExecutionPlan.StatementType.UPDATE,
                 ExecutionPlan.SqlSource.ANNOTATION
             ));
 

@@ -237,8 +237,6 @@ public class CompilePipeline {
             providerBinding == null ? mapSourceType(sqlInfo.sourceType()) : ExecutionPlan.SqlSource.GENERATED,
             providerBinding == null ? (sqlInfo.isDynamic() ? sqlInfo.sqlTemplate() : parameterResult.processedSql()) : "",
             providerBinding == null && sqlInfo.isDynamic(),
-            providerBinding == null ? requiresTransaction(sqlInfo.sqlType())
-                : providerBinding.statementType() != ExecutionPlan.StatementType.SELECT,
             generatedKey,
             returnType,
             resultMapping.expression(),
@@ -772,10 +770,6 @@ public class CompilePipeline {
         };
     }
 
-    private boolean requiresTransaction(SqlContentParser.SqlType sqlType) {
-        return sqlType != SqlContentParser.SqlType.SELECT;
-    }
-    
     /**
      * 构建参数列表字符串
      */

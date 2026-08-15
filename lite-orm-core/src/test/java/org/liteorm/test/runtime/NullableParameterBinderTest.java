@@ -5,7 +5,6 @@ import org.liteorm.DefaultSqlEngine;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.ParameterBinder;
-import org.liteorm.api.SqlTask;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -27,14 +26,13 @@ class NullableParameterBinderTest {
             events.add("binder:" + index + ":" + value);
             preparedStatement.setNull(index, Types.VARCHAR);
         };
-        SqlTask plan = new SqlTask(
+        ExecutionPlan plan = new ExecutionPlan(
             "test.Mapper.insert",
             "INSERT INTO values_table (value) VALUES (?)",
             new Object[]{null},
-            SqlTask.SqlType.INSERT,
-            true,
-            void.class.getName(),
+            ExecutionPlan.StatementType.INSERT,
             ExecutionPlan.SqlSource.ANNOTATION,
+            false,
             new ParameterBinder<?>[]{nullableBinder},
             null
         );

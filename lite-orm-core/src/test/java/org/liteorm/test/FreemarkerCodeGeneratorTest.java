@@ -28,7 +28,6 @@ class FreemarkerCodeGeneratorTest {
             ExecutionPlan.SqlSource.ANNOTATION,
             "SELECT id, name FROM users WHERE id = ?",
             false,
-            false,
             "org.liteorm.test.User",
             "new org.liteorm.test.User((Long)row[0], (String)row[1], null, null)",
             "",
@@ -47,7 +46,7 @@ class FreemarkerCodeGeneratorTest {
 
         assertTrue(code.contains("ExecutionPlan plan = buildFindByIdExecutionPlan(id);"));
         assertTrue(code.contains("private ExecutionPlan buildFindByIdExecutionPlan(Long id)"));
-        assertTrue(code.contains("return new SqlTask(\"org.liteorm.test.UserMapper.findById\", sql, params"));
+        assertTrue(code.contains("return new ExecutionPlan(\"org.liteorm.test.UserMapper.findById\", sql, params"));
     }
 
     @Test
@@ -62,7 +61,6 @@ class FreemarkerCodeGeneratorTest {
             ExecutionPlan.SqlSource.ANNOTATION,
             "<script>SELECT * FROM users <if test=\"name != null and name != ''\">WHERE name = #{name}</if></script>",
             true,
-            false,
             "java.util.List<org.liteorm.test.User>",
             "new org.liteorm.test.User((Long)row[0], (String)row[1], (String)row[2], (Integer)row[3])",
             "",
@@ -101,7 +99,6 @@ class FreemarkerCodeGeneratorTest {
             ExecutionPlan.SqlSource.XML,
             "<script>SELECT * FROM users</script>",
             true,
-            false,
             "java.util.List<org.liteorm.test.User>",
             "new org.liteorm.test.User((Long)row[0], (String)row[1], null, null)",
             "",

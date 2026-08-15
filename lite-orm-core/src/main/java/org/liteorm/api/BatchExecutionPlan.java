@@ -1,11 +1,40 @@
 package org.liteorm.api;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Execution plan containing ordered parameter sets for one JDBC batch.
+ * Immutable input for one JDBC batch execution.
  */
-public interface BatchExecutionPlan extends ExecutionPlan {
+public final class BatchExecutionPlan extends ExecutionPlan {
 
-    List<Object[]> getBatchParameters();
+    private final List<Object[]> batchParameters;
+
+    public BatchExecutionPlan(
+            String statementId,
+            String sql,
+            List<Object[]> batchParameters,
+            SqlSource sourceType) {
+        this(statementId, sql, batchParameters, sourceType, null);
+    }
+
+    public BatchExecutionPlan(
+            String statementId,
+            String sql,
+            List<Object[]> batchParameters,
+            SqlSource sourceType,
+            ParameterBinder<?>[] parameterBinders) {
+        super(statementId, sql, new Object[0], StatementType.BATCH, sourceType, false, parameterBinders, null);
+        this.batchParameters = copy(Objects.requireNonNull(batchParameters, "batchParameters"));
+    }
+
+    public List<Object[]> getBatchParameters() {
+        return copy(batchParameters);
+    }
+
+    private static List<Object[]> copy(List<Object[]> parameters) {
+        return parameters.stream()
+            .map(values -> Objects.requireNonNull(values, "batch parameter set").clone())
+            .toList();
+    }
 }

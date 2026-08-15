@@ -47,7 +47,7 @@ class BatchCompilationTest {
         assertTrue(generated.contains("for (org.liteorm.test.batchfixture.User item : users)"));
         assertTrue(generated.contains("params[0] = item.id();"));
         assertTrue(generated.contains("params[1] = item.name();"));
-        assertTrue(generated.contains("return new BatchSqlTask"));
+        assertTrue(generated.contains("return new BatchExecutionPlan"));
     }
 
     @Test
