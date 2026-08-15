@@ -398,17 +398,17 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - Create package-private helpers under: `lite-orm-core/src/main/java/org/liteorm/jdbc`
 - Migrate tests from: `lite-orm-core/src/test/java/org/liteorm/test/runtime`
 
-- [ ] Write RED tests for SELECT, INSERT, UPDATE, DELETE, batch, generated keys, null binding, custom binders, and custom row mappers.
-- [ ] Write RED tests for validation before connection acquisition.
-- [ ] Write RED tests for exact close order: `ResultSet`, statement, transaction handle.
-- [ ] Write RED tests for primary exception preservation and suppressed interceptor/cleanup failures.
-- [ ] Implement the lifecycle as explicit private methods in one readable call stack.
-- [ ] Keep physical phases non-public and non-reorderable; do not create `SqlProcessor` replacements.
-- [ ] Obtain a fresh per-call transaction handle from `TransactionFactory`, call `getConnection()`, and always close the handle.
-- [ ] Keep executor fields immutable and require interceptor implementations to be thread-safe.
-- [ ] Run all runtime characterization tests and core tests.
-- [ ] Commit with `feat: add fixed jdbc sql executor`.
-- [ ] Push immediately.
+- [x] Write RED tests for SELECT, INSERT, UPDATE, DELETE, batch, generated keys, null binding, custom binders, and custom row mappers.
+- [x] Write RED tests for validation before connection acquisition.
+- [x] Write RED tests for exact close order: `ResultSet`, statement, transaction handle.
+- [x] Write RED tests for primary exception preservation and suppressed interceptor/cleanup failures.
+- [x] Implement the lifecycle as explicit private methods in one readable call stack.
+- [x] Keep physical phases non-public and non-reorderable; do not create `SqlProcessor` replacements.
+- [x] Obtain a fresh per-call transaction handle from `TransactionFactory`, call `getConnection()`, and always close the handle.
+- [x] Keep executor fields immutable and require interceptor implementations to be thread-safe.
+- [x] Run all replacement runtime tests and core tests.
+- [x] Commit with `feat: add fixed jdbc sql executor`.
+- [x] Push immediately.
 
 **Completion criteria:** All JDBC behavior passes through one thread-safe executor with deterministic ownership and cleanup.
 
