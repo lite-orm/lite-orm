@@ -283,6 +283,107 @@ Do not combine independently reviewable modules into one commit.
 
 ---
 
+## Phase R2.5: Complete the Core Role Foundation
+
+> **Priority gate:** Do not implement or migrate `JdbcSqlExecutor`, Spring integration, generated
+> DataSource dispatch, or legacy cleanup until every R2.5 module is complete. This phase fixes the
+> role model, dependency direction, ownership, and assembly boundaries before lifecycle code.
+
+### Module R2.5.1: Finalize Execution Observation Contracts
+
+**Files:**
+- Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInterceptor.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInvocation.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutionException.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/api/ExecutionObservationContractTest.java`
+
+- [ ] Write RED API tests proving application interceptors can read execution metadata but cannot complete or mutate an invocation.
+- [ ] Keep `ExecutionInvocation` immutable from public callers; lifecycle completion belongs only to the executor implementation.
+- [ ] Remove the generic routing metadata map because DataSource routing has dedicated typed roles and occurs before SQL execution.
+- [ ] Define callback order and failure semantics in Javadoc: `beforeExecution` in registration order, terminal callbacks in reverse order, callback failures never replace an earlier SQL failure.
+- [ ] Keep parameters defensively copied and ensure exception messages never include parameter values.
+- [ ] Run focused API tests and `mvn -pl lite-orm-core test`.
+- [ ] Commit with `refactor: finalize execution observation contracts`.
+- [ ] Push immediately.
+
+**Completion criteria:** Observation is a read-only extension boundary, not a mutable execution context or hidden routing channel.
+
+### Module R2.5.2: Define Multi-DataSource Roles
+
+**Files:**
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceKeyProvider.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceSelection.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutorRegistry.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceRoutingException.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/annotation/UseDataSource.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/annotation/ExecutorRef.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/api/MultiDataSourceContractTest.java`
+
+- [ ] Write RED compile-time/API tests for fixed type keys, method override metadata, typed provider selection, immutable selection metadata, and registry lookup.
+- [ ] Define `DataSourceSelection<P>` as statement ID, statement type, and one typed route input; do not include SQL text, mutable maps, or transaction state.
+- [ ] Define `DataSourceKeyProvider<P>` as one ordinary Java strategy call returning a nonblank executor key.
+- [ ] Define `SqlExecutorRegistry` as a read-only named executor lookup; mutation belongs only to assembly-time implementation.
+- [ ] Define `@UseDataSource` so fixed-key and provider modes are mutually exclusive and compiler-validatable.
+- [ ] Define LiteORM-owned `@ExecutorRef` constructor-parameter metadata for startup injection without a Spring dependency.
+- [ ] Add a dedicated routing/configuration exception containing statement ID and selected key but no SQL parameters.
+- [ ] Run focused contract/compiler tests and `mvn -pl lite-orm-core test`.
+- [ ] Commit with `feat: define multi datasource roles`.
+- [ ] Push immediately.
+
+**Completion criteria:** Static and dynamic DataSource selection have stable typed roles before compiler or Spring implementations depend on them.
+
+### Module R2.5.3: Define Transaction-Domain Safety
+
+**Files:**
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/TransactionDomain.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/TransactionDomainGuard.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/transaction/SimpleTransactionFactory.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/transaction/SimpleTransactionalExecutor.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/transaction/TransactionDomainContractTest.java`
+
+- [ ] Write RED tests defining immutable nonblank domain identity and rejection before a second DataSource connection is acquired.
+- [ ] Keep `Transaction` free of deployment-routing APIs; domain validation surrounds factory/executor selection rather than JDBC operations.
+- [ ] Define one narrow guard role that validates the selected executor domain against the active transaction domain.
+- [ ] Share one explicitly assembled guard/scope across simple factories; do not use a process-global routing `ThreadLocal`.
+- [ ] Prove direct static executor calls and registry-based dynamic calls use the same domain validation rule.
+- [ ] Prove independent assemblies and concurrent threads cannot observe each other's active domain.
+- [ ] Run focused transaction/concurrency tests and `mvn -pl lite-orm-core test`.
+- [ ] Commit with `feat: enforce transaction domain boundaries`.
+- [ ] Push immediately.
+
+**Completion criteria:** Cross-DataSource safety is a first-class transaction invariant for direct and dynamic dispatch.
+
+### Module R2.5.4: Define Core Assembly Roles
+
+**Files:**
+- Replace: `lite-orm-core/src/main/java/org/liteorm/LiteOrm.java`
+- Create: `lite-orm-core/src/main/java/org/liteorm/assembly/JdbcAssembly.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/assembly/JdbcAssemblyContractTest.java`
+- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/architecture/CoreRoleDependencyTest.java`
+
+- [ ] Write RED tests for one explicit assembly sharing a `SimpleTransactionFactory`, transaction-domain guard, future `JdbcSqlExecutor`, and `SimpleTransactionalExecutor`.
+- [ ] Name the assembly as assembly, not engine/runtime/session; it exposes role instances but does not absorb their behavior.
+- [ ] Define immutable builder inputs for `DataSource`, transaction-domain key, and ordered interceptors.
+- [ ] Keep single-DataSource construction minimal while allowing multiple assemblies to share an explicit transaction-domain scope.
+- [ ] Reject nulls, blank keys, duplicate interceptor instances, and ambiguous executor registration during assembly.
+- [ ] Add dependency tests proving generated Mappers depend only on `SqlExecutor`, executors depend on `TransactionFactory`, and transactions depend on `DataSource` rather than Mapper/compiler types.
+- [ ] Document the complete component graph before implementing any physical JDBC phase.
+- [ ] Run focused assembly/architecture tests and `mvn clean test`.
+- [ ] Commit with `feat: define jdbc assembly foundation`.
+- [ ] Push immediately.
+
+**Completion criteria:** Every core role, owner, and dependency direction is explicit before concrete execution begins.
+
+### R2.5 Foundation Gate
+
+- [ ] `SqlExecutor`, immutable plans/results, read-only observation, transaction contracts, multi-DataSource roles, transaction-domain safety, and assembly roles all exist.
+- [ ] No role combines SQL execution, connection ownership, transaction boundary control, routing, or dependency injection.
+- [ ] Public names describe domain responsibility; no new `Standalone*`, `Local*`, generic `*Engine`, mutable context, or processor-chain role exists.
+- [ ] API and architecture tests prove the intended dependency direction.
+- [ ] `mvn clean test` passes from a clean checkout.
+
+---
+
 ## Phase R3: Implement the Fixed JDBC Executor
 
 ### Module R3.1: Add `JdbcSqlExecutor`
