@@ -1,9 +1,9 @@
 package org.liteorm.spring.boot.invalid;
 
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 
 public final class InvalidMapperImpl {
 
-    public InvalidMapperImpl(SqlEngine sqlEngine) {
+    public InvalidMapperImpl(SqlExecutor sqlExecutor) {
     }
 }

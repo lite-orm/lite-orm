@@ -1,6 +1,6 @@
 package org.liteorm.spring.boot;
 
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
@@ -70,9 +70,9 @@ final class GeneratedMapperBeanDefinitionRegistrar
                 throw new BeanDefinitionStoreException(
                     "Invalid generated LiteORM mapper " + className + ": no @Mapper interface is implemented");
             }
-            if (!hasSqlEngineConstructor(implementationClass)) {
+            if (!hasSqlExecutorConstructor(implementationClass)) {
                 throw new BeanDefinitionStoreException(
-                    "Invalid generated LiteORM mapper " + className + ": missing public SqlEngine constructor");
+                    "Invalid generated LiteORM mapper " + className + ": missing public SqlExecutor constructor");
             }
 
             String beanName = Character.toLowerCase(mapperInterface.getSimpleName().charAt(0))
@@ -89,7 +89,7 @@ final class GeneratedMapperBeanDefinitionRegistrar
 
             AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder
                 .genericBeanDefinition(implementationClass)
-                .addConstructorArgValue(new RuntimeBeanReference(SqlEngine.class))
+                .addConstructorArgValue(new RuntimeBeanReference(SqlExecutor.class))
                 .getBeanDefinition();
             registry.registerBeanDefinition(beanName, beanDefinition);
         } catch (ClassNotFoundException e) {
@@ -109,10 +109,10 @@ final class GeneratedMapperBeanDefinitionRegistrar
         return null;
     }
 
-    private boolean hasSqlEngineConstructor(Class<?> implementationClass) {
+    private boolean hasSqlExecutorConstructor(Class<?> implementationClass) {
         for (Constructor<?> constructor : implementationClass.getConstructors()) {
             if (constructor.getParameterCount() == 1
-                    && constructor.getParameterTypes()[0] == SqlEngine.class) {
+                    && constructor.getParameterTypes()[0] == SqlExecutor.class) {
                 return true;
             }
         }

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.liteorm.DefaultSqlEngine;
 import org.liteorm.JdbcConnectionProvider;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.runtime.ExecutionProcessor;
 import org.liteorm.runtime.ParameterProcessor;
 import org.liteorm.runtime.ResultProcessor;
@@ -67,12 +67,13 @@ class UserMapperE2ETest {
         }
 
         JdbcConnectionProvider connectionProvider = new JdbcConnectionProvider(dataSource);
-        annotationMapper = new UserMapperImpl(connectionProvider);
-        xmlMapper = new UserXmlMapperImpl(connectionProvider);
-        metadataMapper = new UserMetadataMapperImpl(connectionProvider);
-        generatedKeyMapper = new GeneratedKeyMapperFixtureImpl(connectionProvider);
-        singleResultMapper = new SingleResultMapperFixtureImpl(connectionProvider);
-        jdbcTypeMapper = new JdbcTypeMapperFixtureImpl(connectionProvider);
+        SqlExecutor sqlExecutor = new DefaultSqlEngine(connectionProvider);
+        annotationMapper = new UserMapperImpl(sqlExecutor);
+        xmlMapper = new UserXmlMapperImpl(sqlExecutor);
+        metadataMapper = new UserMetadataMapperImpl(sqlExecutor);
+        generatedKeyMapper = new GeneratedKeyMapperFixtureImpl(sqlExecutor);
+        singleResultMapper = new SingleResultMapperFixtureImpl(sqlExecutor);
+        jdbcTypeMapper = new JdbcTypeMapperFixtureImpl(sqlExecutor);
         auditEvents = new java.util.ArrayList<>();
         MigrationAuditInterceptor firstAuditInterceptor = new MigrationAuditInterceptor("first", auditEvents);
         MigrationAuditInterceptor secondAuditInterceptor = new MigrationAuditInterceptor("second", auditEvents);
@@ -342,7 +343,7 @@ class UserMapperE2ETest {
     @Test
     void xmlSetRejectsAllEmptyAssignmentsBeforeExecutingJdbc() {
         AtomicBoolean engineInvoked = new AtomicBoolean();
-        UserXmlMapper mapper = new UserXmlMapperImpl((SqlEngine) plan -> {
+        UserXmlMapper mapper = new UserXmlMapperImpl((SqlExecutor) plan -> {
             engineInvoked.set(true);
             throw new AssertionError("SQL engine must not execute an empty dynamic set");
         });

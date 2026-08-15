@@ -1,7 +1,6 @@
 package ${packageName};
 
 import org.liteorm.api.*;
-import org.liteorm.DefaultSqlEngine;
 import org.liteorm.runtime.*;
 import org.liteorm.api.BoundSql;
 import org.liteorm.api.ParameterBinder;
@@ -16,14 +15,10 @@ import java.util.ArrayList;
  */
 public class ${implClassName} implements ${interfaceName} {
 
-    private final SqlEngine sqlEngine;
+    private final SqlExecutor sqlExecutor;
 
-    public ${implClassName}(SqlEngine sqlEngine) {
-        this.sqlEngine = java.util.Objects.requireNonNull(sqlEngine, "sqlEngine");
-    }
-
-    public ${implClassName}(ConnectionProvider connectionProvider) {
-        this.sqlEngine = new DefaultSqlEngine(connectionProvider);
+    public ${implClassName}(SqlExecutor sqlExecutor) {
+        this.sqlExecutor = java.util.Objects.requireNonNull(sqlExecutor, "sqlExecutor");
     }
 
 ${generatedMethods}

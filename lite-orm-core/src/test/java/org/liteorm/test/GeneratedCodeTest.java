@@ -28,6 +28,21 @@ public class GeneratedCodeTest {
     private static final String GENERATED_CODE_PATH = "target/generated-test-sources/test-annotations";
 
     @Test
+    @DisplayName("生成 Mapper 只依赖 SqlExecutor")
+    void generatedMapperDependsOnlyOnSqlExecutor() throws Exception {
+        String generatedSource = Files.readString(Paths.get(
+            GENERATED_CODE_PATH,
+            "org/liteorm/test/UserMapperImpl.java"
+        ));
+
+        assertTrue(generatedSource.contains("private final SqlExecutor sqlExecutor;"), generatedSource);
+        assertTrue(generatedSource.contains("public UserMapperImpl(SqlExecutor sqlExecutor)"), generatedSource);
+        assertFalse(generatedSource.contains("SqlEngine"), generatedSource);
+        assertFalse(generatedSource.contains("ConnectionProvider"), generatedSource);
+        assertFalse(generatedSource.contains("DefaultSqlEngine"), generatedSource);
+    }
+
+    @Test
     @DisplayName("测试生成代码存在性")
     public void testGeneratedCodeExists() {
         System.out.println("🧪 测试生成代码存在性");
@@ -175,7 +190,7 @@ public class GeneratedCodeTest {
             throw new AssertionError(exception);
         }
 
-        assertTrue(generatedCode.contains("SqlResult result = sqlEngine.execute(plan);"));
+        assertTrue(generatedCode.contains("SqlResult result = sqlExecutor.execute(plan);"));
         assertFalse(generatedCode.contains("result.hasError()"));
         assertFalse(generatedCode.contains("throw new RuntimeException(\"SQL execution failed"));
         assertTrue(generatedCode.contains("return (long) result.getUpdateCount();"));
@@ -194,7 +209,7 @@ public class GeneratedCodeTest {
         System.out.println("   processors.add(new ParameterProcessor());");
         System.out.println("   processors.add(new ExecutionProcessor());");
         System.out.println("   processors.add(new ResultProcessor());");
-        System.out.println("   this.sqlEngine = new DefaultSqlEngine(..., processors);");
+        System.out.println("   this.sqlExecutor = sqlExecutor;");
         
         System.out.println("✅ 责任链初始化代码测试通过");
     }

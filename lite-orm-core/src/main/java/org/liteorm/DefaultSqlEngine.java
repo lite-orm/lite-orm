@@ -4,7 +4,7 @@ import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionCoordinator;
@@ -29,7 +29,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2024/09/29
  */
-public class DefaultSqlEngine implements SqlEngine {
+public class DefaultSqlEngine implements SqlExecutor {
     
     private final List<SqlProcessor> processors;
     private final ConnectionProvider connectionProvider;

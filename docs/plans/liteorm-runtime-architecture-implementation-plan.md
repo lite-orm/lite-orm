@@ -150,13 +150,13 @@ Do not combine independently reviewable modules into one commit.
 - Delete: `lite-orm-core/src/main/java/org/liteorm/JdbcExecutionLifecycle.java`
 - Verify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/LiteOrmAutoConfiguration.java`
 
-- [ ] Restore only the uncommitted interrupted refactor to commit `7dad969`; keep this plan and README changes.
-- [ ] Run `git diff --check` and verify no accidental source changes remain.
-- [ ] Run `mvn clean test` and capture any real baseline failures, including the Spring `.processors(...)` mismatch if it remains after restoration.
-- [ ] Fix only baseline compilation drift required to return to the last pushed architecture.
-- [ ] Run `mvn clean test` and require a green reactor.
-- [ ] Commit with `chore: restore runtime refactor baseline` if a source fix was required; otherwise do not create an empty commit.
-- [ ] Push the commit immediately when one exists.
+- [x] Restore only the uncommitted interrupted refactor to commit `7dad969`; keep this plan and README changes.
+- [x] Run `git diff --check` and verify no accidental source changes remain.
+- [x] Run `mvn clean test` and capture any real baseline failures, including the Spring `.processors(...)` mismatch if it remains after restoration.
+- [x] Fix only baseline compilation drift required to return to the last pushed architecture.
+- [x] Run `mvn clean test` and require a green reactor.
+- [x] Commit with `chore: restore runtime refactor baseline` if a source fix was required; otherwise do not create an empty commit.
+- [x] Push the commit immediately when one exists.
 
 **Completion criteria:** The repository builds from a clean, known baseline before the replacement architecture starts.
 
@@ -172,12 +172,12 @@ Do not combine independently reviewable modules into one commit.
 - Modify generated-code assertions under: `lite-orm-core/src/test/java/org/liteorm/test`
 - Delete after migration: `lite-orm-core/src/main/java/org/liteorm/api/SqlEngine.java`
 
-- [ ] Add a generated-source test asserting the Mapper implementation has one constructor dependency: `SqlExecutor`.
-- [ ] Run the focused generator test and verify it fails because generated code still imports `SqlEngine`.
-- [ ] Add `SqlExecutor#execute(ExecutionPlan)` and migrate generated constructors, fields, imports, and fixtures.
-- [ ] Delete `SqlEngine` after all production and test references compile against `SqlExecutor`.
-- [ ] Assert generated source contains no `SqlEngine`, `DefaultSqlEngine`, `ConnectionProvider`, or runtime processor imports.
-- [ ] Run core generator tests and `mvn clean test`.
+- [x] Add a generated-source test asserting the Mapper implementation has one constructor dependency: `SqlExecutor`.
+- [x] Run the focused generator test and verify it fails because generated code still imports `SqlEngine`.
+- [x] Add `SqlExecutor#execute(ExecutionPlan)` and migrate generated constructors, fields, imports, and fixtures.
+- [x] Delete `SqlEngine` after all production and test references compile against `SqlExecutor`.
+- [x] Assert generated source contains no `SqlEngine`, `DefaultSqlEngine`, `ConnectionProvider`, or runtime processor imports.
+- [x] Run core generator tests and `mvn clean test`.
 - [ ] Commit with `refactor: replace sql engine with sql executor`.
 - [ ] Push immediately.
 

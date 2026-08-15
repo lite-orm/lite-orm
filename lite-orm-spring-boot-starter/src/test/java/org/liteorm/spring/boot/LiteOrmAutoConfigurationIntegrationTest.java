@@ -6,7 +6,7 @@ import org.liteorm.DefaultSqlEngine;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.spring.boot.fixture.SpringUser;
 import org.liteorm.spring.boot.fixture.SpringUserMapper;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionInvocation;
 import org.liteorm.api.SqlResult;
@@ -58,7 +58,7 @@ class LiteOrmAutoConfigurationIntegrationTest {
             dataSource.resetCounts();
 
             assertSame(dataSource, context.getBean(SpringConnectionProvider.class).getDataSource());
-            assertSame(context.getBean(SqlEngine.class), ReflectionTestUtils.getField(mapper, "sqlEngine"));
+            assertSame(context.getBean(SqlExecutor.class), ReflectionTestUtils.getField(mapper, "sqlExecutor"));
             assertEquals(1, mapper.insert(1L, "Alice"));
             assertEquals(new SpringUser(1L, "Alice"), mapper.findById(1L));
             assertEquals(2, dataSource.acquisitions());
@@ -78,12 +78,12 @@ class LiteOrmAutoConfigurationIntegrationTest {
     void usesUserProvidedConnectionProviderTransactionCoordinatorAndEngine() {
         contextRunner.withUserConfiguration(RuntimeOverrideConfiguration.class).run(context -> {
             assertSame(context.getBean("customConnectionProvider"), context.getBean(ConnectionProvider.class));
-            assertSame(context.getBean("customSqlEngine"), context.getBean(SqlEngine.class));
+            assertSame(context.getBean("customSqlExecutor"), context.getBean(SqlExecutor.class));
         });
 
         contextRunner.withUserConfiguration(TransactionCoordinatorOverrideConfiguration.class).run(context -> {
             TransactionCoordinator coordinator = context.getBean(TransactionCoordinator.class);
-            DefaultSqlEngine engine = (DefaultSqlEngine) context.getBean(SqlEngine.class);
+            DefaultSqlEngine engine = (DefaultSqlEngine) context.getBean(SqlExecutor.class);
             List<?> processors = (List<?>) ReflectionTestUtils.getField(engine, "processors");
             ConnectionProcessor connectionProcessor = (ConnectionProcessor) processors.get(0);
 
@@ -252,7 +252,7 @@ class LiteOrmAutoConfigurationIntegrationTest {
         }
 
         @Bean
-        SqlEngine customSqlEngine() {
+        SqlExecutor customSqlExecutor() {
             return plan -> SqlResult.success(0);
         }
     }

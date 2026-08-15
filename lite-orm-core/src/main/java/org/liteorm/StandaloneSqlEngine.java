@@ -3,7 +3,7 @@ package org.liteorm;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionPlan;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionContext;
 import org.liteorm.api.TransactionException;
@@ -18,7 +18,7 @@ import java.util.List;
 /**
  * Standalone SQL engine with LiteORM-managed local transaction boundaries.
  */
-public final class StandaloneSqlEngine implements SqlEngine, TransactionOperations {
+public final class StandaloneSqlEngine implements SqlExecutor, TransactionOperations {
 
     private final DefaultSqlEngine sqlEngine;
     private final LocalTransactionCoordinator transactionCoordinator;

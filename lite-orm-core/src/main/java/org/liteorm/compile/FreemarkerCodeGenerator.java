@@ -80,7 +80,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
         code.append("        ExecutionPlan plan = ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
-        code.append("        SqlResult result = sqlEngine.execute(plan);\n");
+        code.append("        SqlResult result = sqlExecutor.execute(plan);\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));

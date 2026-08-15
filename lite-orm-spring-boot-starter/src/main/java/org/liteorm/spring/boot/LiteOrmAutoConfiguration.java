@@ -3,7 +3,7 @@ package org.liteorm.spring.boot;
 import org.liteorm.LiteOrm;
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.TransactionCoordinator;
 import org.liteorm.runtime.*;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -26,7 +26,7 @@ import java.util.List;
  * @since 2024/11/15
  */
 @AutoConfiguration(after = DataSourceAutoConfiguration.class)
-@ConditionalOnClass({SqlEngine.class, DataSource.class})
+@ConditionalOnClass({SqlExecutor.class, DataSource.class})
 @ConditionalOnProperty(prefix = "lite-orm", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(LiteOrmProperties.class)
 public class LiteOrmAutoConfiguration {
@@ -50,7 +50,7 @@ public class LiteOrmAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public SqlEngine liteOrmSqlEngine(
+    public SqlExecutor liteOrmSqlExecutor(
             ConnectionProvider connectionProvider,
             ObjectProvider<TransactionCoordinator> transactionCoordinatorProvider,
             ObjectProvider<ExecutionInterceptor> interceptorProvider) {

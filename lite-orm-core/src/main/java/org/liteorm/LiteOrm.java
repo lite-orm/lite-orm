@@ -2,7 +2,7 @@ package org.liteorm;
 
 import org.liteorm.api.ConnectionProvider;
 import org.liteorm.api.ExecutionInterceptor;
-import org.liteorm.api.SqlEngine;
+import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.TransactionCoordinator;
 import org.liteorm.runtime.ExecutionProcessor;
 import org.liteorm.runtime.ParameterProcessor;
@@ -59,7 +59,7 @@ public final class LiteOrm {
             return this;
         }
 
-        public SqlEngine build() {
+        public SqlExecutor build() {
             return new DefaultSqlEngine(
                 connectionProvider,
                 transactionCoordinator,
