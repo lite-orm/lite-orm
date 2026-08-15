@@ -2,6 +2,8 @@
 
 Date: 2026-08-14
 
+> Historical review notice: this document records the architecture reviewed on August 14, 2026. Its `SqlEngine`, `ConnectionProvider`, `TransactionCoordinator`, processor-chain, and `ExecutionContext` conclusions are superseded by the active [LiteORM Runtime Architecture Implementation Plan](../plans/liteorm-runtime-architecture-implementation-plan.md).
+
 ## Architectural Goal
 
 LiteORM is a compile-time Mapper platform. SQL structure, supported dynamic expressions, parameter order, binder selection, and result mapping should be resolved into ordinary Java source during annotation processing. Runtime code should perform only the physical JDBC lifecycle and explicitly approved extension calls.
@@ -163,4 +165,3 @@ The Spring configuration currently places logging, slow-query, and audit process
 4. Remove `SqlProcessor`, concrete fixed processors, generic context attributes, and Spring processor assembly.
 5. Delete `LiteOrmConfig`, compatibility constructors/types proven unused, and unused dependencies.
 6. Re-run generated-source, full reactor, concurrency, and dependency checks after each deletion group.
-

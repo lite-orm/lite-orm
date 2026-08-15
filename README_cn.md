@@ -58,12 +58,13 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - `XmlBasedSqlParser` 和 `AnnotationBasedSqlParser` 解析 SQL 来源。
   - `AstNode` 表示动态 SQL 结构。
   - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
-  - `DefaultSqlEngine` 通过 processor chain 执行 SQL。
-  - `StandaloneSqlEngine` 与 `LocalTransactionCoordinator` 提供本地事务边界。
+  - 当前 JDBC 运行时负责执行计划、事务参与和资源释放。
 - `lite-orm-spring-boot-starter`
   - 提供 Spring Boot 自动配置入口。
   - 扫描并注册编译期生成的 Mapper 实现。
   - 复用应用 `DataSource` 和 Spring 托管事务连接。
+
+编译期核心闭环已经可用。运行时 API 正按照唯一有效的新计划进行收敛：生成 Mapper 最终只依赖 `SqlExecutor`；固定 JDBC 阶段进入一条显式生命周期；现有 processor chain、可变 `ExecutionContext`、旧 SQL task，以及职责重叠的连接/事务抽象将被删除。
 
 已验证能力包括：
 
@@ -91,8 +92,6 @@ import org.liteorm.annotation.Select;
 mvn clean test
 ```
 
-最近一次验证结果：core `84` 个测试通过，spring starter `2` 个测试通过。
-
 ## 架构总览
 
 ```text
@@ -116,17 +115,16 @@ Generated MapperImpl
 ExecutionPlan
         |
         v
-Runtime SQL Pipeline
+SqlExecutor
         |
-        +--> ConnectionProcessor
-        +--> ParameterProcessor
-        +--> ExecutionProcessor
-        +--> ResultProcessor
-
-Standalone transaction boundary
+        v
+JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
         |
-        +--> StandaloneSqlEngine
-        +--> LocalTransactionCoordinator
+        +--> ExecutionInterceptor
+        +--> TransactionFactory
+        +--> Transaction.getConnection
+        +--> PreparedStatement / 参数绑定 / JDBC 执行
+        +--> 结果提取与反向资源释放
 ```
 
 ### 编译期职责
@@ -149,7 +147,15 @@ Standalone transaction boundary
 - 执行 SQL。
 - 提取 `ResultSet` 为生成代码可消费的结果结构。
 
-运行期处理器可以扩展，但默认链路只包含 SQL 执行的物理必需步骤。
+固定 JDBC 阶段不是开放的责任链扩展点。日志、指标、审计和慢查询使用有序 `ExecutionInterceptor`；特殊 SQL、参数和结果能力分别使用编译期绑定的 Provider、Binder 和 RowMapper。
+
+### 事务与多数据源
+
+- `Transaction` 负责取得当前事务连接，以及 `commit`、`rollback`、`close` 和超时语义。
+- `TransactionFactory` 为每次执行返回一个知道自身所有权的事务句柄；`SqlExecutor` 不判断连接由 core 还是 Spring 持有。
+- core 的简单事务通过 `SimpleTransaction` 和回调式事务边界实现；Spring 事务继续由 Spring 决定何时开始、提交和回滚。
+- 一个 `JdbcSqlExecutor` 永久绑定一个 DataSource/事务域。多数据源通过多个独立、具名的 executor 组件图和 Mapper 实例装配，不把数据源名塞进 `ExecutionPlan`。
+- core 不隐式协调跨数据源提交，也不提供分布式事务。动态租户、分片或读写路由只能作为更高层 `SqlExecutor` 装饰器显式加入。
 
 ## Spring Boot 接入
 
@@ -162,7 +168,7 @@ lite-orm:
     - com.example.mapper
 ```
 
-应用启动时，Starter 扫描配置包中的生成类，按 Mapper 接口类型注册 Spring Bean，并注入自动配置的 `SqlEngine`。启动扫描允许检查类和构造器，但 Mapper 调用、SQL 构造、参数绑定和结果映射仍然是普通 Java 直接调用，不在热路径使用反射。
+应用启动时，Starter 扫描配置包中的生成类并按 Mapper 接口类型注册 Spring Bean。目标运行时向生成类注入具名或默认的 `SqlExecutor`。启动扫描允许检查类和构造器，但 Mapper 调用、SQL 构造、参数绑定和结果映射仍然是普通 Java 直接调用，不在热路径使用反射。
 
 Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
 
@@ -261,19 +267,19 @@ public interface UserMapper {
 
 ## 后续路线
 
-后续路线按可独立交付的模块推进，具体任务见：
+当前唯一有效的实施计划是：
 
-- [LiteORM Incremental Implementation Plan](docs/plans/liteorm-incremental-implementation-plan.md)
+- [LiteORM Runtime Architecture Implementation Plan](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
 - [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)
 - [MyBatis 迁移指南](docs/migration-guide.md)
 - [扩展契约](docs/extensions.md)
 
 推荐优先级：
 
-1. MVP 硬化：外部项目 E2E、编译期诊断、安全边界、构建配置。
-2. 映射增强：JavaBean、构造器选择、列名映射、基础类型返回。
-3. Spring 可用性：Mapper Bean 注册、配置项、事务集成示例。
-4. 兼容样例：MyBatis 迁移 fixtures 和差异文档。
-5. 平台化能力：元数据导出、可观测性、缓存、分页 DSL、路由策略。
+1. 恢复干净基线，并完成 `SqlExecutor`、不可变执行计划和固定 JDBC 生命周期。
+2. 完成 `Transaction`、core 简单事务与 Spring 事务适配，保证并发和资源释放正确。
+3. 完成显式多数据源装配与隔离测试，不引入隐藏路由或分布式事务假象。
+4. 删除 processor chain、`ExecutionContext`、旧 task、旧事务/连接抽象和无效构建资源。
+5. 复核生成源码可读性、整体 SOLID 边界和实际需要的设计模式，再进入性能测试。
 
 判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。

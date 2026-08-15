@@ -19,8 +19,10 @@ In short:
 
 The repository currently contains a working core loop:
 
-- `lite-orm-core`: annotation processor, SQL parsers, dynamic SQL AST, FreeMarker code generator, execution plan contract, runtime processor chain, local transaction manager.
+- `lite-orm-core`: annotation processor, SQL parsers, dynamic SQL AST, generated Mapper source, execution-plan contracts, and the current JDBC runtime.
 - `lite-orm-spring-boot-starter`: Spring Boot auto-configuration, generated Mapper bean registration, and Spring-managed connection/transaction participation.
+
+The compile-time feature loop is working. The runtime API is now being simplified according to the active architecture plan: generated Mappers will depend only on `SqlExecutor`; fixed JDBC phases will move into one explicit lifecycle; and the transitional processor chain, mutable execution context, legacy SQL tasks, and overlapping connection/transaction abstractions will be removed.
 
 Recently verified with:
 
@@ -63,13 +65,13 @@ lite-orm:
     - com.example.mapper
 ```
 
-The starter scans those packages at application startup, registers generated implementations by their Mapper interface type, and injects the configured LiteORM `SqlEngine`. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
+The starter scans those packages at application startup and registers generated implementations by their Mapper interface type. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
 
 The starter uses the application `DataSource`. Inside Spring `@Transactional` boundaries it reuses Spring's transaction-bound connection; outside a Spring transaction each Mapper call uses the DataSource's normal auto-commit behavior and releases JDBC resources after execution.
 
-For standalone applications, use `LiteOrm.standalone(connectionProvider)` to assemble the local-transaction engine. Use `LiteOrm.engine(connectionProvider)` when supplying explicit transaction, processor, or interceptor strategies. Generated Mapper constructors remain limited to `SqlEngine` and `ConnectionProvider`.
+The target runtime gives each generated Mapper one `SqlExecutor`. A `JdbcSqlExecutor` is bound to one `TransactionFactory` and therefore one DataSource/transaction domain. Standalone transactions use core `SimpleTransaction` semantics; Spring uses a `SpringTransaction` adapter and continues to control transaction boundary timing.
 
-Spring Boot assembles the same core engine graph through this facade. Application beans can replace `ConnectionProvider`, `TransactionCoordinator`, or the complete `SqlEngine`; ordered `ExecutionInterceptor` beans are collected automatically. Invalid generated Mapper classes and duplicate Mapper bean names fail startup with explicit diagnostics.
+Multiple DataSources are represented by multiple explicitly named executor graphs and qualified Mapper instances. LiteORM does not hide DataSource selection inside an execution plan and does not provide distributed commit in core. Dynamic tenant, shard, or read/write routing remains an optional executor decorator above the JDBC executor.
 
 ## SQL Provider Escape Hatch
 
@@ -104,7 +106,7 @@ Unsupported behavior should fail at compile time with actionable diagnostics ins
 
 - Chinese project overview: [README_cn.md](README_cn.md)
 - Design philosophy: [Design Philosophy.md](Design%20Philosophy.md)
-- Incremental implementation plan: [docs/plans/liteorm-incremental-implementation-plan.md](docs/plans/liteorm-incremental-implementation-plan.md)
+- Active runtime architecture plan: [docs/plans/liteorm-runtime-architecture-implementation-plan.md](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
 - MyBatis compatibility matrix: [docs/mybatis-compatibility.md](docs/mybatis-compatibility.md)
 - Migration guide: [docs/migration-guide.md](docs/migration-guide.md)
 - Extension contracts: [docs/extensions.md](docs/extensions.md)
