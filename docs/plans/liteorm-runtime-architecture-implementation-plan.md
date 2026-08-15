@@ -331,16 +331,16 @@ Do not combine independently reviewable modules into one commit.
 - Create: `lite-orm-core/src/main/java/org/liteorm/annotation/ExecutorRef.java`
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/api/MultiDataSourceContractTest.java`
 
-- [ ] Write RED compile-time/API tests for fixed type keys, method override metadata, typed provider selection, immutable selection metadata, and registry lookup.
-- [ ] Define `DataSourceSelection<P>` as statement ID, statement type, and one typed route input; do not include SQL text, mutable maps, or transaction state.
-- [ ] Define `DataSourceKeyProvider<P>` as one ordinary Java strategy call returning a nonblank executor key.
-- [ ] Define `SqlExecutorRegistry` as a read-only named executor lookup; mutation belongs only to assembly-time implementation.
-- [ ] Define `@UseDataSource` so fixed-key and provider modes are mutually exclusive and compiler-validatable.
-- [ ] Define LiteORM-owned `@ExecutorRef` constructor-parameter metadata for startup injection without a Spring dependency.
-- [ ] Add a dedicated routing/configuration exception containing statement ID and selected key but no SQL parameters.
-- [ ] Run focused contract/compiler tests and `mvn -pl lite-orm-core test`.
-- [ ] Commit with `feat: define multi datasource roles`.
-- [ ] Push immediately.
+- [x] Write RED compile-time/API tests for fixed type keys, method override metadata, typed provider selection, immutable selection metadata, and registry lookup.
+- [x] Define `DataSourceSelection<P>` as statement ID, statement type, and one typed route input; do not include SQL text, mutable maps, or transaction state.
+- [x] Define `DataSourceKeyProvider<P>` as one ordinary Java strategy call returning an executor key.
+- [x] Define `SqlExecutorRegistry` as one read-only `require(statementId, dataSourceKey)` lookup so unknown-key diagnostics retain statement identity; mutation belongs only to assembly-time implementation.
+- [x] Define `@UseDataSource` so fixed-key and provider modes are mutually exclusive and compiler-validatable.
+- [x] Define LiteORM-owned `@ExecutorRef` constructor-parameter metadata for startup injection without a Spring dependency.
+- [x] Add a dedicated routing exception containing statement ID and selected key but no SQL parameters.
+- [x] Run focused contract/compiler tests and `mvn -pl lite-orm-core test`.
+- [x] Commit with `feat: define multi datasource roles`.
+- [x] Push immediately.
 
 **Completion criteria:** Static and dynamic DataSource selection have stable typed roles before compiler or Spring implementations depend on them.
 
