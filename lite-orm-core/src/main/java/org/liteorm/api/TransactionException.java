@@ -11,7 +11,7 @@ package org.liteorm.api;
  * @author lite-orm
  * @since 2024/09/29
  */
-public class TransactionException extends Exception {
+public class TransactionException extends LiteOrmException {
     
     /**
      * 事务异常类型 - 基于物理阶段分类

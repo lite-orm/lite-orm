@@ -247,14 +247,14 @@ Do not combine independently reviewable modules into one commit.
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/TransactionException.java`
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/transaction/TransactionContractTest.java`
 
-- [ ] Write compile-time/API tests for the exact signatures documented in Target Runtime Model.
-- [ ] Verify RED because the roles do not exist.
-- [ ] Add the four narrow contracts without implementation-specific methods or DataSource identifiers.
-- [ ] Make transaction failures unchecked LiteORM exceptions so generated Mapper calls do not leak checked infrastructure exceptions.
-- [ ] Document that a factory-created transaction handle owns its own close semantics and is never shared across concurrent calls.
-- [ ] Run focused API tests and core tests.
-- [ ] Commit with `feat: define transaction execution contracts`.
-- [ ] Push immediately.
+- [x] Write compile-time/API tests for the exact signatures documented in Target Runtime Model.
+- [x] Verify RED because the roles do not exist.
+- [x] Add the four narrow contracts without implementation-specific methods or DataSource identifiers.
+- [x] Make transaction failures unchecked LiteORM exceptions so generated Mapper calls do not leak checked infrastructure exceptions.
+- [x] Document that a factory-created transaction handle owns its own close semantics and is never shared across concurrent calls.
+- [x] Run focused API tests and core tests.
+- [x] Commit with `feat: define transaction execution contracts`.
+- [x] Push immediately.
 
 **Completion criteria:** Transaction behavior is represented by explicit domain roles rather than connection-provider and manager/coordinator abstractions.
 
