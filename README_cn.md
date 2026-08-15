@@ -149,6 +149,38 @@ JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
 
 固定 JDBC 阶段不是开放的责任链扩展点。日志、指标、审计和慢查询使用有序 `ExecutionInterceptor`；特殊 SQL、参数和结果能力分别使用编译期绑定的 Provider、Binder 和 RowMapper。
 
+### core 简单实现与 Spring 生产装配
+
+core 提供的 `Simple*` 类型用于无 Spring 环境、测试和最小化独立运行。生产项目接入 Spring 后，SQL 执行模型不变，只替换连接参与方式、事务边界控制和组件装配方式。
+
+| 领域职责 | core / 独立运行实现 | Spring 生产实现或替代方式 | 替换关系 |
+| --- | --- | --- | --- |
+| SQL 执行 | `JdbcSqlExecutor` | `JdbcSqlExecutor` | 不替换。生成 Mapper 始终只依赖 `SqlExecutor`，Spring 只是为它装配不同的 `TransactionFactory`。 |
+| 单次执行事务句柄 | `SimpleTransaction` | `SpringTransaction` | 替换。前者直接从 `DataSource` 获取并管理连接状态，后者通过 `DataSourceUtils` 参与 Spring 线程绑定连接。 |
+| 事务句柄创建 | `SimpleTransactionFactory` | `SpringTransactionFactory` | 替换。两者都实现 `TransactionFactory`，因此 `JdbcSqlExecutor` 不感知宿主环境。 |
+| 显式事务边界 | `SimpleTransactionalExecutor` | Spring `@Transactional`、`TransactionTemplate`、`PlatformTransactionManager` | 替换。core 自己决定 begin、commit、rollback；Spring 环境由 Spring 决定边界时机。 |
+| 事务域校验 | `SimpleTransactionDomainGuard` | 明确匹配的 `SqlExecutor`、`DataSource` 和 Spring `PlatformTransactionManager` | 语义替代。core guard 阻止本地事务跨域；Spring 多数据源必须显式选择匹配的事务管理器，不假装提供分布式提交。 |
+| 单 DataSource 组件装配 | `LiteOrm.jdbc(dataSource)` / `JdbcAssembly` | `LiteOrmAutoConfiguration` | 替换装配方式，不替换领域角色。两者最终都提供一个绑定到固定 DataSource 的 `JdbcSqlExecutor`。 |
+| Mapper 创建 | `new XxxMapperImpl(sqlExecutor)` | `GeneratedMapperBeanDefinitionRegistrar` | 替换创建方式。Mapper 本身仍是编译期生成的普通静态类，不使用运行时代理。 |
+| 连接池和物理连接创建 | 应用提供的 `DataSource` | Spring 容器中的 `DataSource`，通常由 HikariCP 等实现 | LiteORM 不实现连接池。core 和 Spring 模式都只消费 `DataSource`。 |
+| 执行观察扩展 | `ExecutionInterceptor` | Spring 管理并排序的 `ExecutionInterceptor` Bean | 不替换。Spring 仅负责发现和排序，拦截器契约保持一致。 |
+
+替换后的依赖关系如下：
+
+```text
+独立运行：
+Generated Mapper -> JdbcSqlExecutor -> SimpleTransactionFactory -> SimpleTransaction -> DataSource
+                              |
+                              +-> SimpleTransactionalExecutor 控制事务边界
+
+Spring 生产：
+Generated Mapper -> JdbcSqlExecutor -> SpringTransactionFactory -> SpringTransaction -> DataSourceUtils
+                                                                      |
+                                                                      +-> Spring 绑定连接
+
+@Transactional / PlatformTransactionManager --------------------------+-> 控制 begin/commit/rollback
+```
+
 ### 事务与多数据源
 
 - `Transaction` 负责取得当前事务连接，以及 `commit`、`rollback`、`close` 和超时语义。
