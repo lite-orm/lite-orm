@@ -149,23 +149,44 @@ JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
 
 固定 JDBC 阶段不是开放的责任链扩展点。日志、指标、审计和慢查询使用有序 `ExecutionInterceptor`；特殊 SQL、参数和结果能力分别使用编译期绑定的 Provider、Binder 和 RowMapper。
 
-### core 简单实现与 Spring 生产装配
+### core 与 Spring 的职责边界
 
-core 提供的 `Simple*` 类型用于无 Spring 环境、测试和最小化独立运行。生产项目接入 Spring 后，SQL 执行模型不变，只替换连接参与方式、事务边界控制和组件装配方式。
+这里不能简单理解成“`Simple*` 在生产环境全部替换掉”。core 中同时存在四类内容：框架永久保留的领域模型、Spring 需要实现的宿主 SPI、无容器环境的默认实现，以及本来就属于应用基础设施的能力。
 
-| 领域职责 | core / 独立运行实现 | Spring 生产实现或替代方式 | 替换关系 |
+| 分类 | 判断标准 | Spring 环境中的处理方式 |
+| --- | --- | --- |
+| core 永久保留 | ORM 自身的编译、执行和扩展语义，与依赖注入容器无关 | 继续直接使用，不委托给 Spring |
+| core 定义 SPI，宿主提供实现 | core 必须依赖抽象，但连接参与方式取决于运行环境 | Spring Starter 提供对应实现并注入 core 组件 |
+| core 默认实现 | 为无 Spring 环境提供可直接运行的最小实现 | Spring 环境通常不创建这些默认实现 |
+| 外部基础设施 | 不属于 ORM 的职责 | 由应用、连接池、数据库或 Spring 基础设施提供 |
+
+完整角色区分如下：
+
+| 能力/角色 | core 中的定义或实现 | Spring 生产环境 | 归属结论 |
 | --- | --- | --- | --- |
-| SQL 执行 | `JdbcSqlExecutor` | `JdbcSqlExecutor` | 不替换。生成 Mapper 始终只依赖 `SqlExecutor`，Spring 只是为它装配不同的 `TransactionFactory`。 |
-| 单次执行事务句柄 | `SimpleTransaction` | `SpringTransaction` | 替换。前者直接从 `DataSource` 获取并管理连接状态，后者通过 `DataSourceUtils` 参与 Spring 线程绑定连接。 |
-| 事务句柄创建 | `SimpleTransactionFactory` | `SpringTransactionFactory` | 替换。两者都实现 `TransactionFactory`，因此 `JdbcSqlExecutor` 不感知宿主环境。 |
-| 显式事务边界 | `SimpleTransactionalExecutor` | Spring `@Transactional`、`TransactionTemplate`、`PlatformTransactionManager` | 替换。core 自己决定 begin、commit、rollback；Spring 环境由 Spring 决定边界时机。 |
-| 事务域校验 | `SimpleTransactionDomainGuard` | 明确匹配的 `SqlExecutor`、`DataSource` 和 Spring `PlatformTransactionManager` | 语义替代。core guard 阻止本地事务跨域；Spring 多数据源必须显式选择匹配的事务管理器，不假装提供分布式提交。 |
-| 单 DataSource 组件装配 | `LiteOrm.jdbc(dataSource)` / `JdbcAssembly` | `LiteOrmAutoConfiguration` | 替换装配方式，不替换领域角色。两者最终都提供一个绑定到固定 DataSource 的 `JdbcSqlExecutor`。 |
-| Mapper 创建 | `new XxxMapperImpl(sqlExecutor)` | `GeneratedMapperBeanDefinitionRegistrar` | 替换创建方式。Mapper 本身仍是编译期生成的普通静态类，不使用运行时代理。 |
-| 连接池和物理连接创建 | 应用提供的 `DataSource` | Spring 容器中的 `DataSource`，通常由 HikariCP 等实现 | LiteORM 不实现连接池。core 和 Spring 模式都只消费 `DataSource`。 |
-| 执行观察扩展 | `ExecutionInterceptor` | Spring 管理并排序的 `ExecutionInterceptor` Bean | 不替换。Spring 仅负责发现和排序，拦截器契约保持一致。 |
+| Mapper 编译模型、XML/注解解析、动态 SQL AST、Java 代码生成 | `CompilePipeline`、`MapperCompilationModel`、`CodeGenerator` 等 | 仍由 LiteORM 注解处理器在编译期完成 | **core 永久保留，不委托 Spring** |
+| 生成 Mapper | `XxxMapperImpl`，构造器只依赖 `SqlExecutor` | Starter 仅负责注册和注入这个普通 Java 类 | **生成代码属于 LiteORM；Bean 生命周期委托 Spring** |
+| SQL 执行入口 | `SqlExecutor`、`ExecutionPlan`、`SqlResult` | 原样使用 | **core 永久保留** |
+| 固定 JDBC 生命周期 | `JdbcSqlExecutor` | 原样使用，由 Spring 装配 `SpringTransactionFactory` | **core 永久保留，不由 Spring 重写 SQL 执行** |
+| 参数和结果适配 | `ParameterBinder`、`RowMapper`、`ResultValueConverters` | 原样使用，必要时作为 Spring Bean 被装配 | **core 永久保留；对象发现可委托 Spring** |
+| 执行观察 | `ExecutionInterceptor`、`ExecutionOutcome` | Spring 发现并按 ordering 排序 interceptor Bean | **契约和执行时机属于 core；实例管理委托 Spring** |
+| 单次执行的事务/连接句柄 | SPI：`Transaction` | 实现：`SpringTransaction`，通过 `DataSourceUtils` 取得或释放连接 | **抽象属于 core；连接参与语义委托 Spring** |
+| 事务句柄工厂 | SPI：`TransactionFactory` | 实现：`SpringTransactionFactory` | **抽象属于 core；生产实现由 Starter 提供** |
+| 无容器事务句柄 | `SimpleTransaction` | 通常不创建 | **core 默认实现，仅用于独立运行或测试** |
+| 无容器事务工厂 | `SimpleTransactionFactory` | 使用 `SpringTransactionFactory` 代替 | **core 默认实现被 Spring 实现替代** |
+| 事务边界控制 | SPI：`TransactionalExecutor`；默认实现：`SimpleTransactionalExecutor` | 使用 `@Transactional`、`TransactionTemplate` 和 `PlatformTransactionManager` | **边界抽象属于 core；生产边界时机委托 Spring** |
+| 本地事务域保护 | `TransactionDomain`、`TransactionDomainGuard`、`SimpleTransactionDomainGuard` | 通过明确匹配的 executor、DataSource 和 transaction manager 保持同一约束；后续补充 Spring 多数据源启动校验 | **不直接一对一替换，但必须保持相同事务不变量** |
+| 单 DataSource 手工装配 | `LiteOrm.jdbc(...)`、`JdbcAssembly` | `LiteOrmAutoConfiguration` 创建同样的 executor 组件图 | **领域组件不变；创建和依赖注入委托 Spring** |
+| 多 DataSource 静态绑定 | `@UseDataSource`、`@ExecutorRef` 及编译期生成规则 | Starter 按 executor Bean 名完成构造器注入 | **选择规则属于 core 编译模型；Bean 解析委托 Spring** |
+| 多 DataSource 动态策略 | `DataSourceKeyProvider`、`DataSourceSelection`、`SqlExecutorRegistry` | Provider 或 registry 可以由 Spring 管理，但生成代码直接调用这些类型 | **路由契约属于 core；策略实例管理可委托 Spring** |
+| 异常模型 | `LiteOrmException`、`SqlExecutionException`、`TransactionException` 等 | 原样向上层传播，保留 JDBC/Spring cause | **core 永久保留** |
+| DataSource 和连接池 | core 只消费 `javax.sql.DataSource` | 应用配置 DataSource，通常由 HikariCP 和 Spring Boot 管理 | **外部基础设施，LiteORM 不实现** |
+| 事务传播、隔离级别、超时、回滚规则 | core 简单实现只保证最小本地事务正确性 | 由 Spring `PlatformTransactionManager` 和 `@Transactional` 配置决定 | **生产高级事务策略委托 Spring** |
+| 分布式事务 | core 不提供 | 需要应用引入外部事务系统 | **不属于 LiteORM core 或普通 Starter** |
 
-替换后的依赖关系如下：
+最关键的判断是：Spring **不会替代 `SqlExecutor`、`JdbcSqlExecutor`、执行计划、生成 Mapper 和 JDBC 固定生命周期**。Spring 接管的是组件创建、连接线程绑定和事务边界时机。
+
+两种装配后的依赖关系如下：
 
 ```text
 独立运行：
