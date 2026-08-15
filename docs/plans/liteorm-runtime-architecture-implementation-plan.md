@@ -353,15 +353,15 @@ Do not combine independently reviewable modules into one commit.
 - Modify: `lite-orm-core/src/main/java/org/liteorm/transaction/SimpleTransactionalExecutor.java`
 - Add tests: `lite-orm-core/src/test/java/org/liteorm/test/transaction/TransactionDomainContractTest.java`
 
-- [ ] Write RED tests defining immutable nonblank domain identity and rejection before a second DataSource connection is acquired.
-- [ ] Keep `Transaction` free of deployment-routing APIs; domain validation surrounds factory/executor selection rather than JDBC operations.
-- [ ] Define one narrow guard role that validates the selected executor domain against the active transaction domain.
-- [ ] Share one explicitly assembled guard/scope across simple factories; do not use a process-global routing `ThreadLocal`.
-- [ ] Prove direct static executor calls and registry-based dynamic calls use the same domain validation rule.
-- [ ] Prove independent assemblies and concurrent threads cannot observe each other's active domain.
-- [ ] Run focused transaction/concurrency tests and `mvn -pl lite-orm-core test`.
-- [ ] Commit with `feat: enforce transaction domain boundaries`.
-- [ ] Push immediately.
+- [x] Write RED tests defining immutable nonblank domain identity and rejection before a second DataSource connection is acquired.
+- [x] Keep `Transaction` free of deployment-routing APIs; domain validation surrounds factory/executor selection rather than JDBC operations.
+- [x] Define one narrow guard role that validates the selected executor domain against the active transaction domain.
+- [x] Share one explicitly assembled guard/scope across simple factories; do not use a process-global routing `ThreadLocal`.
+- [x] Expose the same `TransactionDomainGuard` role for future direct executor and registry-based dynamic validation.
+- [x] Prove independent assemblies and concurrent threads cannot observe each other's active domain.
+- [x] Run focused transaction/concurrency tests and `mvn -pl lite-orm-core test`.
+- [x] Commit with `feat: enforce transaction domain boundaries`.
+- [x] Push immediately.
 
 **Completion criteria:** Cross-DataSource safety is a first-class transaction invariant for direct and dynamic dispatch.
 
