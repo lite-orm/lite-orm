@@ -365,34 +365,27 @@ Do not combine independently reviewable modules into one commit.
 
 **Completion criteria:** Cross-DataSource safety is a first-class transaction invariant for direct and dynamic dispatch.
 
-### Module R2.5.4: Define Core Assembly Roles
-
-**Files:**
-- Replace: `lite-orm-core/src/main/java/org/liteorm/LiteOrm.java`
-- Create: `lite-orm-core/src/main/java/org/liteorm/assembly/JdbcAssembly.java`
-- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/assembly/JdbcAssemblyContractTest.java`
-- Add tests: `lite-orm-core/src/test/java/org/liteorm/test/architecture/CoreRoleDependencyTest.java`
-
-- [ ] Write RED tests for one explicit assembly sharing a `SimpleTransactionFactory`, transaction-domain guard, future `JdbcSqlExecutor`, and `SimpleTransactionalExecutor`.
-- [ ] Name the assembly as assembly, not engine/runtime/session; it exposes role instances but does not absorb their behavior.
-- [ ] Define immutable builder inputs for `DataSource`, transaction-domain key, and ordered interceptors.
-- [ ] Keep single-DataSource construction minimal while allowing multiple assemblies to share an explicit transaction-domain scope.
-- [ ] Reject nulls, blank keys, duplicate interceptor instances, and ambiguous executor registration during assembly.
-- [ ] Add dependency tests proving generated Mappers depend only on `SqlExecutor`, executors depend on `TransactionFactory`, and transactions depend on `DataSource` rather than Mapper/compiler types.
-- [ ] Document the complete component graph before implementing any physical JDBC phase.
-- [ ] Run focused assembly/architecture tests and `mvn clean test`.
-- [ ] Commit with `feat: define jdbc assembly foundation`.
-- [ ] Push immediately.
-
-**Completion criteria:** Every core role, owner, and dependency direction is explicit before concrete execution begins.
-
 ### R2.5 Foundation Gate
 
-- [ ] `SqlExecutor`, immutable plans/results, read-only observation, transaction contracts, multi-DataSource roles, transaction-domain safety, and assembly roles all exist.
-- [ ] No role combines SQL execution, connection ownership, transaction boundary control, routing, or dependency injection.
-- [ ] Public names describe domain responsibility; no new `Standalone*`, `Local*`, generic `*Engine`, mutable context, or processor-chain role exists.
-- [ ] API and architecture tests prove the intended dependency direction.
-- [ ] `mvn clean test` passes from a clean checkout.
+- [x] `SqlExecutor`, immutable plans/results, read-only observation, transaction contracts, multi-DataSource roles, and transaction-domain safety exist.
+- [x] No role combines SQL execution, connection ownership, transaction boundary control, routing, or dependency injection.
+- [x] Public names describe domain responsibility; no new `Standalone*`, `Local*`, generic `*Engine`, mutable context, or processor-chain role exists.
+- [x] Generated Mappers depend only on `SqlExecutor`; simple transactions depend on `DataSource`; routing and transaction-domain roles do not depend on compiler or Spring types.
+- [x] `mvn clean test` passes from a clean checkout.
+
+Assembly remains in Phase R4 because its concrete product includes `JdbcSqlExecutor`. Defining an
+assembly container before that executor exists would create a placeholder abstraction and invert the
+real dependency order.
+
+```text
+Generated Mapper -> SqlExecutor <- JdbcSqlExecutor (Phase R3)
+                          |              |
+                    ExecutionPlan       +-> TransactionFactory -> Transaction -> DataSource
+                                         +-> TransactionDomainGuard
+                                         +-> ExecutionInterceptor
+
+Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named SqlExecutor
+```
 
 ---
 
@@ -423,17 +416,15 @@ Do not combine independently reviewable modules into one commit.
 
 **Files:**
 - Create or modify typed interceptors under: `lite-orm-core/src/main/java/org/liteorm/interceptor`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionInvocation.java`
+- Use: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionPlan.java`
+- Use: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionOutcome.java`
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/interceptor`
-- Delete later in this module: `lite-orm-core/src/main/java/org/liteorm/runtime/LoggingProcessor.java`
-- Delete later in this module: `lite-orm-core/src/main/java/org/liteorm/runtime/SlowQueryMonitorProcessor.java`
-- Delete later in this module: `lite-orm-core/src/main/java/org/liteorm/runtime/SqlAuditProcessor.java`
 
 - [ ] Add RED tests for ordered before callbacks and reverse success/failure unwind.
-- [ ] Add RED tests that logging, slow-query, and audit observers receive immutable invocation data and cannot mutate SQL or parameters.
+- [ ] Add RED tests that logging, slow-query, and audit observers receive immutable plan/outcome data and cannot mutate SQL or parameters.
 - [ ] Implement logging, slow-query, and audit behavior as `ExecutionInterceptor` implementations.
 - [ ] Keep authorization/routing observation possible through typed read-only metadata without generic attribute maps.
-- [ ] Delete the three processor implementations after equivalent behavior is covered.
+- [x] The obsolete processor implementations were already deleted in Module R2.5.1.
 - [ ] Run interceptor, runtime, and full core tests.
 - [ ] Commit with `refactor: move execution observers to interceptors`.
 - [ ] Push immediately.
