@@ -64,11 +64,6 @@ public class GeneratedCodeTest {
                 System.out.println("✅ UserMapperXmlImpl.java 已生成");
             }
             
-            // 检查ComplexSqlMapperImpl
-            File complexMapperImpl = new File(generatedDir, "org/liteorm/test/ComplexSqlMapperImpl.java");
-            if (complexMapperImpl.exists()) {
-                System.out.println("✅ ComplexSqlMapperImpl.java 已生成");
-            }
         } else {
             System.out.println("⚠️  生成代码目录不存在，可能未执行编译");
         }
