@@ -28,6 +28,8 @@ import java.util.Objects;
  */
 public final class JdbcSqlExecutor implements SqlExecutor {
 
+    private static final System.Logger LOGGER = System.getLogger(JdbcSqlExecutor.class.getName());
+
     private final ConnectionHandleFactory connectionHandleFactory;
     private final List<ExecutionInterceptor> interceptors;
 
@@ -98,7 +100,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             primaryFailure = failure;
             ExecutionOutcome outcome = ExecutionOutcome.failure(
                 plan, executionState, elapsed(startedAt), affectedRows(result), resultCount(result), failure);
-            invokeFailure(entered, outcome, failure);
+            invokeFailure(entered, outcome);
             if (failure instanceof Error error) {
                 throw error;
             }
@@ -132,26 +134,43 @@ public final class JdbcSqlExecutor implements SqlExecutor {
 
     private void invokeBefore(ExecutionPlan plan, List<ExecutionInterceptor> entered) {
         for (ExecutionInterceptor interceptor : interceptors) {
-            entered.add(interceptor);
             interceptor.beforeExecution(plan);
+            entered.add(interceptor);
         }
     }
 
     private void invokeSuccess(List<ExecutionInterceptor> entered, ExecutionOutcome outcome) {
         for (int index = entered.size() - 1; index >= 0; index--) {
-            entered.get(index).afterSuccess(outcome);
+            ExecutionInterceptor interceptor = entered.get(index);
+            try {
+                interceptor.afterSuccess(outcome);
+            } catch (RuntimeException callbackFailure) {
+                logTerminalFailure(interceptor, outcome, callbackFailure);
+            }
         }
     }
 
-    private void invokeFailure(
-            List<ExecutionInterceptor> entered, ExecutionOutcome outcome, Throwable primaryFailure) {
+    private void invokeFailure(List<ExecutionInterceptor> entered, ExecutionOutcome outcome) {
         for (int index = entered.size() - 1; index >= 0; index--) {
+            ExecutionInterceptor interceptor = entered.get(index);
             try {
-                entered.get(index).afterFailure(outcome);
-            } catch (Throwable callbackFailure) {
-                primaryFailure.addSuppressed(callbackFailure);
+                interceptor.afterFailure(outcome);
+            } catch (RuntimeException callbackFailure) {
+                logTerminalFailure(interceptor, outcome, callbackFailure);
             }
         }
+    }
+
+    private void logTerminalFailure(
+            ExecutionInterceptor interceptor, ExecutionOutcome outcome, RuntimeException failure) {
+        LOGGER.log(
+            System.Logger.Level.WARNING,
+            "LiteORM interceptor terminal callback failed [interceptor="
+                + interceptor.getClass().getName()
+                + ", statementId=" + outcome.plan().getStatementId()
+                + ", executionState=" + outcome.executionState() + ']'
+            , failure
+        );
     }
 
     private PreparedStatement prepare(Connection connection, ExecutionPlan plan) throws SQLException {

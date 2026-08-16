@@ -274,29 +274,31 @@ Implementation status: Completed on 2026-08-16. The state reports only JDBC exec
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
-- [ ] **Step 1: Write RED tests for terminal callback isolation**
+- [x] **Step 1: Write RED tests for terminal callback isolation**
 
 Verify every entered interceptor receives exactly one terminal callback, `afterSuccess` failures do not turn successful writes into SQL failures, remaining callbacks still run, and terminal observer failures are logged without parameter values.
 
-- [ ] **Step 2: Keep terminal observation non-configurable**
+- [x] **Step 2: Keep terminal observation non-configurable**
 
-Use the executor's internal SLF4J logger. Do not add another public SPI merely to observe failures from the existing observation SPI.
+Use the JDK `System.Logger` owned internally by the executor. Do not add another public SPI or require a logging provider merely to observe failures from the existing observation SPI.
 
-- [ ] **Step 3: Make terminal notification non-throwing**
+- [x] **Step 3: Make terminal notification non-throwing**
 
 Catch every `afterSuccess` and `afterFailure` callback failure independently, continue reverse-order notification, and log interceptor type, statement ID, JDBC execution state, and callback failure without SQL parameters.
 
-- [ ] **Step 4: Keep `beforeExecution` veto semantics explicit**
+- [x] **Step 4: Keep `beforeExecution` veto semantics explicit**
 
 A `beforeExecution` failure prevents JDBC acquisition, sends failure callbacks only to interceptors whose `beforeExecution` completed, and returns `NOT_EXECUTED` certainty.
 
-- [ ] **Step 5: Run core tests and commit**
+- [x] **Step 5: Run core tests and commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `fix: isolate interceptor terminal failures`
+
+Implementation status: Completed on 2026-08-16. Interceptors remain optional observation plugins; core isolates their terminal callback failures without adding another public SPI.
 
 ---
 

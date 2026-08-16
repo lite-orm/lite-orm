@@ -203,6 +203,8 @@ Justified for before/after observation. Logging, slow-query reporting, audit, me
 
 The executor reports only JDBC certainty (`NOT_EXECUTED`, `OUTCOME_UNKNOWN`, or `EXECUTED`). It does not claim commit or rollback because final transaction completion may belong to Spring or another host manager.
 
+`beforeExecution` may veto before JDBC work begins. `afterSuccess` and `afterFailure` are terminal observation callbacks: their runtime failures are logged through the JDK logger, do not alter SQL results or primary failures, and do not prevent remaining observers from running.
+
 ### Adapter
 
 Justified for `SpringConnectionHandleFactory` and `SpringConnectionHandle`, which adapt Spring JDBC connection participation to the core connection contracts.

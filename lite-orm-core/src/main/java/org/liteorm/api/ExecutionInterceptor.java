@@ -9,14 +9,15 @@ public interface ExecutionInterceptor {
     }
 
     /**
-     * Called in reverse registration order after successful result extraction.
+     * Called in reverse registration order after successful result extraction. Runtime failures
+     * are isolated by the executor and do not change the SQL result.
      */
     default void afterSuccess(ExecutionOutcome outcome) {
     }
 
     /**
-     * Called in reverse registration order after failure. Callback failures must be suppressed
-     * onto the earlier execution failure rather than replace it.
+     * Called in reverse registration order after failure. Runtime failures are isolated by the
+     * executor and do not modify the earlier execution failure.
      */
     default void afterFailure(ExecutionOutcome outcome) {
     }

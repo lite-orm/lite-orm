@@ -170,6 +170,59 @@ class JdbcSqlExecutorTest {
     }
 
     @Test
+    void terminalSuccessCallbackFailureDoesNotChangeTheSqlResult() {
+        List<String> events = new ArrayList<>();
+        ExecutionInterceptor first = interceptor("first", events);
+        ExecutionInterceptor failing = new ExecutionInterceptor() {
+            @Override
+            public void beforeExecution(ExecutionPlan plan) {
+                events.add("failing.before");
+            }
+
+            @Override
+            public void afterSuccess(ExecutionOutcome outcome) {
+                events.add("failing.success");
+                throw new IllegalStateException("observer failed");
+            }
+        };
+        PreparedStatement statement = statement(new ArrayList<>(), null, 3, null, null);
+        JdbcSqlExecutor executor = new JdbcSqlExecutor(
+            new TrackingFactory(connection(new ArrayList<>(), statement), new ArrayList<>()),
+            List.of(first, failing));
+
+        SqlResult result = executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null));
+
+        assertEquals(3, result.getUpdateCount());
+        assertEquals(List.of(
+            "first.before", "failing.before", "failing.success", "first.success:3"
+        ), events);
+    }
+
+    @Test
+    void beforeFailureUnwindsOnlyInterceptorsThatEnteredSuccessfully() {
+        List<String> events = new ArrayList<>();
+        ExecutionInterceptor first = interceptor("first", events);
+        ExecutionInterceptor failing = new ExecutionInterceptor() {
+            @Override
+            public void beforeExecution(ExecutionPlan plan) {
+                events.add("failing.before");
+                throw new IllegalStateException("veto");
+            }
+
+            @Override
+            public void afterFailure(ExecutionOutcome outcome) {
+                events.add("failing.failure");
+            }
+        };
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            new JdbcSqlExecutor(() -> null, List.of(first, failing)).execute(selectPlan(null)));
+
+        assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
+        assertEquals(List.of("first.before", "failing.before", "first.failure"), events);
+    }
+
+    @Test
     void unwindsFailureInterceptorsInReverseOrder() {
         List<String> events = new ArrayList<>();
         ExecutionInterceptor first = interceptor("first", events);
@@ -241,7 +294,7 @@ class JdbcSqlExecutorTest {
         assertSame(executionFailure, failure.getCause());
         assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
         assertArrayEquals(
-            new Throwable[]{callbackFailure, resultSetCloseFailure, statementCloseFailure, transactionCloseFailure},
+            new Throwable[]{resultSetCloseFailure, statementCloseFailure, transactionCloseFailure},
             executionFailure.getSuppressed());
         assertFalse(failure.getMessage().contains("customer-secret"));
     }
