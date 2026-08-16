@@ -4,7 +4,7 @@
 
 **Goal:** Replace the transitional runtime with a readable, thread-safe, transaction-correct `SqlExecutor` architecture that supports standalone, Spring-managed, and multiple-DataSource deployments without runtime Mapper proxies, reflective SQL dispatch, or ceremonial processor chains.
 
-**Architecture:** Generated Mapper implementations depend only on the immutable execution-plan contract and the `SqlExecutor` interface. Each `JdbcSqlExecutor` belongs to exactly one transaction/DataSource domain and executes a fixed JDBC lifecycle; multiple DataSources are represented by multiple independent executor graphs and Mapper instances, not by hidden global routing or a DataSource key embedded in SQL plans. Stateful `Transaction` objects own connection acquisition, commit, rollback, timeout, and release semantics, while factories create execution-safe transaction handles for standalone or Spring participation.
+**Architecture:** Generated Mapper implementations depend only on the immutable execution-plan contract and the `SqlExecutor` interface. Each generated Mapper instance and `JdbcSqlExecutor` belongs to exactly one transaction/DataSource domain and executes a fixed JDBC lifecycle; an application may contain multiple disjoint Mapper groups for multiple DataSources, but the same Mapper interface is never registered against multiple DataSources by the Starter. Stateful `Transaction` objects own connection acquisition, commit, rollback, timeout, and release semantics, while factories create execution-safe transaction handles for standalone or Spring participation.
 
 **Tech Stack:** Java 21, Maven, JUnit 5, JDBC, `javax.sql.DataSource`, annotation processing, FreeMarker/Java source generation, H2, Spring Boot, Spring JDBC transactions.
 
@@ -34,7 +34,7 @@
 - Singleton Mapper implementations, executors, factories, and interceptors must be safe for concurrent calls.
 - LiteORM closes JDBC resources it opens but does not implement a connection pool; the configured `DataSource` owns physical connection creation and pooling.
 - Core does not provide distributed transactions or silently coordinate commits across DataSources.
-- First-stage multi-DataSource support binds Mapper packages to named Spring DataSource beans; dynamic routing is delegated to the configured DataSource implementation.
+- First-stage multi-DataSource support binds each Mapper package and Mapper interface to exactly one named Spring DataSource bean; different DataSources use disjoint Mapper groups, and dynamic routing inside one binding is delegated to the configured DataSource implementation.
 
 ## Target Runtime Model
 
@@ -101,6 +101,9 @@ public interface TransactionCallback<T> {
 
 - A Mapper package is statically bound to one named Spring `DataSource` bean through
   `lite-orm.mapper-bindings[].data-source`.
+- The binding remains explicit even when the application has only one DataSource. The Starter does
+  not infer a default DataSource, infer Mapper packages from the Spring Boot application package, or
+  enable zero-configuration Mapper registration.
 - The configured value may identify a physical connection pool or an application-provided routing
   `DataSource` such as `AbstractRoutingDataSource` or dynamic-datasource.
 - Starter resolves the DataSource bean and uses `SpringTransactionFactory` plus core
@@ -117,8 +120,12 @@ physical DataSource or routing DataSource
         -> generated MapperImpl
 ```
 
-- The same generated Mapper implementation may be bound to multiple DataSources with distinct Spring
-  Mapper bean-name prefixes.
+- Each generated Mapper interface is registered once by the Starter and resolves to one `SqlExecutor`
+  and one DataSource domain. The Starter does not create multiple Spring Mapper beans for the same
+  interface and does not expose bean-name prefixes for that purpose.
+- Generated Mapper implementations remain container-neutral plain Java classes. The compiler does not
+  add Spring `@Component`, `@Repository`, injection, qualifier, or conditional annotations; Spring
+  registration remains entirely inside the Starter.
 - Dynamic read/write, tenant, or shard selection belongs to the configured DataSource implementation.
   LiteORM treats routing and physical DataSources identically.
 - Method-level fixed DataSource annotations are deferred until a concrete requirement remains after
@@ -521,11 +528,11 @@ Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecuto
 - Update: `docs/extensions.md`
 
 - [x] Write RED Spring context tests with `userDataSource` and `storeDataSource` beans.
-- [x] Define each binding as `package-name + data-source + optional bean-name-prefix`; do not add `*-ref`, router, or executor fields.
+- [x] Define each binding as exactly `package-name + data-source`; do not add prefixes, `*-ref`, router, or executor fields.
 - [x] Resolve `data-source` strictly as a named Spring `DataSource` bean and fail startup when missing or incompatible.
 - [x] Use `SpringTransactionFactory` and core `JdbcAssembly` to create one reusable executor per referenced DataSource.
 - [x] Register Mapper beans with the assembled executor while keeping generated constructors unchanged.
-- [x] Verify one Mapper implementation can bind to two DataSources through distinct bean-name prefixes.
+- [x] Verify disjoint Mapper packages can bind to different DataSources while every Mapper interface remains in one DataSource domain.
 - [x] Verify an `AbstractRoutingDataSource` is accepted exactly like a physical DataSource.
 - [x] Fail startup for duplicate Mapper bean names and overlapping package rules.
 - [x] Verify each `@Transactional(transactionManager = "...")` boundary uses the matching DataSource executor.
@@ -575,6 +582,38 @@ binds Mapper packages, while the configured `DataSource` owns any dynamic routin
 **Completion criteria:** A Mapper cannot silently escape an active single-DataSource Spring
 transaction and auto-commit work through another configured DataSource.
 
+### Module R6.5: Enforce One Mapper to One DataSource
+
+**Priority:** Complete this contract correction before Module R7.3.
+
+**Files:**
+- Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/LiteOrmProperties.java`
+- Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/GeneratedMapperBeanDefinitionRegistrar.java`
+- Modify: `lite-orm-spring-boot-starter/src/main/resources/application.yml`
+- Modify tests under: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot`
+- Modify: `README.md`
+- Modify: `README_cn.md`
+- Modify: `docs/extensions.md`
+
+- [x] Add a RED Spring context test proving one Mapper interface is registered once with the default Bean name derived from the Mapper interface through `Introspector.decapitalize` semantics.
+- [x] Add RED configuration tests proving duplicate or overlapping package bindings fail even when the package names are identical.
+- [x] Remove `bean-name-prefix` from `LiteOrmProperties.MapperBinding`, configuration metadata/examples, documentation, and test helpers.
+- [x] Delete the same-generated-Mapper/two-DataSource Spring registration path and its prefixed Bean-name assertions.
+- [x] Keep `mapper-bindings[].package-name + data-source` mandatory for single- and multiple-DataSource applications; do not add implicit package scanning or automatic single-DataSource selection.
+- [x] Keep application-level multi-DataSource support through disjoint Mapper package bindings, where every Mapper interface resolves to exactly one named DataSource and one executor graph.
+- [x] Keep generated `*MapperImpl` classes free of Spring `@Component`, `@Repository`, `@Autowired`, `@Qualifier`, and conditional annotations; Spring integration remains a Starter-only responsibility.
+- [x] Continue registering generated implementations through `BeanDefinitionRegistryPostProcessor`, injecting the one `SqlExecutor` assembled for the Mapper package's configured DataSource.
+- [x] Run focused Starter registration tests, all Starter tests, and `mvn clean test`.
+- [ ] Commit with `refactor: enforce one datasource per spring mapper`.
+- [ ] Push immediately.
+
+**Completion criteria:** Every Spring Mapper interface has one stable default Bean name, one generated
+implementation instance, one executor, and one DataSource domain. Generated code remains independent
+of Spring, and multiple application DataSources are represented only by disjoint Mapper groups or by
+an application-provided routing DataSource behind a single explicit binding. Single-DataSource
+applications use the same explicit package-to-DataSource configuration and have no separate implicit
+registration mode.
+
 ### Deferred: LiteORM-Owned Dynamic Routing
 
 - [x] Do not add LiteORM SQL-type, read/write, tenant, or shard routing during the first stage.
@@ -605,19 +644,23 @@ transaction and auto-commit work through another configured DataSource.
 
 ### Module R7.3: Remove Dead Build and Generation Assets
 
+**Priority:** Start only after Module R6.5 fixes the public Spring Mapper registration contract.
+
 **Files:**
-- Review/delete: `lite-orm-core/src/main/resources/templates/mapper-impl.ftl`
-- Review/delete: `lite-orm-core/src/main/resources/META-INF/services/javax.annotation.processing.Processor.disabled`
+- Add external fixture under: `lite-orm-core/src/it/external-maven-processor`
+- Review/retain or delete: `lite-orm-core/src/main/resources/templates/mapper-impl.ftl`
+- Verify absent: `lite-orm-core/src/main/resources/META-INF/services/javax.annotation.processing.Processor.disabled`
 - Modify: `lite-orm-core/pom.xml`
 - Modify: `pom.xml`
 
-- [ ] Add a clean external Maven compilation fixture that consumes the built processor artifact.
-- [ ] Verify which generator path is active and delete the unused FreeMarker template if generated code is assembled programmatically.
-- [ ] Delete the `.disabled` service file because it is not a Java service registration.
-- [ ] Retain `<proc>none</proc>` for the processor module's self-compilation only if the external fixture proves it is required to avoid processor self-loading; otherwise remove it.
-- [ ] Remove unused dependencies only after `mvn dependency:analyze` and source searches prove they are unnecessary.
-- [ ] Update module descriptions that still advertise a responsibility-chain runtime.
-- [ ] Run external fixture compilation and `mvn clean test`.
+- [x] Add a Maven Invoker fixture with no reactor parent or relative-path dependency; it must consume the installed `lite-orm-core` processor artifact like an external application.
+- [x] Run the external fixture before build cleanup and verify it compiles a Mapper, executes the processor, and produces the expected `*MapperImpl` source.
+- [x] Verify the active generator path before deleting resources. Retain `mapper-impl.ftl` while `FreemarkerCodeGenerator` loads it; delete it only if a tested replacement removes that runtime dependency.
+- [x] Verify the obsolete `.disabled` service file remains absent and that only the valid `javax.annotation.processing.Processor` registration is packaged.
+- [x] Retain `<proc>none</proc>` for the processor module's self-compilation only if the external fixture proves it is required to avoid processor self-loading; otherwise remove it.
+- [x] Remove unused dependencies only after `mvn dependency:analyze` and source searches prove they are unnecessary.
+- [x] Update module descriptions that still advertise a responsibility-chain runtime.
+- [x] Run the Maven Invoker fixture, focused processor tests, `mvn dependency:analyze`, and `mvn clean test`.
 - [ ] Commit with `chore: remove obsolete build and generation assets`.
 - [ ] Push immediately.
 
@@ -662,7 +705,7 @@ transaction and auto-commit work through another configured DataSource.
 
 - [ ] Document `SqlExecutor`, `Transaction`, `TransactionFactory`, simple callback transactions, Spring transaction participation, and resource ownership.
 - [ ] Document single-DataSource standalone and Spring examples.
-- [ ] Document explicit multi-DataSource construction, qualifiers, transaction-manager matching, and the absence of core distributed transactions.
+- [ ] Document application-level multi-DataSource construction through disjoint Mapper package bindings, transaction-manager matching, routing DataSource ownership, and the absence of same-Mapper multi-binding or core distributed transactions.
 - [ ] Remove all examples using `SqlEngine`, processors, `ConnectionProvider`, `TransactionCoordinator`, `StandaloneSqlEngine`, or legacy tasks.
 - [ ] Document extension guidance: typed provider/binder/row mapper/interceptor first; decorator-based routing only for exceptional dynamic routing.
 - [ ] Run documentation link searches and example builds.
@@ -717,8 +760,9 @@ transaction and auto-commit work through another configured DataSource.
 - [ ] `SqlExecutor` is the only generated Mapper-facing runtime execution contract.
 - [ ] `Transaction` is the single connection/commit/rollback/close abstraction.
 - [ ] Standalone and Spring transaction implementations pass the same lifecycle characterization suite.
-- [ ] Multiple DataSources are isolated through explicit executor graphs and qualifiers.
-- [ ] Mapper packages bind to named physical or routing Spring DataSource beans.
+- [ ] Multiple application DataSources are isolated through disjoint Mapper groups and explicit executor graphs; one Mapper interface never spans multiple DataSource domains.
+- [ ] Each Mapper package and Mapper interface binds to exactly one named physical or routing Spring DataSource bean.
+- [ ] Generated Mapper implementations contain no Spring component, injection, qualifier, or conditional annotations.
 - [ ] Method-level static DataSource binding is implemented only if a concrete requirement remains after first-stage integration.
 - [ ] Dynamic read/write, tenant, and shard routing remains owned by the configured DataSource implementation.
 - [ ] Cross-DataSource calls cannot silently escape an active local or Spring transaction boundary.
