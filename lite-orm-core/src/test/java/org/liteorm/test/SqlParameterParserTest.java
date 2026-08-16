@@ -1,7 +1,6 @@
-package org.liteorm.test;
+package org.liteorm.compile;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.compile.SqlParameterParser;
 
 import java.util.List;
 

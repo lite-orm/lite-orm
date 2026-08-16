@@ -37,6 +37,8 @@ Generated `*MapperImpl` classes:
 - contain native Java dynamic SQL, binding, and result mapping;
 - contain no Spring annotations, runtime Mapper proxy, reflection-based dispatch, runtime XML parser, or runtime expression engine.
 
+`LiteOrmProcessor` is the only public type in `org.liteorm.compile`. Parser, AST, compilation-model, and code-generator types are internal implementation details rather than application extension APIs.
+
 ## Standalone JDBC
 
 One `JdbcAssembly` represents one DataSource and transaction domain:

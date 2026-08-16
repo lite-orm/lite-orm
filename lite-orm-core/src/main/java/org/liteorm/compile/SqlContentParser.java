@@ -14,7 +14,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2024/10/01
  */
-public interface SqlContentParser {
+interface SqlContentParser {
     
     /**
      * 解析方法的SQL内容
@@ -76,4 +76,3 @@ public interface SqlContentParser {
         SELECT, INSERT, UPDATE, DELETE, BATCH
     }
 }
-

@@ -786,6 +786,6 @@ Completion notes:
 - [x] Cross-DataSource calls cannot silently escape an active local or Spring transaction boundary.
 - [x] Fixed JDBC phases are not configurable processors.
 - [x] Runtime and compiler singletons are concurrency-safe.
-- [ ] Obsolete APIs, tests, templates, service placeholders, and docs are removed.
+- [x] Obsolete APIs, tests, templates, service placeholders, and docs are removed; active template/service assets remain covered by the external Maven fixture.
 - [x] `mvn clean test` and external Mapper examples pass from a clean checkout.
 - [x] Every completed module has an English commit and has been pushed.

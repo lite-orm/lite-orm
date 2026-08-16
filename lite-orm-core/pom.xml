@@ -63,7 +63,7 @@
                     <execution>
                         <id>default-compile</id>
                         <configuration>
-                            <!-- The processor service file is copied before this module's processor class exists. -->
+                            <!-- Required only while compiling the processor's own module: the active service file is copied before LiteOrmProcessor exists. -->
                             <proc>none</proc>
                         </configuration>
                     </execution>

@@ -231,13 +231,13 @@ Connection acquisition, preparation, binding, execution, extraction, and cleanup
 - typed interceptors and adapters;
 - Spring configuration properties and auto-configuration entry points.
 
+The supported core surface is guarded by an executable class-list test. `LiteOrmProcessor` is the only public compiler type; parser, AST, model, and generator implementations are package-private.
+
 ### Surface Reduction Candidates
 
-- `MappingException` currently has no production usage.
 - `SqlResult` exposes only explicit factories such as `forQuery` and `forUpdate`; pre-release compatibility aliases were removed.
 - `JdbcSqlExecutor`, `SimpleConnectionHandleFactory`, and `SimpleTransactionalExecutor` may not all need to remain direct user construction APIs once assembly is established.
 - `SpringConnectionHandle` has a package-private constructor and may not need a public type.
-- compiler implementation types are public for processor mechanics, not application extension.
 - `domainGuard(...)` exposes a concrete implementation rather than a complete abstraction.
 
 Do not remove these in the documentation review. Handle them as separately tested compatibility changes.
@@ -246,7 +246,7 @@ Do not remove these in the documentation review. Handle them as separately teste
 
 - `org.liteorm.annotation`: user compiler input, clear.
 - `org.liteorm.api`: generated/runtime shared contracts, clear but should stay small.
-- `org.liteorm.compile`: processor implementation, clear but currently visible in the same artifact.
+- `org.liteorm.compile`: processor implementation; only `LiteOrmProcessor` is public.
 - `org.liteorm.jdbc`: physical JDBC executor, clear.
 - `org.liteorm.transaction`: standalone transaction implementation, clear.
 - `org.liteorm.interceptor`: provided observation implementations, clear.
@@ -265,8 +265,6 @@ Accepted categories:
 
 Follow-up findings:
 
-- `NonUniqueResultException` extends `RuntimeException` rather than `LiteOrmException`.
-- `MappingException` is currently unused.
 - executor plan validation still uses `IllegalArgumentException` for some invalid plan shapes.
 - Local transaction failures now describe only implemented begin, commit, rollback, rollback-only, cleanup, and DataSource-domain behavior. Statement timeout and database deadlock failures remain JDBC execution failures rather than standalone transaction-manager features.
 - `ConfigurationException` can include configuration values, `MappingException` can include full row data, and `SqlExecutionException` includes SQL text. A security policy should define redaction before these exceptions are used with secrets or sensitive row values.
@@ -323,10 +321,10 @@ XML resources cannot be attached to javac as language-model elements. XML failur
 Keep correctness and API-hardening changes separate from performance work:
 
 1. add transaction options and rollback-only semantics;
-2. remove or internalize unused/implementation public types;
+2. remove or internalize unused/implementation public types; **completed for compiler helpers**;
 3. normalize exception inheritance and define redaction rules;
 4. clarify or harden `SqlResult` query-result ownership;
-5. replace narrative print tests with focused assertions;
+5. replace narrative print tests with focused assertions; **completed**;
 6. add bounded queries, mapping contracts, and production database verification before optimization.
 
 Do not add caches or hot-path complexity as part of those changes.

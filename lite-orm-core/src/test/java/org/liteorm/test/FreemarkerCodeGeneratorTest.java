@@ -1,11 +1,7 @@
-package org.liteorm.test;
+package org.liteorm.compile;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ExecutionPlan;
-import org.liteorm.compile.AstNode;
-import org.liteorm.compile.FreemarkerCodeGenerator;
-import org.liteorm.compile.MapperCompilationModel;
-import org.liteorm.compile.SqlParameterParser;
 
 import java.util.List;
 

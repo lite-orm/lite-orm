@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  * @author lite-orm
  * @since 2024/09/29
  */
-public class SqlParameterParser {
+final class SqlParameterParser {
 
     private static final Pattern HASH_PARAM_PATTERN = Pattern.compile("#\\{([^}]+)\\}");
 

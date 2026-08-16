@@ -10,7 +10,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2026/03/26
  */
-public record MapperCompilationModel(
+record MapperCompilationModel(
     String packageName,
     String interfaceName,
     String implementationName,

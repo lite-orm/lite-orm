@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author lite-orm
  * @since 2024/10/01
  */
-public class XmlBasedSqlParser implements SqlContentParser {
+final class XmlBasedSqlParser implements SqlContentParser {
 
     private final Filer filer;
     private final Map<String, XmlResource> xmlCache = new ConcurrentHashMap<>();

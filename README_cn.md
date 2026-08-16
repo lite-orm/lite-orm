@@ -66,6 +66,8 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
 
 编译期与运行期闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；core 提供固定 JDBC 执行器，Spring 通过事务适配器参与连接生命周期。
 
+`org.liteorm.compile` 中只有 javac 需要加载的 `LiteOrmProcessor` 是公共类型；SQL 解析器、AST、编译模型和代码生成器均为内部实现，不作为应用扩展 API。
+
 已验证能力包括：
 
 - LiteORM 自有 `org.liteorm.annotation` 注解；项目不在 MyBatis/iBatis 命名空间下发布任何类。

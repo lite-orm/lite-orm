@@ -16,7 +16,7 @@ import javax.lang.model.util.Types;
  * @author lite-orm
  * @since 2024/10/01
  */
-public interface CodeGenerator {
+interface CodeGenerator {
     
     /**
      * 生成Mapper实现类

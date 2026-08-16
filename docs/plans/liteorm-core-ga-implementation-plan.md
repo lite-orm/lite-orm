@@ -613,23 +613,23 @@ Implementation status: Completed and verified on 2026-08-16 with 160 core tests 
 - Modify: `README.md`
 - Modify: `README_cn.md`
 
-- [ ] **Step 1: Add API-surface characterization**
+- [x] **Step 1: Add API-surface characterization**
 
 Create a test that lists intended public API types and fails when implementation/compiler helpers leak into the supported runtime surface.
 
-- [ ] **Step 2: Delete obsolete compatibility and implementation types**
+- [x] **Step 2: Delete obsolete compatibility and implementation types**
 
 Remove unused exceptions, old transaction names, stale comments, compatibility aliases, dead templates, `.disabled` services, and processor configuration that is not required by the external Maven fixture.
 
-- [ ] **Step 3: Keep the active annotation processor service file**
+- [x] **Step 3: Keep the active annotation processor service file**
 
 The existing `META-INF/services/javax.annotation.processing.Processor` file remains if the external fixture proves it is the active bootstrap mechanism.
 
-- [ ] **Step 4: Replace narrative print tests with assertions**
+- [x] **Step 4: Replace narrative print tests with assertions**
 
 Search core tests for `System.out`, diagnostic dumps without assertions, and manual inspection expectations; convert them to focused assertions or delete them when redundant.
 
-- [ ] **Step 5: Run external processor fixture and reactor**
+- [x] **Step 5: Run external processor fixture and reactor**
 
 Run: `mvn -pl lite-orm-core -am verify`
 
@@ -639,9 +639,11 @@ Run: `mvn clean test`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit: `refactor: remove pre-ga core api debt`
+
+Implementation status: Completed and verified on 2026-08-16. The public API characterization permits only `LiteOrmProcessor` from the compiler package; parser, AST, model, and generator helpers are package-private. Narrative-only tests were removed or replaced with generated-source assertions. The FreeMarker template, annotation processor service file, and core-module `<proc>none</proc>` remain because they are active assets: the external Maven fixture passed, and self-compilation must not load the processor before its class exists.
 
 ---
 

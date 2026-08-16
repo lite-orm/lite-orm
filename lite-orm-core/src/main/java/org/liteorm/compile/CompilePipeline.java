@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
  * @author lite-orm
  * @since 2024/10/01
  */
-public class CompilePipeline {
+final class CompilePipeline {
 
     private static final Pattern DOLLAR_SUBSTITUTION_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
     private static final Pattern METHOD_CALL_PATTERN = Pattern.compile("([a-zA-Z_][\\w.]*)\\s*\\(");

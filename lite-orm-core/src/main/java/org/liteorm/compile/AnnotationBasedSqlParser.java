@@ -31,7 +31,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2024/10/01
  */
-public class AnnotationBasedSqlParser implements SqlContentParser {
+final class AnnotationBasedSqlParser implements SqlContentParser {
     
     @Override
     public SqlParseResult parseSql(ExecutableElement method) {

@@ -13,7 +13,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2024/10/01
  */
-public interface AstNode {
+interface AstNode {
     
     /**
      * 节点类型

@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * @author lite-orm
  * @since 2024/10/01
  */
-public class FreemarkerCodeGenerator implements CodeGenerator {
+final class FreemarkerCodeGenerator implements CodeGenerator {
 
     private static final Pattern HASH_PARAM_PATTERN = Pattern.compile("#\\{([^}]+)\\}");
     private static final Pattern DOLLAR_PARAM_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
