@@ -409,13 +409,13 @@ Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecuto
 - Use: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionOutcome.java`
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/interceptor`
 
-- [ ] Add RED tests for ordered before callbacks and reverse success/failure unwind.
-- [ ] Add RED tests that logging, slow-query, and audit observers receive immutable plan/outcome data and cannot mutate SQL or parameters.
-- [ ] Implement logging, slow-query, and audit behavior as `ExecutionInterceptor` implementations.
-- [ ] Keep authorization/routing observation possible through typed read-only metadata without generic attribute maps.
+- [x] Add RED tests for ordered before callbacks and reverse success/failure unwind.
+- [x] Add RED tests that logging, slow-query, and audit observers receive immutable plan/outcome data and cannot mutate SQL or parameters.
+- [x] Implement logging, slow-query, and audit behavior as `ExecutionInterceptor` implementations.
+- [x] Keep policy observation possible through typed read-only metadata without generic attribute maps or routing state.
 - [x] The obsolete processor implementations were already deleted in Module R2.5.1.
-- [ ] Run interceptor, runtime, and full core tests.
-- [ ] Commit with `refactor: move execution observers to interceptors`.
+- [x] Run interceptor, runtime, and full core tests.
+- [x] Commit with `refactor: move execution observers to interceptors`.
 - [ ] Push immediately.
 
 **Completion criteria:** Cross-cutting observation uses a genuine ordered interceptor pattern; physical JDBC work does not.

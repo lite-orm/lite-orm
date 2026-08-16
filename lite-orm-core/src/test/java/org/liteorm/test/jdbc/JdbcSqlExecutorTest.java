@@ -169,6 +169,24 @@ class JdbcSqlExecutorTest {
     }
 
     @Test
+    void unwindsFailureInterceptorsInReverseOrder() {
+        List<String> events = new ArrayList<>();
+        ExecutionInterceptor first = interceptor("first", events);
+        ExecutionInterceptor second = interceptor("second", events);
+        TransactionFactory transactions = () -> new Transaction() {
+            @Override public Connection getConnection() { throw new IllegalStateException("failed"); }
+            @Override public void commit() { }
+            @Override public void rollback() { }
+            @Override public void close() { }
+        };
+
+        assertThrows(SqlExecutionException.class, () ->
+            new JdbcSqlExecutor(transactions, List.of(first, second)).execute(selectPlan(null)));
+
+        assertEquals(List.of("first.before", "second.before", "second.failure", "first.failure"), events);
+    }
+
+    @Test
     void preservesPrimaryFailureAndFlattensCallbackAndCleanupFailures() {
         SQLException executionFailure = new SQLException("read failed");
         SQLException resultSetCloseFailure = new SQLException("rows close failed");
@@ -202,6 +220,7 @@ class JdbcSqlExecutorTest {
             @Override public void afterSuccess(ExecutionOutcome outcome) {
                 events.add(name + ".success:" + outcome.affectedRows());
             }
+            @Override public void afterFailure(ExecutionOutcome outcome) { events.add(name + ".failure"); }
         };
     }
 
