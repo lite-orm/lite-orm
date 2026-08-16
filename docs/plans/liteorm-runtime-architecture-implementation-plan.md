@@ -303,7 +303,12 @@ Do not combine independently reviewable modules into one commit.
 
 **Completion criteria:** The repository contains only the compile-time Mapper contracts, immutable execution data, transaction roles, and read-only observation foundation; no old runtime path remains executable.
 
-### Module R2.5.2: Define Multi-DataSource Roles
+### Module R2.5.2: Define Multi-DataSource Roles (Superseded)
+
+> **Historical note:** This module was implemented before the first-stage boundary was clarified.
+> Phase R6 proved that package-to-DataSource binding plus an application-provided routing
+> `DataSource` covers the required integration without LiteORM-owned routing contracts. Module
+> R6.3 removes these premature APIs; they are not part of the target architecture.
 
 **Files:**
 - Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceKeyProvider.java`
@@ -325,7 +330,8 @@ Do not combine independently reviewable modules into one commit.
 - [x] Commit with `feat: define multi datasource roles`.
 - [x] Push immediately.
 
-**Completion criteria:** Static and dynamic DataSource selection have stable typed roles before compiler or Spring implementations depend on them.
+**Historical completion criteria:** These contracts were implemented and tested, then superseded by
+the simpler package-to-DataSource architecture in Phase R6.
 
 ### Module R2.5.3: Define Transaction-Domain Safety
 
@@ -346,14 +352,14 @@ Do not combine independently reviewable modules into one commit.
 - [x] Commit with `feat: enforce transaction domain boundaries`.
 - [x] Push immediately.
 
-**Completion criteria:** Cross-DataSource safety is a first-class transaction invariant for direct and dynamic dispatch.
+**Completion criteria:** Cross-DataSource safety is a first-class transaction invariant for independently assembled executor graphs.
 
 ### R2.5 Foundation Gate
 
-- [x] `SqlExecutor`, immutable plans/results, read-only observation, transaction contracts, multi-DataSource roles, and transaction-domain safety exist.
+- [x] `SqlExecutor`, immutable plans/results, read-only observation, transaction contracts, and transaction-domain safety exist.
 - [x] No role combines SQL execution, connection ownership, transaction boundary control, routing, or dependency injection.
 - [x] Public names describe domain responsibility; no new `Standalone*`, `Local*`, generic `*Engine`, mutable context, or processor-chain role exists.
-- [x] Generated Mappers depend only on `SqlExecutor`; simple transactions depend on `DataSource`; routing and transaction-domain roles do not depend on compiler or Spring types.
+- [x] Generated Mappers depend only on `SqlExecutor`; simple transactions depend on `DataSource`; transaction-domain roles do not depend on compiler or Spring types.
 - [x] `mvn clean test` passes from a clean checkout.
 
 Assembly remains in Phase R4 because its concrete product includes `JdbcSqlExecutor`. Defining an
@@ -367,7 +373,7 @@ Generated Mapper -> SqlExecutor <- JdbcSqlExecutor (Phase R3)
                                          +-> TransactionDomainGuard
                                          +-> ExecutionInterceptor
 
-Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named SqlExecutor
+Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecutor
 ```
 
 ---
@@ -529,42 +535,34 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 
 **Completion criteria:** Mapper packages bind to physical or routing Spring DataSources without LiteORM owning dynamic routing.
 
-### Module R6.3: Re-evaluate Method-Level Static DataSource Binding
+### Module R6.3: Remove Premature LiteORM Routing Contracts
 
 **Files:**
-- Create: `lite-orm-core/src/main/java/org/liteorm/annotation/UseDataSource.java`
-- Create: `lite-orm-core/src/main/java/org/liteorm/annotation/ExecutorRef.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/MapperCompilationModel.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
-- Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/GeneratedMapperBeanDefinitionRegistrar.java`
-- Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/multidatasource/staticbinding`
-- Add: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/StaticDataSourceAnnotationBindingTest.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceKeyProvider.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceSelection.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutorRegistry.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceRoutingException.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/annotation/UseDataSource.java`
+- Delete: `lite-orm-core/src/main/java/org/liteorm/annotation/ExecutorRef.java`
+- Delete: `lite-orm-core/src/test/java/org/liteorm/test/api/MultiDataSourceContractTest.java`
+- Modify: `lite-orm-core/src/test/java/org/liteorm/test/architecture/LegacyRuntimeRemovalTest.java`
 
-- [ ] Confirm a real requirement remains after package binding and external routing DataSource support.
-- [ ] Do not implement this module during first-stage package binding.
-- [ ] If retained, write RED compiler tests for Mapper-level and method-level fixed DataSource names.
-- [ ] Define precedence as method annotation, then Mapper annotation, then assembly/package default.
-- [ ] Reject blank keys, conflicting fixed/provider declarations, and invalid annotation placement during compilation.
-- [ ] Collect distinct fixed keys per Mapper and sort them deterministically for generated constructor parameters.
-- [ ] Keep a Mapper with only the assembly default on the existing single `SqlExecutor` constructor.
-- [ ] Generate one final `SqlExecutor` field per distinct explicit key and annotate its constructor parameter with LiteORM-owned `@ExecutorRef("key")` metadata.
-- [ ] Generate direct method calls such as `archiveSqlExecutor.execute(plan)`; do not use a registry lookup for fixed routes.
-- [ ] Ensure generated code does not call `getAnnotation`, Spring AOP, `AbstractRoutingDataSource`, SpEL, or a ThreadLocal route context.
-- [ ] Update the Spring registrar to resolve `@ExecutorRef` metadata at startup and inject the matching named executor without adding Spring annotations to generated classes.
-- [ ] Fail Spring startup when a referenced executor key is missing or resolves to multiple beans.
-- [ ] Verify a Mapper type default can be overridden by one method without affecting sibling methods.
-- [ ] Verify XML-over-SQL-annotation precedence remains independent from DataSource precedence.
-- [ ] Run focused compiler/Spring tests and `mvn clean test`.
-- [ ] Commit with `feat: compile static datasource bindings`.
+- [x] Add a RED architecture assertion that the premature routing contracts are absent.
+- [x] Verify production code has no references to the routing contracts.
+- [x] Delete the unused APIs, annotations, and their obsolete contract tests.
+- [x] Keep package binding and `TransactionDomainGuard` behavior unchanged.
+- [x] Run focused core tests and `mvn clean test`.
+- [x] Commit with `refactor: remove premature datasource routing contracts`.
 - [ ] Push immediately.
 
-**Completion criteria:** Static class/method DataSource selection becomes ordinary generated Java field dispatch with zero hot-path annotation inspection.
+**Completion criteria:** First-stage multi-DataSource support has one clear ownership model: LiteORM
+binds Mapper packages, while the configured `DataSource` owns any dynamic routing.
 
 ### Deferred: LiteORM-Owned Dynamic Routing
 
-- [ ] Do not add LiteORM SQL-type, read/write, tenant, or shard routing during the first stage.
-- [ ] Accept physical and routing Spring DataSource implementations through the same `data-source` binding.
+- [x] Do not add LiteORM SQL-type, read/write, tenant, or shard routing during the first stage.
+- [x] Accept physical and routing Spring DataSource implementations through the same `data-source` binding.
+- [ ] Re-evaluate method-level static DataSource binding only after a concrete use case cannot be expressed by package binding or the configured routing DataSource.
 - [ ] Revisit a core routing SPI only if DataSource-level routing cannot satisfy a demonstrated requirement.
 
 ---
