@@ -249,12 +249,15 @@ final class CompilePipeline {
         String parameterList = buildParameterList(method, resolvedMethodType);
         String executionPlanParameterList = buildParameterList(
             method, resolvedMethodType, cursorMethod == null ? -1 : cursorMethod.parameterIndex());
-        boolean generatedKey = method.getAnnotation(org.liteorm.annotation.GeneratedKey.class) != null;
+        org.liteorm.annotation.GeneratedKey generatedKeyAnnotation =
+            method.getAnnotation(org.liteorm.annotation.GeneratedKey.class);
+        boolean generatedKey = generatedKeyAnnotation != null;
+        String generatedKeyColumn = generatedKey ? generatedKeyAnnotation.value().trim() : null;
         validateWriteReturnType(mapperInterface, method, statementType, returnType, generatedKey);
         if (generatedKey) {
             validateGeneratedKeyMethod(
                 mapperInterface, method, returnType, statementType, sqlInfo, providerBinding,
-                adapterBindings.rowMapperFieldName() != null);
+                adapterBindings.rowMapperFieldName() != null, generatedKeyColumn);
         }
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
@@ -277,7 +280,7 @@ final class CompilePipeline {
             providerBinding == null ? mapSourceType(sqlInfo.sourceType()) : ExecutionPlan.SqlSource.GENERATED,
             providerBinding == null ? (sqlInfo.isDynamic() ? sqlInfo.sqlTemplate() : parameterResult.processedSql()) : "",
             providerBinding == null && sqlInfo.isDynamic(),
-            generatedKey,
+            generatedKeyColumn,
             returnType,
             resultMapping.expression(),
             resultMapping.helperCode(),
@@ -868,8 +871,12 @@ final class CompilePipeline {
             ExecutionPlan.StatementType statementType,
             SqlContentParser.SqlParseResult sqlInfo,
             ProviderBinding providerBinding,
-            boolean hasRowMapper) throws CompileException {
+            boolean hasRowMapper,
+            String generatedKeyColumn) throws CompileException {
         String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        if (generatedKeyColumn.isBlank()) {
+            throw new CompileException(location + ": generated-key column must not be blank");
+        }
         if (providerBinding != null) {
             throw new CompileException(location + ": generated keys are not supported with SQL providers");
         }

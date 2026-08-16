@@ -28,7 +28,7 @@ record MapperCompilationModel(
         ExecutionPlan.SqlSource sourceType,
         String sqlTemplate,
         boolean dynamic,
-        boolean generatedKey,
+        String generatedKeyColumn,
         String resultType,
         String resultMappingCode,
         String resultMappingHelperCode,
@@ -45,6 +45,10 @@ record MapperCompilationModel(
         String executionPlanParameterList,
         String cursorCallbackParameterName
     ) {
+        public boolean generatedKey() {
+            return generatedKeyColumn != null;
+        }
+
         public MethodModel(
             String methodName,
             String returnType,
@@ -70,7 +74,7 @@ record MapperCompilationModel(
             AstNode astNode
         ) {
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
-                sourceType, sqlTemplate, dynamic, false, resultType, resultMappingCode,
+                sourceType, sqlTemplate, dynamic, null, resultType, resultMappingCode,
                 resultMappingHelperCode, resultColumnLabels, providerClassName, providerFieldName, providerArgumentExpression,
                 adapterFields, parameterBinderFields, rowMapperFieldName, methodParameters, parameterBindings,
                 astNode, parameterList, null);

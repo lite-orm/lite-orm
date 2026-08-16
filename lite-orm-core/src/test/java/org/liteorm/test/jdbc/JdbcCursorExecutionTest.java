@@ -63,7 +63,7 @@ class JdbcCursorExecutionTest {
         ExecutionPlan update = new ExecutionPlan(
             "test.Mapper.update", "UPDATE users SET name = 'x'", new Object[0],
             ExecutionPlan.StatementType.UPDATE, ExecutionPlan.SqlSource.ANNOTATION,
-            false, null, resultSet -> resultSet.getString(1));
+            null, null, resultSet -> resultSet.getString(1));
         ExecutionPlan missingMapper = new ExecutionPlan(
             "test.Mapper.find", "SELECT name FROM users", new Object[0],
             ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.ANNOTATION);
@@ -77,7 +77,7 @@ class JdbcCursorExecutionTest {
         return new ExecutionPlan(
             "test.Mapper.scan", "SELECT name FROM users", new Object[0],
             ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.ANNOTATION,
-            false, null, resultSet -> resultSet.getString(1));
+            null, null, resultSet -> resultSet.getString(1));
     }
 
     private JdbcSqlExecutor executor(List<String> events, PreparedStatement statement) {

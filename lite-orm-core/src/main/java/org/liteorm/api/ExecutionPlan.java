@@ -12,7 +12,7 @@ public class ExecutionPlan {
     private final Object[] parameters;
     private final StatementType statementType;
     private final SqlSource sourceType;
-    private final boolean returnsGeneratedKey;
+    private final String generatedKeyColumn;
     private final ParameterBinder<?>[] parameterBinders;
     private final RowMapper<?> rowMapper;
     private final StatementOptions statementOptions;
@@ -23,7 +23,7 @@ public class ExecutionPlan {
             Object[] parameters,
             StatementType statementType,
             SqlSource sourceType) {
-        this(statementId, sql, parameters, statementType, sourceType, false, null, null);
+        this(statementId, sql, parameters, statementType, sourceType, null, null, null);
     }
 
     public ExecutionPlan(
@@ -32,11 +32,11 @@ public class ExecutionPlan {
             Object[] parameters,
             StatementType statementType,
             SqlSource sourceType,
-            boolean returnsGeneratedKey,
+            String generatedKeyColumn,
             ParameterBinder<?>[] parameterBinders,
             RowMapper<?> rowMapper) {
         this(statementId, sql, parameters, statementType, sourceType,
-            returnsGeneratedKey, parameterBinders, rowMapper, StatementOptions.defaults());
+            generatedKeyColumn, parameterBinders, rowMapper, StatementOptions.defaults());
     }
 
     public ExecutionPlan(
@@ -45,7 +45,7 @@ public class ExecutionPlan {
             Object[] parameters,
             StatementType statementType,
             SqlSource sourceType,
-            boolean returnsGeneratedKey,
+            String generatedKeyColumn,
             ParameterBinder<?>[] parameterBinders,
             RowMapper<?> rowMapper,
             StatementOptions statementOptions) {
@@ -54,7 +54,10 @@ public class ExecutionPlan {
         this.parameters = parameters == null ? new Object[0] : parameters.clone();
         this.statementType = Objects.requireNonNull(statementType, "statementType");
         this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
-        this.returnsGeneratedKey = returnsGeneratedKey;
+        if (generatedKeyColumn != null && generatedKeyColumn.isBlank()) {
+            throw new IllegalArgumentException("generatedKeyColumn must not be blank");
+        }
+        this.generatedKeyColumn = generatedKeyColumn;
         this.parameterBinders = parameterBinders == null ? null : parameterBinders.clone();
         this.rowMapper = rowMapper;
         this.statementOptions = statementOptions == null ? StatementOptions.defaults() : statementOptions;
@@ -81,7 +84,11 @@ public class ExecutionPlan {
     }
 
     public boolean returnsGeneratedKey() {
-        return returnsGeneratedKey;
+        return generatedKeyColumn != null;
+    }
+
+    public String getGeneratedKeyColumn() {
+        return generatedKeyColumn;
     }
 
     public ParameterBinder<?>[] getParameterBinders() {

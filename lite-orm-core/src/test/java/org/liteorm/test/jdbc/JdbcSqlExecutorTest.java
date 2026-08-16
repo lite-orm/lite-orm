@@ -45,7 +45,7 @@ class JdbcSqlExecutorTest {
         ExecutionPlan plan = new ExecutionPlan(
             "test.Mapper.find", "SELECT id, name FROM users WHERE id = ?",
             new Object[]{7L}, ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.XML,
-            false, null, null, new StatementOptions(3, 100, 25));
+            null, null, null, new StatementOptions(3, 100, 25));
 
         executor(events, statement).execute(plan);
 
@@ -157,9 +157,8 @@ class JdbcSqlExecutorTest {
             writePlan(ExecutionPlan.StatementType.INSERT, true, null));
 
         assertEquals(42L, result.getGeneratedKey());
-        assertEquals(Statement.RETURN_GENERATED_KEYS,
-            events.stream().filter(event -> event.startsWith("connection.prepare:")).findFirst()
-                .map(event -> Integer.parseInt(event.substring(event.indexOf(':') + 1))).orElseThrow());
+        assertEquals("connection.prepare:[id]",
+            events.stream().filter(event -> event.startsWith("connection.prepare:")).findFirst().orElseThrow());
         assertEquals(List.of("keys.close", "statement.close", "transaction.close"),
             events.subList(events.size() - 3, events.size()));
     }
@@ -193,12 +192,13 @@ class JdbcSqlExecutorTest {
         ExecutionPlan plan = new ExecutionPlan(
             "test.Mapper.insert", "INSERT INTO users(name) VALUES (?)", new Object[]{"Alice"},
             ExecutionPlan.StatementType.INSERT, ExecutionPlan.SqlSource.ANNOTATION,
-            true, null, resultSet -> UUID.fromString(resultSet.getString(1)));
+            "id", null, resultSet -> UUID.fromString(resultSet.getString(1)));
 
         SqlResult result = executor(events, statement).execute(plan);
 
         assertEquals(UUID.fromString(keyValue), result.getGeneratedKey());
         assertEquals(1, events.stream().filter("keys.getString:1"::equals).count());
+        assertEquals(1, events.stream().filter("connection.prepare:[id]"::equals).count());
     }
 
     @Test
@@ -457,25 +457,31 @@ class JdbcSqlExecutorTest {
         return new ExecutionPlan(
             "test.Mapper.find", "SELECT id, name FROM users WHERE id = ?",
             new Object[]{7L}, ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.XML,
-            false, null, rowMapper);
+            null, null, rowMapper);
     }
 
     private ExecutionPlan writePlan(
             ExecutionPlan.StatementType type, boolean generatedKey, ParameterBinder<?> binder) {
         return new ExecutionPlan(
             "test.Mapper.write", "INSERT INTO users(name) VALUES (?)", new Object[]{binder == null ? "Alice" : null},
-            type, ExecutionPlan.SqlSource.ANNOTATION, generatedKey,
+            type, ExecutionPlan.SqlSource.ANNOTATION, generatedKey ? "id" : null,
             binder == null ? null : new ParameterBinder<?>[]{binder}, null);
     }
 
     private Connection connection(List<String> events, PreparedStatement statement) {
         return proxy(Connection.class, (method, args) -> {
             if (method.equals("prepareStatement")) {
-                events.add(args.length == 2 ? "connection.prepare:" + args[1] : "connection.prepare");
+                events.add(args.length == 2
+                    ? "connection.prepare:" + formatPrepareOption(args[1])
+                    : "connection.prepare");
                 return statement;
             }
             return null;
         });
+    }
+
+    private String formatPrepareOption(Object option) {
+        return option instanceof String[] columns ? java.util.Arrays.toString(columns) : option.toString();
     }
 
     private PreparedStatement statement(

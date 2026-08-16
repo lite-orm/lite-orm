@@ -77,6 +77,7 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
 - `@Param`、`param1`、`arg0`、`list`、`collection`、`array` 等常见参数命名。
 - 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`。
 - JDBC 批处理：注解 `@Batch` 与 XML `<batch>`，编译期生成逐项参数绑定循环，返回 JDBC `int[]` 更新计数。
+- 单列生成键：使用 `@GeneratedKey("id")` 显式声明键列，JDBC prepare 阶段只请求该列，避免 PostgreSQL 默认返回整行。
 - 静态执行计划、静态参数绑定、基础静态结果映射。
 - LiteORM 本地事务和 Spring 托管事务参与。
 
@@ -89,6 +90,8 @@ import org.liteorm.annotation.Select;
 ```
 
 当前构建验证：
+
+- Testcontainers 使用固定的 PostgreSQL 16.4 与 MySQL 8.4.0 镜像，执行同一套生成 Mapper、事务、批量、游标、超时、日期时间、标识符和二进制兼容契约。
 
 ```bash
 mvn clean test

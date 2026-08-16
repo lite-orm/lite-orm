@@ -276,7 +276,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
 
     private PreparedStatement prepare(Connection connection, ExecutionPlan plan) throws SQLException {
         return plan.returnsGeneratedKey()
-            ? connection.prepareStatement(plan.getSql(), Statement.RETURN_GENERATED_KEYS)
+            ? connection.prepareStatement(plan.getSql(), new String[]{plan.getGeneratedKeyColumn()})
             : connection.prepareStatement(plan.getSql());
     }
 

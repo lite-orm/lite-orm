@@ -35,16 +35,16 @@ class GeneratedKeyCompilationTest {
 
             @Mapper
             interface GeneratedKeyMapper {
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") int insertInt(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Integer insertInteger(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") long insertLong(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Long insertBoxedLong(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Short insertShort(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Byte insertByte(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Double insertDouble(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Float insertFloat(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") BigDecimal insertDecimal(String name);
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") String insertString(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") int insertInt(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Integer insertInteger(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") long insertLong(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Long insertBoxedLong(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Short insertShort(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Byte insertByte(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Double insertDouble(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Float insertFloat(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") BigDecimal insertDecimal(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") String insertString(String name);
             }
             """);
 
@@ -59,7 +59,7 @@ class GeneratedKeyCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toFloat(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("true, null, null"));
+        assertTrue(generated.contains("\"id\", null, null"));
     }
 
     @Test
@@ -81,7 +81,7 @@ class GeneratedKeyCompilationTest {
             }
 
             @Mapper interface GeneratedUuidKeyMapper {
-                @GeneratedKey
+                @GeneratedKey("id")
                 @UseRowMapper(UuidKeyRowMapper.class)
                 @Insert("INSERT INTO users (name) VALUES (#{name})")
                 UUID insert(String name);
@@ -93,7 +93,7 @@ class GeneratedKeyCompilationTest {
             "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
         assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
         assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
-        assertTrue(generated.contains("true, null, insertRowMapper"));
+        assertTrue(generated.contains("\"id\", null, insertRowMapper"));
     }
 
     @Test
@@ -102,7 +102,7 @@ class GeneratedKeyCompilationTest {
             package org.liteorm.test.generatedkeyfixture;
             import org.liteorm.annotation.*;
             @Mapper interface GeneratedKeyUpdateMapper {
-                @GeneratedKey @Update("UPDATE users SET name = #{name}")
+                @GeneratedKey("id") @Update("UPDATE users SET name = #{name}")
                 Long update(String name);
             }
             """);
@@ -111,7 +111,7 @@ class GeneratedKeyCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.*;
             @Mapper interface GeneratedKeyUuidMapper {
-                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})")
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})")
                 UUID insert(String name);
             }
             """);
@@ -121,13 +121,27 @@ class GeneratedKeyCompilationTest {
     }
 
     @Test
+    void rejectsBlankGeneratedKeyColumn() throws Exception {
+        CompilationResult result = compile("BlankGeneratedKeyMapper", """
+            package org.liteorm.test.generatedkeyfixture;
+            import org.liteorm.annotation.*;
+            @Mapper interface BlankGeneratedKeyMapper {
+                @GeneratedKey(" ") @Insert("INSERT INTO users (name) VALUES (#{name})")
+                Long insert(String name);
+            }
+            """);
+
+        assertFailure(result, "generated-key column must not be blank");
+    }
+
+    @Test
     void rejectsBatchDynamicSqlAndProviderCombinations() throws Exception {
         CompilationResult batch = compile("GeneratedKeyBatchMapper", """
             package org.liteorm.test.generatedkeyfixture;
             import java.util.List;
             import org.liteorm.annotation.*;
             @Mapper interface GeneratedKeyBatchMapper {
-                @GeneratedKey @Batch("INSERT INTO users (name) VALUES (#{item})")
+                @GeneratedKey("id") @Batch("INSERT INTO users (name) VALUES (#{item})")
                 int[] insert(List<String> names);
             }
             """);
@@ -135,7 +149,7 @@ class GeneratedKeyCompilationTest {
             package org.liteorm.test.generatedkeyfixture;
             import org.liteorm.annotation.*;
             @Mapper interface GeneratedKeyDynamicMapper {
-                @GeneratedKey @Insert({"<script>", "INSERT INTO users (name)",
+                @GeneratedKey("id") @Insert({"<script>", "INSERT INTO users (name)",
                     "<if test='name != null'>VALUES (#{name})</if>", "</script>"})
                 Long insert(String name);
             }
@@ -152,7 +166,7 @@ class GeneratedKeyCompilationTest {
                 }
             }
             @Mapper interface GeneratedKeyProviderMapper {
-                @GeneratedKey
+                @GeneratedKey("id")
                 @UseSqlProvider(value = InsertProvider.class, statementType = ExecutionPlan.StatementType.INSERT)
                 Long insert(String name);
             }

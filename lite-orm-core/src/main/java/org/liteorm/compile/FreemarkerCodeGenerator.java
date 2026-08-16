@@ -289,7 +289,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             code.append("        return new ExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", boundSql.sql(), ")
                 .append("boundSql.parameterValues(), ExecutionPlan.StatementType.")
-                .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, false, ")
+                .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, null, ")
                 .append("boundSql.parameterBinders()").append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         } else if (methodModel.dynamic()) {
@@ -314,7 +314,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("sql.toString().trim(), parameters.toArray(new Object[0]), ")
                 .append("ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
-                .append(methodModel.generatedKey()).append(", ")
+                .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append("binders.toArray(new ParameterBinder<?>[0])").append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         } else {
@@ -324,7 +324,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append("sql, params, ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
-                .append(methodModel.generatedKey()).append(", ")
+                .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
                 .append(rowMapperExpression(methodModel)).append(");\n");
         }

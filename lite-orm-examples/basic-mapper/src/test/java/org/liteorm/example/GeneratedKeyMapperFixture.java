@@ -8,7 +8,7 @@ import org.liteorm.annotation.Param;
 @Mapper
 interface GeneratedKeyMapperFixture {
 
-    @GeneratedKey
+    @GeneratedKey("id")
     @Insert("INSERT INTO users (name, email, age) VALUES (#{name}, #{email}, #{age})")
     Long insert(
         @Param("name") String name,

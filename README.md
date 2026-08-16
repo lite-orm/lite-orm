@@ -21,7 +21,7 @@ mvn clean test
 Supported first-stage inputs include:
 
 - LiteORM annotations under `org.liteorm.annotation`.
-- `@Select`, `@Insert`, `@Update`, `@Delete`, `@Batch`, and `@GeneratedKey`.
+- `@Select`, `@Insert`, `@Update`, `@Delete`, `@Batch`, and explicit generated-key columns such as `@GeneratedKey("id")`.
 - XML Mapper statements.
 - XML-over-annotation precedence with a method-scoped compiler warning.
 - `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`.
@@ -38,6 +38,8 @@ Generated `*MapperImpl` classes:
 - contain no Spring annotations, runtime Mapper proxy, reflection-based dispatch, runtime XML parser, or runtime expression engine.
 
 `LiteOrmProcessor` is the only public type in `org.liteorm.compile`. Parser, AST, compilation-model, and code-generator types are internal implementation details rather than application extension APIs.
+
+The core compatibility suite runs the same generated Mapper, local transaction, batch, cursor, timeout, temporal, identifier, binary, and generated-key contracts against pinned PostgreSQL 16.4 and MySQL 8.4.0 containers. Generated keys name their column explicitly so JDBC requests only that column on drivers such as PostgreSQL that otherwise return the inserted row.
 
 ## Standalone JDBC
 

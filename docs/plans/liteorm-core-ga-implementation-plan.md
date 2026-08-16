@@ -532,7 +532,7 @@ Expected: PASS.
 
 Commit: `feat: harden generated key contracts`
 
-Implementation status: Completed and verified on 2026-08-16 with explicit scalar conversion tests, custom `RowMapper<UUID>` coverage, missing/multiple/composite JDBC key rejection, all 150 core tests, and the full Maven reactor.
+Implementation status: Completed and verified on 2026-08-16 with explicit scalar conversion tests, custom `RowMapper<UUID>` coverage, missing/multiple/composite JDBC key rejection, and later PostgreSQL/MySQL verification. Production database testing refined the contract to require an explicit key column such as `@GeneratedKey("id")`; JDBC prepares the insert with that named column so PostgreSQL does not return the complete inserted row.
 
 ---
 
@@ -659,27 +659,29 @@ Implementation status: Completed and verified on 2026-08-16. The public API char
 - Create: `lite-orm-core/src/test/java/org/liteorm/test/database/MySqlCompatibilityTest.java`
 - Create: `lite-orm-core/src/test/resources/database/schema.sql`
 
-- [ ] **Step 1: Add Testcontainers test dependencies**
+- [x] **Step 1: Add Testcontainers test dependencies**
 
 Use pinned PostgreSQL and MySQL container images and JUnit 5 integration. Tests skip only when Docker is unavailable and CI must provide Docker for the GA gate.
 
-- [ ] **Step 2: Define the shared database contract**
+- [x] **Step 2: Define the shared database contract**
 
 Run identical generated Mapper scenarios for scalar, Record, JavaBean, dynamic SQL, transactions, rollback-only, generated keys, batch, timeout, date/time, UUID or driver-equivalent type, binary data, and cursor consumption.
 
-- [ ] **Step 3: Add driver-specific assertions only where JDBC behavior differs**
+- [x] **Step 3: Add driver-specific assertions only where JDBC behavior differs**
 
 Keep SQL dialect differences in fixture SQL or Mapper declarations; do not put vendor branching in `JdbcSqlExecutor` unless JDBC itself cannot express the behavior.
 
-- [ ] **Step 4: Run both compatibility suites**
+- [x] **Step 4: Run both compatibility suites**
 
 Run: `mvn -pl lite-orm-core -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest test`
 
 Expected: PASS with Docker available.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Commit: `test: verify postgres and mysql compatibility`
+
+Implementation status: Completed and verified on 2026-08-16 with Testcontainers 1.20.6, pinned `postgres:16.4-alpine` and `mysql:8.4.0` images, 12 shared production-database tests, all 155 core tests, and the full Maven reactor. Vendor differences remain limited to fixture DDL and timeout SQL. The shared contract covers scalar, Record, JavaBean, dynamic SQL, local commit/rollback/rollback-only, generated keys, JDBC batch, statement timeout, date/time, driver-neutral UUID strings, binary values, and scope-bound cursor consumption.
 
 ### Task 15: Add JDBC Failure and Concurrency Characterization
 
@@ -779,21 +781,21 @@ Commit: `perf: establish core ga benchmark baseline`
 
 ## Core GA Definition of Done
 
-- [ ] Generated Mappers depend only on `SqlExecutor` and explicit cursor contracts.
-- [ ] Executor-facing connection handles cannot commit or roll back application transactions.
-- [ ] Nested local transaction failures mark the root rollback-only.
-- [ ] Minimal local transaction commit, rollback, joined-callback, and rollback-only semantics remain tested without adding host transaction policies.
-- [ ] Execution failures report completion certainty suitable for retry decisions.
-- [ ] Terminal interceptor failures cannot convert successful writes into SQL failures.
-- [ ] Queries support timeout, fetch size, maximum-row safety caps, and scope-bound cursor consumption.
-- [ ] Dynamic Mapper parameters can produce bound, dialect-appropriate pagination SQL without a separate core pagination abstraction.
+- [x] Generated Mappers depend only on `SqlExecutor` and explicit cursor contracts.
+- [x] Executor-facing connection handles cannot commit or roll back application transactions.
+- [x] Nested local transaction failures mark the root rollback-only.
+- [x] Minimal local transaction commit, rollback, joined-callback, and rollback-only semantics remain tested without adding host transaction policies.
+- [x] Execution failures report completion certainty suitable for retry decisions.
+- [x] Terminal interceptor failures cannot convert successful writes into SQL failures.
+- [x] Queries support timeout, fetch size, maximum-row safety caps, and scope-bound cursor consumption.
+- [x] Dynamic Mapper parameters can produce bound, dialect-appropriate pagination SQL without a separate core pagination abstraction.
 - [x] Record and JavaBean mapping use validated column labels rather than declaration position.
-- [ ] `Optional<T>`, primitive no-row behavior, inheritance, and unsupported generic shapes are explicit.
-- [ ] Generated-key behavior is typed and unsupported composite/batch forms fail at compile time.
+- [x] `Optional<T>`, primitive no-row behavior, inheritance, and unsupported generic shapes are explicit.
+- [x] Generated-key behavior is typed and unsupported composite/batch forms fail at compile time.
 - [x] `SqlResult` is deeply immutable and contains no compatibility aliases.
-- [ ] Every public failure extends `LiteOrmException` and default messages redact values.
-- [ ] Obsolete APIs, dead templates, disabled services, and narrative tests are removed.
-- [ ] PostgreSQL and MySQL compatibility suites pass.
+- [x] Every public failure extends `LiteOrmException` and default messages redact values.
+- [x] Obsolete APIs, dead templates, disabled services, and narrative tests are removed.
+- [x] PostgreSQL and MySQL compatibility suites pass.
 - [ ] JDBC failure-phase and concurrency characterization pass.
 - [ ] Core GA documentation matches tested behavior.
 - [ ] Optimization begins only after all correctness items are complete.

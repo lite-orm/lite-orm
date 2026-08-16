@@ -14,7 +14,7 @@ Do not choose a provider or raw JDBC only because the original Mapper used XML. 
 
 - Replace MyBatis imports with LiteORM-owned types under `org.liteorm.annotation`.
 - Keep `@Mapper`, `@Select`, `@Insert`, `@Update`, and `@Delete` method shapes.
-- Use LiteORM `@Batch` for JDBC batch and `@GeneratedKey` for one generated key.
+- Use LiteORM `@Batch` for JDBC batch and `@GeneratedKey("id")` for one explicitly named generated-key column.
 - Add explicit `@Param` names to multi-parameter methods.
 - Prefer supported scalars, records, JavaBeans, and `List<T>` results.
 - Inspect the generated `*MapperImpl` when diagnosing binding, dynamic SQL, or result mapping.

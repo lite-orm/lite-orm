@@ -11,6 +11,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ExecutionPlanContractTest {
 
@@ -64,7 +65,7 @@ class ExecutionPlanContractTest {
             new Object[0],
             ExecutionPlan.StatementType.SELECT,
             ExecutionPlan.SqlSource.ANNOTATION,
-            false,
+            null,
             null,
             null,
             null
@@ -81,5 +82,18 @@ class ExecutionPlanContractTest {
 
         assertEquals(StatementOptions.defaults(), defaultPlan.getStatementOptions());
         assertEquals(batchOptions, batchPlan.getStatementOptions());
+    }
+
+    @Test
+    void rejectsBlankGeneratedKeyColumns() {
+        assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan(
+            "org.liteorm.test.UserMapper.insert",
+            "INSERT INTO users(name) VALUES (?)",
+            new Object[]{"Alice"},
+            ExecutionPlan.StatementType.INSERT,
+            ExecutionPlan.SqlSource.ANNOTATION,
+            " ",
+            null,
+            null));
     }
 }

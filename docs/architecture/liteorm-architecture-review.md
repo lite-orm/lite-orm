@@ -286,6 +286,10 @@ Follow-up: `SqlResult.forQuery` stores and returns the query-result list and row
 
 Extension instances must be stateless, thread-safe, or externally synchronized. LiteORM does not clone provider, binder, row-mapper, or interceptor instances per call.
 
+## Production Database Compatibility
+
+Pinned PostgreSQL 16.4 and MySQL 8.4.0 Testcontainers suites execute one shared contract for generated Mapper scalar/Record/JavaBean mapping, dynamic SQL, local commit/rollback/rollback-only behavior, JDBC batch, statement timeout, temporal values, driver-neutral identifiers, binary values, cursor consumption, and generated keys. Vendor differences stay in fixture DDL and sleep SQL. Generated-key columns are explicit because PostgreSQL otherwise returns the complete inserted row for `RETURN_GENERATED_KEYS`.
+
 ## Test Readability Review
 
 Strong suites:
