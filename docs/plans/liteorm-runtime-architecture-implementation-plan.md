@@ -715,8 +715,8 @@ Completion notes:
 - [x] Remove all examples using `SqlEngine`, processors, `ConnectionProvider`, `TransactionCoordinator`, `StandaloneSqlEngine`, or legacy tasks.
 - [x] Document extension guidance: typed provider/binder/row mapper/interceptor first; decorator-based routing only for exceptional dynamic routing.
 - [x] Run documentation link searches and example builds.
-- [ ] Commit with `docs: describe sql executor runtime architecture`.
-- [ ] Push immediately.
+- [x] Commit with `docs: describe sql executor runtime architecture`.
+- [x] Push immediately.
 
 Completion notes:
 - Rewrote the English overview and synchronized the Chinese standalone, Spring transaction-domain, routing DataSource, and current-roadmap sections with the implemented API.
