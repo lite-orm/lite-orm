@@ -43,6 +43,8 @@ The supported expression subset is translated directly into native Java. LiteORM
 | Runtime Mapper proxies | Intentionally absent | Instantiate or inject the generated Mapper implementation. |
 | Runtime XML reload or interpretation | Intentionally absent | Recompile after changing Mapper XML. |
 | Second-level cache | Not supported | Use an application cache outside LiteORM. |
+| Same Mapper bound to several DataSources | Intentionally absent | Split Mapper packages/interfaces by DataSource domain or bind one routing DataSource. |
+| Core distributed transactions | Not supported | Use an external transaction system; LiteORM assemblies remain independent. |
 
 ## Executable Compatibility Fixtures
 
@@ -51,7 +53,7 @@ The supported expression subset is translated directly into native Java. LiteORM
 - SQL provider: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserSearchProvider.java`.
 - Custom binder and row mapper: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserMetadataMapper.java`.
 - Execution interceptor: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/MigrationAuditInterceptor.java`.
-- H2 execution assertions: `lite-orm-examples/basic-mapper/src/test/java/org/liteorm/example/UserMapperE2ETest.java`.
+- Standalone H2 execution and rollback: `lite-orm-examples/basic-mapper/src/test/java/org/liteorm/example/StandaloneJdbcUsageTest.java`.
 - Unsupported complex `resultMap`: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ComplexResultMapMapper.xml`.
 
 Run all migration fixtures from the repository root:

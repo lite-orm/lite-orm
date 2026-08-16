@@ -709,14 +709,20 @@ Completion notes:
 - Replace or update: `docs/architecture/liteorm-architecture-review.md`
 - Modify examples under: `lite-orm-examples/basic-mapper`
 
-- [ ] Document `SqlExecutor`, `Transaction`, `TransactionFactory`, simple callback transactions, Spring transaction participation, and resource ownership.
-- [ ] Document single-DataSource standalone and Spring examples.
-- [ ] Document application-level multi-DataSource construction through disjoint Mapper package bindings, transaction-manager matching, routing DataSource ownership, and the absence of same-Mapper multi-binding or core distributed transactions.
-- [ ] Remove all examples using `SqlEngine`, processors, `ConnectionProvider`, `TransactionCoordinator`, `StandaloneSqlEngine`, or legacy tasks.
-- [ ] Document extension guidance: typed provider/binder/row mapper/interceptor first; decorator-based routing only for exceptional dynamic routing.
-- [ ] Run documentation link searches and example builds.
+- [x] Document `SqlExecutor`, `Transaction`, `TransactionFactory`, simple callback transactions, Spring transaction participation, and resource ownership.
+- [x] Document single-DataSource standalone and Spring examples.
+- [x] Document application-level multi-DataSource construction through disjoint Mapper package bindings, transaction-manager matching, routing DataSource ownership, and the absence of same-Mapper multi-binding or core distributed transactions.
+- [x] Remove all examples using `SqlEngine`, processors, `ConnectionProvider`, `TransactionCoordinator`, `StandaloneSqlEngine`, or legacy tasks.
+- [x] Document extension guidance: typed provider/binder/row mapper/interceptor first; decorator-based routing only for exceptional dynamic routing.
+- [x] Run documentation link searches and example builds.
 - [ ] Commit with `docs: describe sql executor runtime architecture`.
 - [ ] Push immediately.
+
+Completion notes:
+- Rewrote the English overview and synchronized the Chinese standalone, Spring transaction-domain, routing DataSource, and current-roadmap sections with the implemented API.
+- Replaced the historical architecture review with the current `Generated Mapper -> SqlExecutor -> TransactionFactory -> Transaction -> JDBC` flow and explicit standalone/Spring ownership rules.
+- Added an executable H2 standalone example proving generated Mapper execution, callback commit, and callback rollback through `JdbcAssembly`.
+- Verified local Markdown links, searched user documentation and examples for obsolete runtime API examples, ran `mvn -pl lite-orm-examples/basic-mapper -am clean test`, and ran `mvn clean test` for the full reactor.
 
 **Completion criteria:** User documentation matches actual public APIs and clearly explains transaction and multi-DataSource behavior.
 

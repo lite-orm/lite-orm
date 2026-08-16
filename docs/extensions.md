@@ -39,6 +39,24 @@ lite-orm:
 - Binding happens during application startup. Mapper invocation still calls its final executor field directly and performs no package or bean lookup.
 - Each Spring transaction boundary must use the `PlatformTransactionManager` associated with the same DataSource as the selected executor.
 
+## Standalone Assembly And Transactions
+
+Create one immutable `JdbcAssembly` per DataSource domain:
+
+```java
+JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+    .domain("users")
+    .interceptors(interceptors)
+    .build();
+```
+
+- `assembly.sqlExecutor()` is injected into generated Mapper implementations.
+- `assembly.transactionalExecutor()` creates the explicit local callback boundary.
+- Calls outside a callback use temporary auto-commit handles.
+- Calls inside a callback join one thread-bound root `SimpleTransaction`.
+- Nested callbacks join the root; only the outer callback completes it.
+- One assembly never coordinates commit with another assembly.
+
 ## SQL Provider
 
 Use `@UseSqlProvider` on a Mapper method with a concrete `SqlProvider<P>` implementation.
@@ -80,6 +98,12 @@ Register `ExecutionInterceptor` instances through `JdbcAssembly`, or expose them
 - The MVP contract is observational. It does not allow arbitrary SQL replacement or reflective mutation of generated binding and mapping.
 - Failure callbacks cannot prevent resource cleanup. Their exceptions are suppressed onto the original execution failure.
 - Any interceptor callback adds runtime work; configure none when the direct path is preferred.
+
+## Routing And Decorators
+
+Prefer a physical or routing `DataSource` behind one explicit Mapper binding. The DataSource and its transaction manager own tenant context, shard selection, read/write routing, physical connection choice, and connection reuse.
+
+Use a `SqlExecutor` decorator only for exceptional whole-execution behavior that cannot be represented by the DataSource or observational interceptor contracts. Such a decorator must preserve statement identity, parameter order, transaction-domain ownership, resource cleanup, and failure suppression. LiteORM does not provide an implicit routing decorator or put DataSource names in `ExecutionPlan`.
 
 ## Raw JDBC Boundary
 

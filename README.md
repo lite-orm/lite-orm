@@ -1,114 +1,139 @@
 # lite-orm
 
-`lite-orm` is a compile-time-first Java ORM experiment.
+`lite-orm` is a compile-time-first Java Mapper platform. It generates ordinary Java implementations from Mapper interfaces, annotations, and optional XML, then executes immutable plans through a small JDBC runtime.
 
-The project is not trying to clone MyBatis feature-for-feature. Its core idea is to move work that MyBatis usually performs at runtime into Java compilation:
+It is not a feature-for-feature MyBatis clone. The main goal is to move SQL normalization, supported dynamic expressions, parameter order, binder selection, and result mapping into compilation so the runtime path remains explicit and debuggable.
 
-- mapper implementation generation
-- SQL source normalization from annotations and XML
-- dynamic SQL rendering code generation
-- deterministic parameter binding
-- static result mapping
-- a thin JDBC runtime rebuilt on explicit execution and transaction roles
+## Modules
 
-In short:
+- `lite-orm-core`: annotations, annotation processor, SQL/XML compiler, generated Mapper source, execution contracts, standalone JDBC assembly, and local transactions.
+- `lite-orm-spring-boot-starter`: explicit Mapper-package registration, Spring-aware connection participation, and generated Mapper bean definitions.
+- `lite-orm-examples/basic-mapper`: executable annotation/XML, provider, binder, row-mapper, batch, generated-key, and standalone H2 fixtures.
 
-> `lite-orm` aims to become a compile-time Mapper platform, not a smaller MyBatis runtime.
-
-## Current Status
-
-The repository currently contains a working core loop:
-
-- `lite-orm-core`: annotation processor, SQL parsers, dynamic SQL AST, generated Mapper source, execution-plan contracts, and the current JDBC runtime.
-- `lite-orm-spring-boot-starter`: Spring Boot auto-configuration, generated Mapper bean registration, and Spring-managed connection/transaction participation.
-
-The compile-time and runtime loops are working. The obsolete engine, processor chain, mutable execution context, connection-provider/coordinator abstractions, and global runtime configuration have been deleted. Generated Mappers depend only on `SqlExecutor`; core provides the fixed JDBC executor and Spring participates through its transaction adapter.
-
-Recently verified with:
+Run the full repository verification with:
 
 ```bash
 mvn clean test
 ```
 
-The full reactor includes compiler diagnostics, generated-source assertions, Spring integration, and external H2 Mapper fixtures.
+## Compile-Time Model
 
-## Supported First-Stage Scope
+Supported first-stage inputs include:
 
-- LiteORM-owned annotations under `org.liteorm.annotation`; the project does not publish classes under the MyBatis/iBatis namespace.
-- MyBatis-style Mapper interfaces declared with `org.liteorm.annotation.Mapper`.
-- SQL annotations: `@Select`, `@Insert`, `@Update`, `@Delete`.
-- XML-backed mapper methods.
-- When one method has both XML SQL and a SQL annotation, XML takes precedence and the compiler emits a warning.
-- Common parameter naming: `@Param`, `param1`, `arg0`, `list`, `collection`, `array`.
-- Dynamic SQL tags: `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `sql`, `include`.
-- A controlled OGNL-like expression subset for dynamic SQL. The annotation processor translates it directly into native Java conditions, property access, loops, and bind expressions; LiteORM uses no OGNL, MVEL, SpEL, or other expression engine at compile time or runtime.
-- Generated execution plans and static parameter binding.
-- Basic static result mapping.
-- Local transactions and Spring-managed transaction participation.
+- LiteORM annotations under `org.liteorm.annotation`.
+- `@Select`, `@Insert`, `@Update`, `@Delete`, `@Batch`, and `@GeneratedKey`.
+- XML Mapper statements.
+- XML-over-annotation precedence with a method-scoped compiler warning.
+- `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`.
+- A controlled OGNL-like expression subset translated into native Java.
+- Scalars, records, JavaBeans, lists, generated keys, and JDBC batch counts.
+- Typed `SqlProvider`, `ParameterBinder`, and `RowMapper` escape hatches.
 
-Typical imports are:
+Generated `*MapperImpl` classes:
+
+- implement the Mapper interface directly;
+- receive exactly one `SqlExecutor` through their constructor;
+- build ordered `ExecutionPlan` or `BatchExecutionPlan` instances;
+- contain native Java dynamic SQL, binding, and result mapping;
+- contain no Spring annotations, runtime Mapper proxy, reflection-based dispatch, runtime XML parser, or runtime expression engine.
+
+## Standalone JDBC
+
+One `JdbcAssembly` represents one DataSource and transaction domain:
 
 ```java
-import org.liteorm.annotation.Mapper;
-import org.liteorm.annotation.Param;
-import org.liteorm.annotation.Select;
+DataSource dataSource = createDataSource();
+
+JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+    .domain("users")
+    .build();
+
+UserMapper userMapper = new UserMapperImpl(assembly.sqlExecutor());
 ```
 
-## Spring Boot Usage
+Calls outside an explicit transaction use temporary auto-commit transaction handles. Use the assembly's callback executor when several Mapper calls must share one connection and commit or roll back together:
 
-Generated Mapper implementations can be registered as Spring beans without runtime Mapper proxies. Configure the packages that contain Mapper interfaces and generated `*MapperImpl` classes:
+```java
+User user = assembly.transactionalExecutor().execute(transaction -> {
+    userMapper.insert(1L, "Alice", "alice@example.com", 30);
+    return userMapper.findById(1L);
+});
+```
+
+`SqlExecutor` owns the fixed JDBC lifecycle. `TransactionFactory` creates one `Transaction` handle per execution. The handle owns connection acquisition, commit/rollback participation, and release semantics. `SimpleTransactionFactory` joins the thread-bound root transaction created by `TransactionalExecutor`; nested callbacks join the root transaction.
+
+The callback argument is the current `Transaction` handle, but ordinary application code normally continues to call generated Mappers rather than using the JDBC connection directly.
+
+## Spring Boot
+
+Spring registration is explicit even for one DataSource:
 
 ```yaml
 lite-orm:
   enabled: true
   mapper-bindings:
-    - package-name: com.example.mapper
+    - package-name: com.example.user.mapper
       data-source: dataSource
 ```
 
-The starter scans each explicitly configured package at application startup, resolves the named Spring `DataSource`, assembles one `SqlExecutor`, and registers each generated implementation once under the decapitalized Mapper interface name. Generated implementations remain plain Java classes without Spring component annotations. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
+At startup the starter:
 
-Every Mapper package and Mapper interface belongs to exactly one DataSource domain. Package bindings are always explicit, including applications with a single DataSource; the starter does not infer a default DataSource or Mapper scan package.
+1. scans each configured package for generated `*MapperImpl` classes;
+2. resolves the named Spring `DataSource` bean;
+3. creates one Spring-aware `SqlExecutor` for that DataSource;
+4. registers each implementation under the JavaBeans-decapped interface name, for example `UserMapper` as `userMapper`.
 
-The target runtime gives each generated Mapper one `SqlExecutor`. A `JdbcSqlExecutor` is bound to one `TransactionFactory` and therefore one DataSource/transaction domain. Standalone transactions use core `SimpleTransaction` semantics; Spring uses a `SpringTransaction` adapter and continues to control transaction boundary timing.
+Generated classes remain Spring-neutral. Registration occurs through `BeanDefinitionRegistryPostProcessor`; Mapper invocation is direct Java dispatch and performs no runtime package or bean lookup.
 
-Applications with multiple DataSources use disjoint Mapper package bindings and independent executor graphs. The same Mapper interface is not registered against multiple DataSources. LiteORM does not hide DataSource selection inside an execution plan and does not provide distributed commit in core. Dynamic tenant, shard, or read/write routing belongs to an application-provided routing DataSource behind one explicit binding.
+Inside `@Transactional`, `SpringTransactionFactory` obtains and releases the thread-bound connection through `DataSourceUtils`. `SpringTransaction` does not commit or roll back because Spring owns boundary timing. Outside a Spring transaction, execution follows the DataSource's normal auto-commit behavior.
 
-## SQL Provider Escape Hatch
+The `PlatformTransactionManager` used by `@Transactional` must manage the same DataSource as the Mapper package binding. A mismatch fails explicitly rather than silently executing outside the intended transaction.
 
-Use `@UseSqlProvider` only for exceptional SQL that cannot be represented by the supported annotation/XML subset. A provider is a compile-time-known `SqlProvider<P>` with an accessible no-arg constructor and returns immutable `BoundSql` with ordered `BoundParameter` values. Generated code keeps one provider instance and calls it directly; it does not use reflective provider dispatch.
+## Multiple DataSources
 
-Provider Mapper methods accept zero or one argument. Wrap multiple inputs in a record. A provider method cannot also declare XML or annotation SQL.
+Mapper and DataSource ownership is strictly one-to-one:
 
-## Custom JDBC Adapters
+- one Mapper interface is registered once;
+- one Mapper package binding names one physical or routing DataSource bean;
+- applications with several DataSources use disjoint Mapper packages and independent executor graphs;
+- duplicate, parent, and child package bindings cannot overlap;
+- the same Mapper interface is never bound to several DataSources.
 
-Use `@UseParameterBinder` on an exceptional Mapper parameter when JDBC's default `setObject` conversion is insufficient. Use `@UseRowMapper` on a query method when the result shape cannot be generated by LiteORM's built-in scalar, record, or JavaBean mapping.
+Standalone applications create one `JdbcAssembly` per DataSource:
 
-Both adapters are typed interfaces with compile-time-known implementation classes and accessible no-arg constructors. Generated Mapper implementations keep one adapter instance and pass direct references through the execution plan. Explicit adapters take precedence over built-in conversion. A null parameter bypasses the custom binder and is bound as SQL `NULL`; a row mapper is called only after `ResultSet.next()` succeeds.
+```java
+JdbcAssembly users = LiteOrm.jdbc(usersDataSource).domain("users").build();
+JdbcAssembly archive = LiteOrm.jdbc(archiveDataSource).domain("archive").build();
+```
 
-## Execution Interceptors
+Core does not coordinate distributed commits. If one business operation spans several assemblies, each transaction remains independent unless the application supplies an external distributed-transaction solution.
 
-Register `ExecutionInterceptor` instances around the future narrow JDBC execution boundary for logging, metrics, auditing, or authorization. `beforeExecution` receives the immutable `ExecutionPlan`; terminal callbacks receive an immutable `ExecutionOutcome`. DataSource routing uses dedicated typed roles rather than generic interceptor metadata.
+A routing DataSource may be bound as the package's single DataSource. In that case routing, tenant context, shard selection, and physical connection ownership belong to the routing DataSource and its transaction manager—not to `ExecutionPlan`. Use an optional `SqlExecutor` decorator only when routing cannot be represented by the DataSource itself and the application accepts that explicit ownership.
 
-`beforeExecution` runs in configured order. `afterSuccess` and `afterFailure` unwind in reverse order. Spring Boot collects interceptor beans using Spring ordering. Callback failures still allow JDBC resources to close; failure callback exceptions are attached to the original execution failure as suppressed exceptions.
+## Extension Order
 
-## Non-Goals For The First Stage
+Prefer the narrowest typed extension:
 
-- Full MyBatis compatibility.
-- Arbitrary OGNL support or expression-engine evaluation. Unsupported expressions fail compilation instead of falling back to interpretation.
-- Complex `resultMap` graphs.
-- Lazy loading and nested collection aggregation.
-- MyBatis plugin compatibility.
-- Second-level cache, pagination DSL, sharding, distributed transactions.
+1. generated annotation/XML SQL;
+2. `SqlProvider<P>` for exceptional runtime SQL structure;
+3. `ParameterBinder<T>` for one JDBC value type;
+4. `RowMapper<T>` for one unsupported row shape;
+5. `ExecutionInterceptor` for observation such as logs, metrics, audit, or authorization;
+6. an explicit `SqlExecutor` decorator only for exceptional whole-execution routing;
+7. raw JDBC when the generated or typed contracts do not fit.
 
-Unsupported behavior should fail at compile time with actionable diagnostics instead of falling back to vague runtime behavior.
+Provider, binder, row-mapper, and interceptor instances are reused. Implementations must be stateless, thread-safe, or externally synchronized.
 
-## Documentation
+## Compatibility Boundary
 
-- Chinese project overview: [README_cn.md](README_cn.md)
-- Design philosophy: [Design Philosophy.md](Design%20Philosophy.md)
-- Active runtime architecture plan: [docs/plans/liteorm-runtime-architecture-implementation-plan.md](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
-- MyBatis compatibility matrix: [docs/mybatis-compatibility.md](docs/mybatis-compatibility.md)
-- Migration guide: [docs/migration-guide.md](docs/migration-guide.md)
-- Extension contracts: [docs/extensions.md](docs/extensions.md)
-- External Maven Mapper example: [lite-orm-examples/basic-mapper/README.md](lite-orm-examples/basic-mapper/README.md)
+LiteORM intentionally does not promise arbitrary OGNL, complex `resultMap` graphs, nested aggregation, lazy loading, MyBatis plugins, runtime XML reload, second-level cache, or same-Mapper multi-DataSource binding. Unsupported behavior should fail during compilation with diagnostics attached to the Mapper method whenever javac can represent the location.
+
+See:
+
+- [Chinese README](README_cn.md)
+- [Extension contracts](docs/extensions.md)
+- [Migration guide](docs/migration-guide.md)
+- [MyBatis compatibility matrix](docs/mybatis-compatibility.md)
+- [Architecture review](docs/architecture/liteorm-architecture-review.md)
+- [Runtime implementation plan](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
+- [Executable basic Mapper example](lite-orm-examples/basic-mapper/README.md)

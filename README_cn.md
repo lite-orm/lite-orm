@@ -208,7 +208,30 @@ Generated Mapper -> JdbcSqlExecutor -> SpringTransactionFactory -> SpringTransac
 - `TransactionFactory` 为每次执行返回一个知道自身所有权的事务句柄；`SqlExecutor` 不判断连接由 core 还是 Spring 持有。
 - core 的简单事务通过 `SimpleTransaction` 和回调式事务边界实现；Spring 事务继续由 Spring 决定何时开始、提交和回滚。
 - 一个 `JdbcSqlExecutor` 永久绑定一个 DataSource/事务域。多数据源通过多个独立、具名的 executor 组件图和 Mapper 实例装配，不把数据源名塞进 `ExecutionPlan`。
-- core 不隐式协调跨数据源提交，也不提供分布式事务。动态租户、分片或读写路由只能作为更高层 `SqlExecutor` 装饰器显式加入。
+- core 不隐式协调跨数据源提交，也不提供分布式事务。动态租户、分片或读写路由优先由绑定的路由 `DataSource` 负责；只有无法由 DataSource 表达时，才显式增加更高层 `SqlExecutor` 装饰器。
+
+## 独立 JDBC 接入
+
+一个 `JdbcAssembly` 对应一个 DataSource 和事务域：
+
+```java
+JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+    .domain("users")
+    .build();
+
+UserMapper userMapper = new UserMapperImpl(assembly.sqlExecutor());
+```
+
+事务外的 Mapper 调用使用临时 auto-commit 事务句柄。多个 Mapper 调用需要共用一个连接并一起提交或回滚时，使用回调式事务边界：
+
+```java
+User user = assembly.transactionalExecutor().execute(transaction -> {
+    userMapper.insert(1L, "Alice", "alice@example.com", 30);
+    return userMapper.findById(1L);
+});
+```
+
+回调参数是当前 `Transaction` 句柄，但普通业务代码通常继续调用生成 Mapper，不需要直接操作 JDBC Connection。嵌套回调加入当前根事务，只有最外层回调负责最终提交、回滚和释放。
 
 ## Spring Boot 接入
 
@@ -229,6 +252,8 @@ lite-orm:
 生成的 `*MapperImpl` 不包含 Spring `@Component`、注入或条件注解。Starter 在 IOC BeanDefinition 注册阶段发现生成类，按 Mapper 接口名的 JavaBeans decapitalize 规则注册一次，例如 `UserMapper` 注册为 `userMapper`，并注入该包对应的唯一 `SqlExecutor`。
 
 Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
+
+`@Transactional` 使用的 `PlatformTransactionManager` 必须管理 Mapper 绑定的同一个 DataSource。若当前活动事务没有绑定该 DataSource，LiteORM 会显式报告事务域不匹配，而不是静默脱离预期事务执行。
 
 ## SQL Provider 逃生口
 
@@ -323,7 +348,7 @@ public interface UserMapper {
 
 - [lite-orm-examples/basic-mapper](lite-orm-examples/basic-mapper/README.md)
 
-## 后续路线
+## 当前文档与后续路线
 
 当前唯一有效的实施计划是：
 
@@ -332,12 +357,6 @@ public interface UserMapper {
 - [MyBatis 迁移指南](docs/migration-guide.md)
 - [扩展契约](docs/extensions.md)
 
-推荐优先级：
-
-1. 完成观察、多数据源、事务域和装配角色地基。
-2. 在地基之上实现固定 `JdbcSqlExecutor` 生命周期。
-3. 完成 Spring 事务适配和显式多数据源装配，不引入隐藏路由或分布式事务假象。
-4. 清理无效构建资源并恢复端到端运行示例。
-5. 复核生成源码可读性、整体 SOLID 边界和实际需要的设计模式，再进入性能测试。
+当前固定 JDBC 生命周期、Standalone/Spring 事务适配、显式多数据源装配、外部 Maven 编译夹具和生成源码诊断均已实现。下一阶段是完成最终架构评审，再以可复现 benchmark 作为任何缓存或性能优化的准入条件。
 
 判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。

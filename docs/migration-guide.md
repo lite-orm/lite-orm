@@ -4,95 +4,120 @@
 
 Use this decision order:
 
-1. **Generated built-in path:** annotations or XML using the supported static and dynamic SQL subset.
-2. **Typed extension:** `SqlProvider`, `ParameterBinder`, `RowMapper`, or `ExecutionInterceptor` selected explicitly.
-3. **Raw JDBC:** SQL or result construction that cannot be represented safely by the first two paths.
+1. generated annotations or XML using the supported SQL subset;
+2. typed `SqlProvider`, `ParameterBinder`, `RowMapper`, or `ExecutionInterceptor`;
+3. raw JDBC for behavior that cannot fit the generated or typed contracts.
 
-Do not start with a provider or raw JDBC only because the original Mapper used XML. Most common XML can remain XML and compile into static Java.
+Do not choose a provider or raw JDBC only because the original Mapper used XML. Common XML should remain XML and compile into ordinary Java.
 
-## 2. Migrate Annotation Mappers
+## 2. Migrate Mapper Declarations
 
-- Replace MyBatis annotation imports with LiteORM-owned annotations from `org.liteorm.annotation`.
-- Keep the common `@Mapper`, `@Select`, `@Insert`, `@Update`, and `@Delete` method structure after changing imports.
+- Replace MyBatis imports with LiteORM-owned types under `org.liteorm.annotation`.
+- Keep `@Mapper`, `@Select`, `@Insert`, `@Update`, and `@Delete` method shapes.
+- Use LiteORM `@Batch` for JDBC batch and `@GeneratedKey` for one generated key.
 - Add explicit `@Param` names to multi-parameter methods.
-- Keep return types to supported scalars, records, JavaBeans, and `List<T>` variants.
-- Compile and inspect the generated `*MapperImpl` when diagnosing binding or mapping behavior.
+- Prefer supported scalars, records, JavaBeans, and `List<T>` results.
+- Inspect the generated `*MapperImpl` when diagnosing binding, dynamic SQL, or result mapping.
 
-The executable CRUD fixture is `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserMapper.java`.
+The annotation fixture is `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserMapper.java`.
 
-```java
-import org.liteorm.annotation.Delete;
-import org.liteorm.annotation.Insert;
-import org.liteorm.annotation.Mapper;
-import org.liteorm.annotation.Param;
-import org.liteorm.annotation.Select;
-import org.liteorm.annotation.Update;
-```
+## 3. Migrate XML
 
-## 3. Migrate XML Mappers
-
-- Keep the XML resource beside the Mapper package path.
+- Keep XML resources at the Mapper package resource path.
 - Keep statement IDs equal to Mapper method names.
 - Use the supported dynamic tags and expression subset.
-- Replace `${}` with bound `#{}` values whenever the value is data rather than SQL structure.
-- If XML and an annotation coexist for one method, verify the compiler warning and treat XML as the effective source.
+- Replace data `${}` substitutions with bound `#{}` parameters.
+- If XML and an annotation coexist, XML wins and javac warns on the Mapper method.
 
-The dynamic XML fixture is `lite-orm-examples/basic-mapper/src/main/resources/org/liteorm/example/UserXmlMapper.xml`. It covers `where`, `if`, `foreach`, and `set` with real H2 assertions.
+The XML fixture is `lite-orm-examples/basic-mapper/src/main/resources/org/liteorm/example/UserXmlMapper.xml`.
 
-Use LiteORM `@Batch` or XML `<batch>` when the desired behavior is JDBC `PreparedStatement.addBatch/executeBatch`. A normal XML `<insert>` with `<foreach>` remains one dynamically generated multi-value SQL statement rather than a JDBC batch.
+Use XML `<batch>` or `@Batch` for `PreparedStatement.addBatch/executeBatch`. A normal `<insert>` containing `<foreach>` remains one dynamically generated SQL statement.
 
 ## 4. Replace Runtime OGNL Assumptions
 
-LiteORM does not execute OGNL. Supported OGNL-like syntax is translated to native Java during annotation processing.
-
-Typical supported rewrites include:
+LiteORM translates its controlled OGNL-like subset into Java during annotation processing. It does not execute OGNL, MVEL, SpEL, or another runtime expression engine.
 
 ```text
-name != null and name != ''  ->  name != null && !name.isEmpty()
-ids != null and ids.size() > 0  ->  ids != null && ids.size() > 0
-values != null and values.length > 0  ->  values != null && values.length > 0
-'%' + name + '%'  ->  "%" + name + "%"
+name != null and name != ''      -> name != null && !name.isEmpty()
+ids != null and ids.size() > 0   -> ids != null && ids.size() > 0
+values.length > 0                -> values.length > 0
+'%' + name + '%'                 -> "%" + name + "%"
 ```
 
-Arbitrary method calls, static calls, expression-engine features, and unsafe SQL substitution fail compilation. Simplify the expression or choose a typed SQL provider.
+Arbitrary method calls, static calls, and unsafe SQL substitution fail compilation. Simplify the expression or use a typed provider.
 
-## 5. Migrate Exceptional SQL Structure
+## 5. Migrate Exceptional SQL And Mapping
 
-Use `@UseSqlProvider` only when table names, selected columns, ordering, vendor syntax, or another SQL structural decision cannot use bound parameters or the supported XML tags.
+- Use `@UseSqlProvider` only for runtime SQL structure such as validated identifiers or vendor-specific choices.
+- Use `@UseParameterBinder` for one Java value type that cannot use JDBC `setObject`.
+- Use `@UseRowMapper` for one unsupported row shape.
+- Flatten simple `resultMap` declarations to records or JavaBeans.
+- Use explicit follow-up queries or raw JDBC for multi-row nested graph aggregation.
 
-- The provider class and generic input type are validated during compilation.
-- Generated code constructs one provider and calls it directly.
-- The provider returns `BoundSql` with ordered `BoundParameter` values.
-- Provider methods accept zero or one argument; group multiple values in a record.
+Provider, binder, and row-mapper classes are compile-time validated, instantiated once per generated Mapper, and called directly without reflection.
 
-See `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserSearchProvider.java`.
+## 6. Replace Plugins
 
-## 6. Migrate Type Handlers And Result Maps
+Use `ExecutionInterceptor` for logging, metrics, tracing, audit, authorization, and slow-query observation.
 
-- Replace exceptional parameter type handling with `@UseParameterBinder`.
-- Replace custom one-row object construction with `@UseRowMapper`.
-- Flatten simple `resultMap` usage into a supported record or JavaBean `resultType` where possible.
-- Split nested graphs into explicit queries or use raw JDBC when aggregation spans multiple rows.
+- `beforeExecution` runs in registration order.
+- `afterSuccess` and `afterFailure` unwind in reverse order.
+- Interceptors observe immutable plan/outcome data.
+- They cannot replace generated SQL, binders, or row mappers.
 
-Complex XML `resultMap` declarations fail compilation with guidance instead of being ignored. The negative fixture is `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ComplexResultMapMapper.xml`.
+For dynamic tenant, shard, or read/write selection, prefer an application routing DataSource. Use a whole-`SqlExecutor` decorator only when DataSource routing cannot represent the requirement.
 
-## 7. Migrate Plugins And Cross-Cutting Behavior
+## 7. Assemble Standalone Runtime
 
-Use `ExecutionInterceptor` for the stable execution lifecycle rather than intercepting arbitrary Mapper or executor internals.
+Replace legacy engine, connection-provider, coordinator, or global configuration assembly with one `JdbcAssembly` per DataSource:
 
-- `beforeExecution` runs in configured order.
-- Success and failure callbacks unwind in reverse order.
-- Interceptors observe final SQL and ordered parameter copies but cannot replace generated binders or row mappers.
-- Spring Boot collects interceptor beans with Spring ordering.
+```java
+JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+    .domain("users")
+    .interceptors(interceptors)
+    .build();
 
-See `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/MigrationAuditInterceptor.java`.
+UserMapper mapper = new UserMapperImpl(assembly.sqlExecutor());
+```
 
-## 8. Verify Migration
+Wrap related Mapper calls in the callback executor:
 
-Run the compiler and integration fixtures:
+```java
+assembly.transactionalExecutor().execute(transaction -> {
+    mapper.insert(...);
+    mapper.update(...);
+    return null;
+});
+```
+
+Create independent assemblies for independent DataSources. Core does not provide distributed commit across them.
+
+## 8. Assemble Spring Runtime
+
+Keep Mapper package bindings explicit:
+
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.user.mapper
+      data-source: usersDataSource
+    - package-name: com.example.order.mapper
+      data-source: ordersDataSource
+```
+
+- Packages must be disjoint; duplicate, parent, and child bindings are rejected.
+- One Mapper interface is registered once against one DataSource.
+- Generated classes remain Spring-neutral and are registered by the starter.
+- Each `@Transactional` boundary must use the transaction manager for the same DataSource.
+- A physical or routing DataSource may be bound, but LiteORM does not own its routing context.
+
+## 9. Verify Migration
+
+Run the full compiler, standalone, Spring, and external fixtures:
 
 ```bash
 mvn clean test
+mvn -pl lite-orm-core -am verify
 ```
 
-Treat compilation diagnostics as migration tasks. Do not add reflection or runtime expression interpretation to bypass them; select an explicit extension or raw JDBC boundary instead.
+Treat compilation diagnostics as migration tasks. Do not add runtime reflection or expression interpretation to bypass them.
