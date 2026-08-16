@@ -1,18 +1,17 @@
 package org.liteorm.transaction;
 
-import org.liteorm.api.Transaction;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.TransactionDomain;
-import org.liteorm.api.TransactionException;
-import org.liteorm.api.TransactionFactory;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.util.Objects;
 
 /**
- * Creates temporary transactions or joins the transaction bound by SimpleTransactionalExecutor.
+ * Opens auto-commit handles or joins the local transaction bound by the transactional executor.
  */
-public final class SimpleTransactionFactory implements TransactionFactory {
+public final class SimpleConnectionHandleFactory implements ConnectionHandleFactory {
 
     private final DataSource dataSource;
     private final TransactionDomain domain;
@@ -20,11 +19,11 @@ public final class SimpleTransactionFactory implements TransactionFactory {
     private final ThreadLocal<SimpleTransaction> currentTransaction = new ThreadLocal<>();
     private final ThreadLocal<SimpleTransactionDomainGuard.Binding> currentBinding = new ThreadLocal<>();
 
-    public SimpleTransactionFactory(DataSource dataSource) {
+    public SimpleConnectionHandleFactory(DataSource dataSource) {
         this(dataSource, new TransactionDomain("default"), new SimpleTransactionDomainGuard());
     }
 
-    public SimpleTransactionFactory(
+    public SimpleConnectionHandleFactory(
             DataSource dataSource,
             TransactionDomain domain,
             SimpleTransactionDomainGuard domainGuard) {
@@ -34,10 +33,10 @@ public final class SimpleTransactionFactory implements TransactionFactory {
     }
 
     @Override
-    public Transaction openTransaction() {
+    public ConnectionHandle openHandle() {
         domainGuard.verify(domain);
         SimpleTransaction current = currentTransaction.get();
-        return current == null ? new SimpleTransaction(dataSource, false) : new ParticipatingTransaction(current);
+        return current == null ? new SimpleTransaction(dataSource, false) : new ParticipatingHandle(current);
     }
 
     SimpleTransaction currentTransaction() {
@@ -61,37 +60,15 @@ public final class SimpleTransactionFactory implements TransactionFactory {
         }
     }
 
-    private record ParticipatingTransaction(SimpleTransaction delegate) implements Transaction {
+    private record ParticipatingHandle(SimpleTransaction delegate) implements ConnectionHandle {
 
         @Override
-        public Connection getConnection() {
-            return delegate.getConnection();
-        }
-
-        @Override
-        public void commit() {
-            throw completionFailure();
-        }
-
-        @Override
-        public void rollback() {
-            throw completionFailure();
+        public Connection connection() {
+            return delegate.connection();
         }
 
         @Override
         public void close() {
-        }
-
-        @Override
-        public Integer getTimeoutSeconds() {
-            return delegate.getTimeoutSeconds();
-        }
-
-        private TransactionException completionFailure() {
-            return new TransactionException(
-                TransactionException.Type.CLEANUP_FAILED,
-                "A participating transaction handle cannot complete the root transaction"
-            );
         }
     }
 }

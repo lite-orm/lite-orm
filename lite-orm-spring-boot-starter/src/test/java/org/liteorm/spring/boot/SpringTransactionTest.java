@@ -1,7 +1,7 @@
 package org.liteorm.spring.boot;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.api.Transaction;
+import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.TransactionException;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -24,15 +24,15 @@ class SpringTransactionTest {
     @Test
     void reusesThreadBoundConnectionWithoutClosingItEarly() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SpringTransactionFactory factory = new SpringTransactionFactory(dataSource);
+        SpringConnectionHandleFactory factory = new SpringConnectionHandleFactory(dataSource);
         TransactionTemplate transactions = new TransactionTemplate(
             new DataSourceTransactionManager(dataSource));
 
         transactions.executeWithoutResult(status -> {
             Connection springConnection = DataSourceUtils.getConnection(dataSource);
-            try (Transaction transaction = factory.openTransaction()) {
-                assertSame(springConnection, transaction.getConnection());
-                assertSame(springConnection, transaction.getConnection());
+            try (ConnectionHandle connectionHandle = factory.openHandle()) {
+                assertSame(springConnection, connectionHandle.connection());
+                assertSame(springConnection, connectionHandle.connection());
             }
             assertEquals(0, dataSource.closeCount.get());
         });
@@ -43,17 +43,15 @@ class SpringTransactionTest {
     }
 
     @Test
-    void leavesCommitAndRollbackTimingToSpring() {
+    void leavesTransactionCompletionToSpring() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SpringTransactionFactory factory = new SpringTransactionFactory(dataSource);
+        SpringConnectionHandleFactory factory = new SpringConnectionHandleFactory(dataSource);
         TransactionTemplate transactions = new TransactionTemplate(
             new DataSourceTransactionManager(dataSource));
 
         transactions.executeWithoutResult(status -> {
-            try (Transaction transaction = factory.openTransaction()) {
-                transaction.getConnection();
-                transaction.commit();
-                transaction.rollback();
+            try (ConnectionHandle connectionHandle = factory.openHandle()) {
+                connectionHandle.connection();
                 assertEquals(0, dataSource.commitCount.get());
                 assertEquals(0, dataSource.rollbackCount.get());
             }
@@ -64,12 +62,12 @@ class SpringTransactionTest {
     }
 
     @Test
-    void releasesConnectionOutsideSpringTransaction() {
+    void releasesConnectionOutsideSpringManagedTransaction() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SpringTransactionFactory factory = new SpringTransactionFactory(dataSource);
+        SpringConnectionHandleFactory factory = new SpringConnectionHandleFactory(dataSource);
 
-        try (Transaction transaction = factory.openTransaction()) {
-            transaction.getConnection();
+        try (ConnectionHandle connectionHandle = factory.openHandle()) {
+            connectionHandle.connection();
         }
 
         assertEquals(1, dataSource.connectionCount.get());
@@ -79,17 +77,17 @@ class SpringTransactionTest {
     }
 
     @Test
-    void rejectsDataSourceThatIsNotBoundToTheActiveSpringTransaction() {
+    void rejectsDataSourceThatIsNotBoundToTheActiveSpringManagedTransaction() {
         TrackingDataSource transactionDataSource = new TrackingDataSource();
         TrackingDataSource otherDataSource = new TrackingDataSource();
-        SpringTransactionFactory otherFactory = new SpringTransactionFactory(otherDataSource);
+        SpringConnectionHandleFactory otherFactory = new SpringConnectionHandleFactory(otherDataSource);
         TransactionTemplate transactions = new TransactionTemplate(
             new DataSourceTransactionManager(transactionDataSource));
 
         transactions.executeWithoutResult(status -> {
             TransactionException failure = assertThrows(TransactionException.class, () -> {
-                try (Transaction transaction = otherFactory.openTransaction()) {
-                    transaction.getConnection();
+                try (ConnectionHandle connectionHandle = otherFactory.openHandle()) {
+                    connectionHandle.connection();
                 }
             });
 

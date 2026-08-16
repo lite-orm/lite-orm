@@ -20,7 +20,7 @@ class StandaloneJdbcUsageTest {
         JdbcAssembly assembly = LiteOrm.jdbc(dataSource()).domain("example").build();
         UserMapper mapper = new UserMapperImpl(assembly.sqlExecutor());
 
-        User user = assembly.transactionalExecutor().execute(transaction -> {
+        User user = assembly.transactionalExecutor().execute(() -> {
             mapper.insert(1L, "Alice", "alice@example.com", 30);
             return mapper.findById(1L);
         });
@@ -34,7 +34,7 @@ class StandaloneJdbcUsageTest {
         UserMapper mapper = new UserMapperImpl(assembly.sqlExecutor());
 
         assertThrows(IllegalStateException.class, () ->
-            assembly.transactionalExecutor().execute(transaction -> {
+            assembly.transactionalExecutor().execute(() -> {
                 mapper.insert(1L, "Alice", "alice@example.com", 30);
                 throw new IllegalStateException("rollback");
             }));

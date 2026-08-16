@@ -121,8 +121,8 @@ SqlExecutor
 JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
         |
         +--> ExecutionInterceptor
-        +--> TransactionFactory
-        +--> Transaction.getConnection
+        +--> ConnectionHandleFactory
+        +--> ConnectionHandle.connection
         +--> PreparedStatement / 参数绑定 / JDBC 执行
         +--> 结果提取与反向资源释放
 ```
@@ -167,13 +167,13 @@ JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
 | Mapper 编译模型、XML/注解解析、动态 SQL AST、Java 代码生成 | `CompilePipeline`、`MapperCompilationModel`、`CodeGenerator` 等 | 仍由 LiteORM 注解处理器在编译期完成 | **core 永久保留，不委托 Spring** |
 | 生成 Mapper | `XxxMapperImpl`，构造器只依赖 `SqlExecutor` | Starter 仅负责注册和注入这个普通 Java 类 | **生成代码属于 LiteORM；Bean 生命周期委托 Spring** |
 | SQL 执行入口 | `SqlExecutor`、`ExecutionPlan`、`SqlResult` | 原样使用 | **core 永久保留** |
-| 固定 JDBC 生命周期 | `JdbcSqlExecutor` | 原样使用，由 Spring 装配 `SpringTransactionFactory` | **core 永久保留，不由 Spring 重写 SQL 执行** |
+| 固定 JDBC 生命周期 | `JdbcSqlExecutor` | 原样使用，由 Spring 装配 `SpringConnectionHandleFactory` | **core 永久保留，不由 Spring 重写 SQL 执行** |
 | 参数和结果适配 | `ParameterBinder`、`RowMapper`、`ResultValueConverters` | 原样使用，必要时作为 Spring Bean 被装配 | **core 永久保留；对象发现可委托 Spring** |
 | 执行观察 | `ExecutionInterceptor`、`ExecutionOutcome` | Spring 发现并按 ordering 排序 interceptor Bean | **契约和执行时机属于 core；实例管理委托 Spring** |
-| 单次执行的事务/连接句柄 | SPI：`Transaction` | 实现：`SpringTransaction`，通过 `DataSourceUtils` 取得或释放连接 | **抽象属于 core；连接参与语义委托 Spring** |
-| 事务句柄工厂 | SPI：`TransactionFactory` | 实现：`SpringTransactionFactory` | **抽象属于 core；生产实现由 Starter 提供** |
+| 单次执行的连接句柄 | SPI：`ConnectionHandle`，只允许取得连接和释放资源 | 实现：`SpringConnectionHandle`，通过 `DataSourceUtils` 取得或释放连接 | **抽象属于 core；连接参与语义委托 Spring** |
+| 连接句柄工厂 | SPI：`ConnectionHandleFactory` | 实现：`SpringConnectionHandleFactory` | **抽象属于 core；宿主实现由 Starter 提供** |
 | 无容器事务句柄 | `SimpleTransaction` | 通常不创建 | **core 默认实现，仅用于独立运行或测试** |
-| 无容器事务工厂 | `SimpleTransactionFactory` | 使用 `SpringTransactionFactory` 代替 | **core 默认实现被 Spring 实现替代** |
+| 无容器连接句柄工厂 | `SimpleConnectionHandleFactory` | 使用 `SpringConnectionHandleFactory` 代替 | **core 默认实现被 Spring 实现替代** |
 | 事务边界控制 | SPI：`TransactionalExecutor`；默认实现：`SimpleTransactionalExecutor` | 使用 `@Transactional`、`TransactionTemplate` 和 `PlatformTransactionManager` | **边界抽象属于 core；生产边界时机委托 Spring** |
 | 本地事务域保护 | `TransactionDomain`、`TransactionDomainGuard`、`SimpleTransactionDomainGuard` | 通过明确匹配的 executor、DataSource 和 transaction manager 保持同一约束；后续补充 Spring 多数据源启动校验 | **不直接一对一替换，但必须保持相同事务不变量** |
 | 单 DataSource 手工装配 | `LiteOrm.jdbc(...)`、`JdbcAssembly` | `LiteOrmAutoConfiguration` 创建同样的 executor 组件图 | **领域组件不变；创建和依赖注入委托 Spring** |
@@ -190,12 +190,12 @@ JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
 
 ```text
 独立运行：
-Generated Mapper -> JdbcSqlExecutor -> SimpleTransactionFactory -> SimpleTransaction -> DataSource
+Generated Mapper -> JdbcSqlExecutor -> SimpleConnectionHandleFactory -> SimpleTransaction -> DataSource
                               |
                               +-> SimpleTransactionalExecutor 控制事务边界
 
 Spring 生产：
-Generated Mapper -> JdbcSqlExecutor -> SpringTransactionFactory -> SpringTransaction -> DataSourceUtils
+Generated Mapper -> JdbcSqlExecutor -> SpringConnectionHandleFactory -> SpringConnectionHandle -> DataSourceUtils
                                                                       |
                                                                       +-> Spring 绑定连接
 
@@ -204,9 +204,9 @@ Generated Mapper -> JdbcSqlExecutor -> SpringTransactionFactory -> SpringTransac
 
 ### 事务与多数据源
 
-- `Transaction` 负责取得当前事务连接，以及 `commit`、`rollback`、`close` 和超时语义。
-- `TransactionFactory` 为每次执行返回一个知道自身所有权的事务句柄；`SqlExecutor` 不判断连接由 core 还是 Spring 持有。
-- core 的简单事务通过 `SimpleTransaction` 和回调式事务边界实现；Spring 事务继续由 Spring 决定何时开始、提交和回滚。
+- `ConnectionHandle` 只负责取得当前执行使用的连接和释放句柄，不暴露 `commit` 或 `rollback`。
+- `ConnectionHandleFactory` 为每次执行返回一个知道连接参与方式的句柄；`SqlExecutor` 不判断连接由 core 还是 Spring 持有。
+- core 的提交和回滚由 `SimpleTransactionalExecutor` 与内部 `SimpleTransaction` 控制；Spring 事务继续由 Spring 决定何时开始、提交和回滚。
 - 一个 `JdbcSqlExecutor` 永久绑定一个 DataSource/事务域。多数据源通过多个独立、具名的 executor 组件图和 Mapper 实例装配，不把数据源名塞进 `ExecutionPlan`。
 - core 不隐式协调跨数据源提交，也不提供分布式事务。动态租户、分片或读写路由优先由绑定的路由 `DataSource` 负责；只有无法由 DataSource 表达时，才显式增加更高层 `SqlExecutor` 装饰器。
 
@@ -222,16 +222,16 @@ JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
 UserMapper userMapper = new UserMapperImpl(assembly.sqlExecutor());
 ```
 
-事务外的 Mapper 调用使用临时 auto-commit 事务句柄。多个 Mapper 调用需要共用一个连接并一起提交或回滚时，使用回调式事务边界：
+事务外的 Mapper 调用使用临时 auto-commit 连接句柄。多个 Mapper 调用需要共用一个连接并一起提交或回滚时，使用回调式事务边界：
 
 ```java
-User user = assembly.transactionalExecutor().execute(transaction -> {
+User user = assembly.transactionalExecutor().execute(() -> {
     userMapper.insert(1L, "Alice", "alice@example.com", 30);
     return userMapper.findById(1L);
 });
 ```
 
-回调参数是当前 `Transaction` 句柄，但普通业务代码通常继续调用生成 Mapper，不需要直接操作 JDBC Connection。嵌套回调加入当前根事务，只有最外层回调负责最终提交、回滚和释放。
+回调不暴露事务完成句柄，普通业务代码只调用生成 Mapper。嵌套回调加入当前根事务，只有最外层回调负责最终提交、回滚和释放。
 
 ## Spring Boot 接入
 
@@ -245,7 +245,7 @@ lite-orm:
       data-source: dataSource
 ```
 
-应用启动时，Starter 扫描配置包中的生成类，解析 `data-source` 指定的 Spring `DataSource` Bean，并通过 `SpringTransactionFactory` 与 core `JdbcAssembly` 创建 Mapper 所需的 `SqlExecutor`。该 Bean 可以是真实连接池，也可以是 `AbstractRoutingDataSource` 或 dynamic-datasource 提供的路由代理。Mapper 调用热路径不再查找 Spring Bean。
+应用启动时，Starter 扫描配置包中的生成类，解析 `data-source` 指定的 Spring `DataSource` Bean，并通过 `SpringConnectionHandleFactory` 与 core `JdbcAssembly` 创建 Mapper 所需的 `SqlExecutor`。该 Bean 可以是真实连接池，也可以是 `AbstractRoutingDataSource` 或 dynamic-datasource 提供的路由代理。Mapper 调用热路径不再查找 Spring Bean。
 
 每个 Mapper 包和 Mapper 接口只绑定一个 DataSource 域。同一个包不能重复绑定，父子包规则也不能重叠；应用存在多个 DataSource 时，使用互不重叠的 Mapper 包分别绑定。单 DataSource 应用同样保留显式 `package-name + data-source` 配置，Starter 不推断默认 DataSource 或扫描包。
 

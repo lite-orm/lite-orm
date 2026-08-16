@@ -37,7 +37,7 @@ UserMapper mapper = new UserMapperImpl(assembly.sqlExecutor());
 Use the callback executor for several Mapper calls in one local transaction:
 
 ```java
-User user = assembly.transactionalExecutor().execute(transaction -> {
+User user = assembly.transactionalExecutor().execute(() -> {
     mapper.insert(1L, "Alice", "alice@example.com", 30);
     return mapper.findById(1L);
 });

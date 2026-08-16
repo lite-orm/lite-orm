@@ -32,7 +32,7 @@ final class SpringJdbcSqlExecutorFactoryBean
     @Override
     public SqlExecutor getObject() {
         return JdbcAssembly.sqlExecutor(
-            new SpringTransactionFactory(dataSource),
+            new SpringConnectionHandleFactory(dataSource),
             beanFactory.getBeanProvider(ExecutionInterceptor.class).orderedStream().toList()
         );
     }

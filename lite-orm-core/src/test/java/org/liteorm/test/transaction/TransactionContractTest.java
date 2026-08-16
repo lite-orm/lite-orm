@@ -1,64 +1,65 @@
 package org.liteorm.test.transaction;
 
 import org.junit.jupiter.api.Test;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.LiteOrmException;
-import org.liteorm.api.Transaction;
 import org.liteorm.api.TransactionCallback;
 import org.liteorm.api.TransactionException;
-import org.liteorm.api.TransactionFactory;
 import org.liteorm.api.TransactionalExecutor;
 
+import java.lang.reflect.Method;
 import java.sql.Connection;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionContractTest {
 
     @Test
-    void transactionOwnsConnectionAndBoundaryOperations() {
-        Transaction transaction = new Transaction() {
-            @Override public Connection getConnection() { return null; }
-            @Override public void commit() { }
-            @Override public void rollback() { }
+    void connectionHandleExposesOnlyConnectionParticipation() {
+        Connection connection = null;
+        ConnectionHandle handle = new ConnectionHandle() {
+            @Override public Connection connection() { return connection; }
             @Override public void close() { }
         };
 
-        assertTrue(transaction instanceof AutoCloseable);
-        assertNull(transaction.getConnection());
-        assertNull(transaction.getTimeoutSeconds());
+        Set<String> declaredMethods = Arrays.stream(ConnectionHandle.class.getDeclaredMethods())
+            .map(Method::getName)
+            .collect(Collectors.toSet());
+
+        assertTrue(handle instanceof AutoCloseable);
+        assertSame(connection, handle.connection());
+        assertEquals(Set.of("connection", "close"), declaredMethods);
     }
 
     @Test
-    void factoryAndCallbackExposeOnlyTransactionRoles() {
-        Transaction transaction = transaction();
-        TransactionFactory factory = () -> transaction;
-        TransactionCallback<String> callback = current -> current == transaction ? "joined" : "wrong";
+    void factoryAndCallbackKeepCompletionInsideTransactionalExecutor() {
+        ConnectionHandle handle = new ConnectionHandle() {
+            @Override public Connection connection() { return null; }
+            @Override public void close() { }
+        };
+        ConnectionHandleFactory factory = () -> handle;
+        TransactionCallback<String> callback = () -> "joined";
         TransactionalExecutor executor = new TransactionalExecutor() {
             @Override
             public <T> T execute(TransactionCallback<T> work) {
-                return work.execute(factory.openTransaction());
+                return work.execute();
             }
         };
 
-        assertSame(transaction, factory.openTransaction());
+        assertSame(handle, factory.openHandle());
         assertEquals("joined", executor.execute(callback));
+        assertEquals(0, TransactionCallback.class.getDeclaredMethods()[0].getParameterCount());
     }
 
     @Test
     void transactionFailuresAreUncheckedLiteOrmExceptions() {
         assertTrue(LiteOrmException.class.isAssignableFrom(TransactionException.class));
         assertTrue(RuntimeException.class.isAssignableFrom(TransactionException.class));
-    }
-
-    private Transaction transaction() {
-        return new Transaction() {
-            @Override public Connection getConnection() { return null; }
-            @Override public void commit() { }
-            @Override public void rollback() { }
-            @Override public void close() { }
-        };
     }
 }

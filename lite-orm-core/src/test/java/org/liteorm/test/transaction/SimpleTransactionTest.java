@@ -1,8 +1,8 @@
 package org.liteorm.test.transaction;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.api.Transaction;
-import org.liteorm.transaction.SimpleTransactionFactory;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.transaction.SimpleConnectionHandleFactory;
 import org.liteorm.transaction.SimpleTransactionalExecutor;
 
 import javax.sql.DataSource;
@@ -27,12 +27,12 @@ class SimpleTransactionTest {
     @Test
     void successfulBoundaryLazilyCommitsRestoresAndCloses() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SimpleTransactionFactory factory = new SimpleTransactionFactory(dataSource);
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
         SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
 
-        String result = transactions.execute(transaction -> {
+        String result = transactions.execute(() -> {
             assertEquals(List.of(), dataSource.events);
-            transaction.getConnection();
+            acquire(factory);
             return "done";
         });
 
@@ -49,14 +49,13 @@ class SimpleTransactionTest {
     @Test
     void callbackFailureRollsBackRestoresAndCloses() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(
-            new SimpleTransactionFactory(dataSource)
-        );
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
         IllegalStateException expected = new IllegalStateException("boom");
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () ->
-            transactions.execute(transaction -> {
-                transaction.getConnection();
+            transactions.execute(() -> {
+                acquire(factory);
                 throw expected;
             })
         );
@@ -75,13 +74,12 @@ class SimpleTransactionTest {
     void commitFailureRollsBackAndStillReleasesTheConnection() {
         TrackingDataSource dataSource = new TrackingDataSource();
         dataSource.commitFailure = new SQLException("commit failed");
-        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(
-            new SimpleTransactionFactory(dataSource)
-        );
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
 
         RuntimeException failure = assertThrows(RuntimeException.class, () ->
-            transactions.execute(transaction -> {
-                transaction.getConnection();
+            transactions.execute(() -> {
+                acquire(factory);
                 return null;
             })
         );
@@ -101,13 +99,12 @@ class SimpleTransactionTest {
     void beginFailureAfterConnectionAcquisitionClosesTheConnection() {
         TrackingDataSource dataSource = new TrackingDataSource();
         dataSource.disableAutoCommitFailure = new SQLException("cannot disable auto-commit");
-        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(
-            new SimpleTransactionFactory(dataSource)
-        );
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
 
         RuntimeException failure = assertThrows(RuntimeException.class, () ->
-            transactions.execute(transaction -> {
-                transaction.getConnection();
+            transactions.execute(() -> {
+                acquire(factory);
                 return null;
             })
         );
@@ -119,15 +116,18 @@ class SimpleTransactionTest {
     @Test
     void mapperExecutionHandlesJoinTheBoundTransaction() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SimpleTransactionFactory factory = new SimpleTransactionFactory(dataSource);
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
         SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
 
-        transactions.execute(root -> {
-            Connection connection = root.getConnection();
-            try (Transaction firstCall = factory.openTransaction();
-                 Transaction secondCall = factory.openTransaction()) {
-                assertSame(connection, firstCall.getConnection());
-                assertSame(connection, secondCall.getConnection());
+        transactions.execute(() -> {
+            Connection connection;
+            try (ConnectionHandle root = factory.openHandle()) {
+                connection = root.connection();
+            }
+            try (ConnectionHandle firstCall = factory.openHandle();
+                 ConnectionHandle secondCall = factory.openHandle()) {
+                assertSame(connection, firstCall.connection());
+                assertSame(connection, secondCall.connection());
             }
             assertEquals(1, dataSource.connectionCount);
             return null;
@@ -140,10 +140,10 @@ class SimpleTransactionTest {
     @Test
     void executionOutsideBoundaryUsesIndependentAutoCommitHandle() {
         TrackingDataSource dataSource = new TrackingDataSource();
-        SimpleTransactionFactory factory = new SimpleTransactionFactory(dataSource);
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
 
-        try (Transaction transaction = factory.openTransaction()) {
-            transaction.getConnection();
+        try (ConnectionHandle connectionHandle = factory.openHandle()) {
+            connectionHandle.connection();
         }
 
         assertEquals(List.of("getConnection:1", "1.close"), dataSource.events);
@@ -154,13 +154,12 @@ class SimpleTransactionTest {
         TrackingDataSource dataSource = new TrackingDataSource();
         dataSource.rollbackFailure = new SQLException("rollback failed");
         dataSource.closeFailure = new SQLException("close failed");
-        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(
-            new SimpleTransactionFactory(dataSource)
-        );
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
 
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () ->
-            transactions.execute(transaction -> {
-                transaction.getConnection();
+            transactions.execute(() -> {
+                acquire(factory);
                 throw new IllegalArgumentException("callback failed");
             })
         );
@@ -169,6 +168,12 @@ class SimpleTransactionTest {
         assertEquals(2, failure.getSuppressed().length);
         assertTrue(failure.getSuppressed()[0].getMessage().contains("rollback failed"));
         assertTrue(failure.getSuppressed()[1].getMessage().contains("close failed"));
+    }
+
+    private void acquire(SimpleConnectionHandleFactory factory) {
+        try (ConnectionHandle connectionHandle = factory.openHandle()) {
+            connectionHandle.connection();
+        }
     }
 
     static final class TrackingDataSource implements DataSource {

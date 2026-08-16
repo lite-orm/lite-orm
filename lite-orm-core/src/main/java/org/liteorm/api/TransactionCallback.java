@@ -6,5 +6,5 @@ package org.liteorm.api;
 @FunctionalInterface
 public interface TransactionCallback<T> {
 
-    T execute(Transaction transaction);
+    T execute();
 }

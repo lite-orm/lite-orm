@@ -1,6 +1,6 @@
 package org.liteorm.transaction;
 
-import org.liteorm.api.Transaction;
+import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.TransactionException;
 
 import javax.sql.DataSource;
@@ -11,7 +11,7 @@ import java.util.Objects;
 /**
  * Minimal JDBC transaction backed by one DataSource connection.
  */
-public final class SimpleTransaction implements Transaction {
+final class SimpleTransaction implements ConnectionHandle {
 
     private final DataSource dataSource;
     private final boolean transactional;
@@ -27,7 +27,7 @@ public final class SimpleTransaction implements Transaction {
     }
 
     @Override
-    public Connection getConnection() {
+    public Connection connection() {
         ensureOpen();
         if (connection == null) {
             try {
@@ -48,8 +48,7 @@ public final class SimpleTransaction implements Transaction {
         return connection;
     }
 
-    @Override
-    public void commit() {
+    void commit() {
         ensureCompletable();
         if (!transactional || connection == null) {
             completed = true;
@@ -74,8 +73,7 @@ public final class SimpleTransaction implements Transaction {
         }
     }
 
-    @Override
-    public void rollback() {
+    void rollback() {
         ensureCompletable();
         if (!transactional || connection == null) {
             completed = true;

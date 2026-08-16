@@ -83,7 +83,7 @@ UserMapper mapper = new UserMapperImpl(assembly.sqlExecutor());
 Wrap related Mapper calls in the callback executor:
 
 ```java
-assembly.transactionalExecutor().execute(transaction -> {
+assembly.transactionalExecutor().execute(() -> {
     mapper.insert(...);
     mapper.update(...);
     return null;

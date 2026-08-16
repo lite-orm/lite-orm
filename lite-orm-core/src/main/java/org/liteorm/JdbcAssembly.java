@@ -1,14 +1,14 @@
 package org.liteorm;
 
 import org.liteorm.api.ConfigurationException;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.TransactionDomain;
-import org.liteorm.api.TransactionFactory;
 import org.liteorm.api.TransactionalExecutor;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 import org.liteorm.transaction.SimpleTransactionDomainGuard;
-import org.liteorm.transaction.SimpleTransactionFactory;
+import org.liteorm.transaction.SimpleConnectionHandleFactory;
 import org.liteorm.transaction.SimpleTransactionalExecutor;
 
 import javax.sql.DataSource;
@@ -39,9 +39,9 @@ public final class JdbcAssembly {
     }
 
     public static SqlExecutor sqlExecutor(
-            TransactionFactory transactionFactory,
+            ConnectionHandleFactory connectionHandleFactory,
             List<ExecutionInterceptor> interceptors) {
-        return new JdbcSqlExecutor(transactionFactory, interceptors);
+        return new JdbcSqlExecutor(connectionHandleFactory, interceptors);
     }
 
     public static final class Builder {
@@ -94,11 +94,11 @@ public final class JdbcAssembly {
         }
 
         public JdbcAssembly build() {
-            SimpleTransactionFactory transactionFactory = new SimpleTransactionFactory(
+            SimpleConnectionHandleFactory connectionHandleFactory = new SimpleConnectionHandleFactory(
                 dataSource, domain, domainGuard);
             return new JdbcAssembly(
-                sqlExecutor(transactionFactory, interceptors),
-                new SimpleTransactionalExecutor(transactionFactory)
+                sqlExecutor(connectionHandleFactory, interceptors),
+                new SimpleTransactionalExecutor(connectionHandleFactory)
             );
         }
     }

@@ -47,13 +47,13 @@ class MultiDataSourceExecutionTest {
         CountDownLatch release = new CountDownLatch(1);
 
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var usersFuture = executor.submit(() -> usersAssembly.transactionalExecutor().execute(transaction -> {
+            var usersFuture = executor.submit(() -> usersAssembly.transactionalExecutor().execute(() -> {
                 active.countDown();
                 await(release);
                 users.insert("users", "users@example.com", 20);
                 return users.findById(1L);
             }));
-            var archiveFuture = executor.submit(() -> archiveAssembly.transactionalExecutor().execute(transaction -> {
+            var archiveFuture = executor.submit(() -> archiveAssembly.transactionalExecutor().execute(() -> {
                 active.countDown();
                 await(release);
                 archive.insert("archive", "archive@example.com", 30);
@@ -74,10 +74,10 @@ class MultiDataSourceExecutionTest {
         UserMapper users = new UserMapperImpl(usersAssembly.sqlExecutor());
         UserMapper archive = new UserMapperImpl(archiveAssembly.sqlExecutor());
 
-        usersAssembly.transactionalExecutor().execute(usersTransaction -> {
+        usersAssembly.transactionalExecutor().execute(() -> {
             users.insert("committed", "users@example.com", 20);
             try {
-                archiveAssembly.transactionalExecutor().execute(archiveTransaction -> {
+                archiveAssembly.transactionalExecutor().execute(() -> {
                     archive.insert("rolled-back", "archive@example.com", 30);
                     throw new IllegalStateException("archive failed");
                 });

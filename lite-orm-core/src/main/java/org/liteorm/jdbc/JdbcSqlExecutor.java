@@ -1,6 +1,8 @@
 package org.liteorm.jdbc;
 
 import org.liteorm.api.BatchExecutionPlan;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
@@ -9,8 +11,6 @@ import org.liteorm.api.RowMapper;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.Transaction;
-import org.liteorm.api.TransactionFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -27,15 +27,15 @@ import java.util.Objects;
  */
 public final class JdbcSqlExecutor implements SqlExecutor {
 
-    private final TransactionFactory transactionFactory;
+    private final ConnectionHandleFactory connectionHandleFactory;
     private final List<ExecutionInterceptor> interceptors;
 
-    public JdbcSqlExecutor(TransactionFactory transactionFactory) {
-        this(transactionFactory, List.of());
+    public JdbcSqlExecutor(ConnectionHandleFactory connectionHandleFactory) {
+        this(connectionHandleFactory, List.of());
     }
 
-    public JdbcSqlExecutor(TransactionFactory transactionFactory, List<ExecutionInterceptor> interceptors) {
-        this.transactionFactory = Objects.requireNonNull(transactionFactory, "transactionFactory");
+    public JdbcSqlExecutor(ConnectionHandleFactory connectionHandleFactory, List<ExecutionInterceptor> interceptors) {
+        this.connectionHandleFactory = Objects.requireNonNull(connectionHandleFactory, "connectionHandleFactory");
         this.interceptors = List.copyOf(Objects.requireNonNull(interceptors, "interceptors"));
     }
 
@@ -44,7 +44,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         validate(plan);
         long startedAt = System.nanoTime();
         List<ExecutionInterceptor> entered = new ArrayList<>(interceptors.size());
-        Transaction transaction = null;
+        ConnectionHandle connectionHandle = null;
         PreparedStatement statement = null;
         ResultSet resultSet = null;
         SqlResult result = null;
@@ -52,10 +52,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
 
         try {
             invokeBefore(plan, entered);
-            transaction = Objects.requireNonNull(
-                transactionFactory.openTransaction(), "transactionFactory returned null");
+            connectionHandle = Objects.requireNonNull(
+                connectionHandleFactory.openHandle(), "connectionHandleFactory returned null");
             Connection connection = Objects.requireNonNull(
-                transaction.getConnection(), "transaction returned null connection");
+                connectionHandle.connection(), "connectionHandle returned null connection");
             statement = prepare(connection, plan);
             switch (plan.getStatementType()) {
                 case SELECT -> {
@@ -89,7 +89,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             throw new SqlExecutionException(plan, failure);
         } finally {
-            Throwable cleanupFailure = closeResources(resultSet, statement, transaction);
+            Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
             if (cleanupFailure != null) {
                 if (primaryFailure != null) {
                     appendFlattened(primaryFailure, cleanupFailure);
@@ -208,10 +208,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
     }
 
     private Throwable closeResources(
-            ResultSet resultSet, PreparedStatement statement, Transaction transaction) {
+            ResultSet resultSet, PreparedStatement statement, ConnectionHandle connectionHandle) {
         Throwable failure = close(resultSet, null);
         failure = close(statement, failure);
-        return close(transaction, failure);
+        return close(connectionHandle, failure);
     }
 
     private Throwable close(AutoCloseable resource, Throwable primaryFailure) {

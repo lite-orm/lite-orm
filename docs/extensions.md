@@ -31,7 +31,7 @@ lite-orm:
 
 - Every package rule names exactly one Spring `DataSource` bean.
 - The named bean may be a physical pool or a routing DataSource proxy.
-- Starter uses `SpringTransactionFactory` and core `JdbcAssembly` to create the executor.
+- Starter uses `SpringConnectionHandleFactory` and core `JdbcAssembly` to create the executor.
 - Duplicate, parent, and child package rules cannot overlap.
 - Every Mapper interface is registered once and belongs to one DataSource domain. Applications with multiple DataSources use disjoint Mapper package bindings.
 - Bindings remain explicit when only one DataSource exists; the starter does not infer a default DataSource or Mapper scan package.

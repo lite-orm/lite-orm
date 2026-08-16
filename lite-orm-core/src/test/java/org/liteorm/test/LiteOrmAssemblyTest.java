@@ -4,13 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.JdbcAssembly;
 import org.liteorm.LiteOrm;
 import org.liteorm.api.ConfigurationException;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionException;
-import org.liteorm.api.TransactionFactory;
 import org.liteorm.transaction.SimpleTransactionDomainGuard;
 
 import javax.sql.DataSource;
@@ -63,7 +63,7 @@ class LiteOrmAssemblyTest {
         TrackingDataSource dataSource = new TrackingDataSource();
         JdbcAssembly assembly = LiteOrm.jdbc(dataSource).build();
 
-        assembly.transactionalExecutor().execute(transaction -> {
+        assembly.transactionalExecutor().execute(() -> {
             assembly.sqlExecutor().execute(selectPlan("test.Mapper.first"));
             assembly.sqlExecutor().execute(selectPlan("test.Mapper.second"));
             return null;
@@ -89,7 +89,7 @@ class LiteOrmAssemblyTest {
             .build();
 
         SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
-            users.transactionalExecutor().execute(transaction -> {
+            users.transactionalExecutor().execute(() -> {
                 users.sqlExecutor().execute(selectPlan("users.Mapper.find"));
                 orders.sqlExecutor().execute(selectPlan("orders.Mapper.find"));
                 return null;
@@ -119,12 +119,12 @@ class LiteOrmAssemblyTest {
     }
 
     @Test
-    void assemblesSqlExecutorFromHostTransactionFactory() {
-        TransactionFactory transactionFactory = () -> null;
+    void assemblesSqlExecutorFromHostConnectionHandleFactory() {
+        ConnectionHandleFactory connectionHandleFactory = () -> null;
 
         assertInstanceOf(
             org.liteorm.jdbc.JdbcSqlExecutor.class,
-            JdbcAssembly.sqlExecutor(transactionFactory, List.of())
+            JdbcAssembly.sqlExecutor(connectionHandleFactory, List.of())
         );
     }
 

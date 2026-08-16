@@ -22,7 +22,7 @@ Generated *MapperImpl
 SqlExecutor.execute(ExecutionPlan)
         |
         v
-JdbcSqlExecutor -> TransactionFactory -> Transaction -> JDBC
+JdbcSqlExecutor -> ConnectionHandleFactory -> ConnectionHandle -> JDBC
 ```
 
 The architecture no longer depends on the deleted `SqlEngine`, fixed-phase processor chain, mutable execution context, `ConnectionProvider`, `TransactionCoordinator`, global configuration singleton, runtime Mapper proxy, runtime XML parser, or runtime expression engine.
@@ -92,7 +92,7 @@ Review result: **accepted**. This sequence is mandatory lifecycle code, not a Ch
 
 ### Standalone Assembly
 
-`LiteOrm.jdbc(dataSource)` returns the only assembly builder. `JdbcAssembly` contains one `SqlExecutor` and one `TransactionalExecutor` sharing one `SimpleTransactionFactory`.
+`LiteOrm.jdbc(dataSource)` returns the only assembly builder. `JdbcAssembly` contains one `SqlExecutor` and one `TransactionalExecutor` sharing one `SimpleConnectionHandleFactory`.
 
 - Calls outside a callback use temporary auto-commit handles.
 - A callback binds one root `SimpleTransaction` to the current thread.
@@ -106,7 +106,7 @@ Review result: **accepted**. The builder is justified because assembly has optio
 
 The starter requires explicit `mapper-bindings`. `GeneratedMapperBeanDefinitionRegistrar` scans configured packages, resolves the named DataSource, registers one Spring-aware executor per DataSource, and registers each generated Mapper once under the JavaBeans-decapped interface name.
 
-`SpringTransactionFactory` adapts the core transaction strategy to `DataSourceUtils`. `SpringTransaction` participates in Spring connection ownership and deliberately leaves commit/rollback timing to `PlatformTransactionManager`.
+`SpringConnectionHandleFactory` adapts executor connection participation to `DataSourceUtils`. `SpringConnectionHandle` participates in Spring connection ownership and has no commit/rollback authority because `PlatformTransactionManager` owns boundary timing.
 
 Review result: **accepted**. Core has no Spring dependency and generated Mapper classes remain Spring-neutral.
 
@@ -134,7 +134,7 @@ Accepted boundaries:
 - `FreemarkerCodeGenerator`: Java source rendering;
 - generated Mapper: statement construction and typed return mapping;
 - `JdbcSqlExecutor`: fixed physical JDBC lifecycle;
-- `TransactionFactory`: transaction-handle creation strategy;
+- `ConnectionHandleFactory`: execution-scoped connection participation strategy;
 - `Transaction`: one handle's ownership and participation semantics;
 - `TransactionalExecutor`: explicit transaction boundary;
 - registrar: Spring bean-definition assembly.
@@ -149,23 +149,21 @@ Accepted extension points are typed and narrow:
 - `ParameterBinder` for one value type;
 - `RowMapper` for one row shape;
 - `ExecutionInterceptor` for observation;
-- `TransactionFactory` for host connection participation;
+- `ConnectionHandleFactory` for host connection participation;
 - optional `SqlExecutor` decoration for exceptional whole-execution routing.
 
 Fixed JDBC phases are intentionally closed to reordering and replacement. New behavior should use a typed extension or change the executor implementation with lifecycle tests.
 
 ### Liskov Substitution Principle
 
-`SimpleTransaction` and `SpringTransaction` are substitutable from `JdbcSqlExecutor`'s perspective because the executor requires only connection access and close/release behavior.
-
-Follow-up: the public `Transaction` interface also exposes `commit` and `rollback`. Root standalone handles perform completion, participating handles reject direct completion, and Spring handles use no-op completion because Spring owns the boundary. This is operationally correct but semantically broad. A future API-hardening change should either strengthen the documented participation contract or separate execution-scoped connection handles from locally completable transaction boundaries.
+`SimpleTransaction` and `SpringConnectionHandle` satisfy the same executor-facing `ConnectionHandle` contract because the executor requires only connection access and close/release behavior. Commit and rollback authority remains inside the local transactional executor or the host transaction manager.
 
 ### Interface Segregation Principle
 
 Strong small interfaces:
 
 - `SqlExecutor` has one operation;
-- `TransactionFactory` has one creation method;
+- `ConnectionHandleFactory` has one creation method;
 - `TransactionalExecutor` has one callback method;
 - provider, binder, row mapper, and domain guard are focused contracts.
 
@@ -177,7 +175,7 @@ Accepted dependency direction:
 
 ```text
 generated Mapper -> org.liteorm.api
-JdbcSqlExecutor -> TransactionFactory / Transaction
+JdbcSqlExecutor -> ConnectionHandleFactory / ConnectionHandle
 standalone transaction implementation -> org.liteorm.api + JDBC
 Spring transaction implementation -> org.liteorm.api + Spring JDBC
 Spring registrar -> core public assembly contracts
@@ -189,11 +187,11 @@ Core runtime does not depend on compiler models or Spring. Spring depends on cor
 
 ### Strategy
 
-Justified for `TransactionFactory` and `Transaction` implementations. Standalone and Spring have genuinely different connection ownership semantics behind the same executor dependency.
+Justified for `ConnectionHandleFactory` and `ConnectionHandle` implementations. Standalone and Spring have genuinely different connection ownership semantics behind the same executor dependency.
 
 ### Factory
 
-Justified for `TransactionFactory.openTransaction()`. Each SQL execution needs a fresh ownership/participation handle even when it joins an existing root transaction.
+Justified for `ConnectionHandleFactory.openHandle()`. Each SQL execution needs a fresh ownership/participation handle even when it joins an existing root transaction.
 
 ### Explicit Lifecycle / Template
 
@@ -205,7 +203,7 @@ Justified for before/after observation. Logging, slow-query reporting, audit, me
 
 ### Adapter
 
-Justified for `SpringTransactionFactory` and `SpringTransaction`, which adapt Spring JDBC connection participation to the core transaction contracts.
+Justified for `SpringConnectionHandleFactory` and `SpringConnectionHandle`, which adapt Spring JDBC connection participation to the core connection contracts.
 
 ### Builder
 
@@ -233,8 +231,8 @@ Connection acquisition, preparation, binding, execution, extraction, and cleanup
 
 - `MappingException` currently has no production usage.
 - `SqlResult.success(...)` methods are compatibility aliases for `forQuery` and `forUpdate`.
-- `JdbcSqlExecutor`, `SimpleTransaction`, `SimpleTransactionFactory`, and `SimpleTransactionalExecutor` may not all need to remain direct user construction APIs once assembly is established.
-- `SpringTransaction` has a package-private constructor and may not need a public type.
+- `JdbcSqlExecutor`, `SimpleConnectionHandleFactory`, and `SimpleTransactionalExecutor` may not all need to remain direct user construction APIs once assembly is established.
+- `SpringConnectionHandle` has a package-private constructor and may not need a public type.
 - compiler implementation types are public for processor mechanics, not application extension.
 - `domainGuard(...)` exposes a concrete implementation rather than a complete abstraction.
 
@@ -276,7 +274,7 @@ These are API-hardening tasks, not runtime lifecycle defects.
 - Generated Mapper fields are final and adapter instances are reused.
 - `JdbcSqlExecutor` copies its interceptor list and keeps no per-call mutable state in fields.
 - execution-local resources live in method locals.
-- `SimpleTransactionFactory` and `SimpleTransactionDomainGuard` isolate active transaction state with instance-scoped `ThreadLocal` values.
+- `SimpleConnectionHandleFactory` and `SimpleTransactionDomainGuard` isolate active transaction state with instance-scoped `ThreadLocal` values.
 - Spring connection state is delegated to Spring's thread-bound transaction synchronization.
 - the XML compiler cache is an instance-scoped `ConcurrentHashMap`, not a global mutable cache.
 - `ExecutionPlan` clones parameter and binder arrays; `BatchExecutionPlan` clones row arrays.
@@ -320,12 +318,12 @@ XML resources cannot be attached to javac as language-model elements. XML failur
 
 Keep correctness and API-hardening changes separate from performance work:
 
-1. decide whether to narrow the `Transaction` completion contract;
-2. remove or internalize unused/implementation public types with compatibility tests;
+1. add transaction options and rollback-only semantics;
+2. remove or internalize unused/implementation public types;
 3. normalize exception inheritance and define redaction rules;
 4. clarify or harden `SqlResult` query-result ownership;
 5. replace narrative print tests with focused assertions;
-6. consider processor/runtime artifact separation only if dependency or public-surface costs justify it.
+6. add bounded queries, mapping contracts, and production database verification before optimization.
 
 Do not add caches or hot-path complexity as part of those changes.
 

@@ -2,14 +2,14 @@ package org.liteorm.test.jdbc;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.BatchExecutionPlan;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.Transaction;
-import org.liteorm.api.TransactionFactory;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 
 import java.lang.reflect.Proxy;
@@ -173,10 +173,8 @@ class JdbcSqlExecutorTest {
         List<String> events = new ArrayList<>();
         ExecutionInterceptor first = interceptor("first", events);
         ExecutionInterceptor second = interceptor("second", events);
-        TransactionFactory transactions = () -> new Transaction() {
-            @Override public Connection getConnection() { throw new IllegalStateException("failed"); }
-            @Override public void commit() { }
-            @Override public void rollback() { }
+        ConnectionHandleFactory transactions = () -> new ConnectionHandle() {
+            @Override public Connection connection() { throw new IllegalStateException("failed"); }
             @Override public void close() { }
         };
 
@@ -196,7 +194,8 @@ class JdbcSqlExecutorTest {
         ResultSet resultSet = failingRows(executionFailure, resultSetCloseFailure);
         PreparedStatement statement = statement(new ArrayList<>(), resultSet, 0, null, null, statementCloseFailure);
         Connection connection = connection(new ArrayList<>(), statement);
-        TransactionFactory transactions = () -> transaction(connection, transactionCloseFailure, new ArrayList<>());
+        ConnectionHandleFactory transactions = () -> connectionHandle(
+            connection, transactionCloseFailure, new ArrayList<>());
         ExecutionInterceptor interceptor = new ExecutionInterceptor() {
             @Override
             public void afterFailure(ExecutionOutcome outcome) {
@@ -323,11 +322,13 @@ class JdbcSqlExecutorTest {
         });
     }
 
-    private Transaction transaction(Connection connection, RuntimeException closeFailure, List<String> events) {
-        return new Transaction() {
-            @Override public Connection getConnection() { events.add("transaction.connection"); return connection; }
-            @Override public void commit() { }
-            @Override public void rollback() { }
+    private ConnectionHandle connectionHandle(
+            Connection connection, RuntimeException closeFailure, List<String> events) {
+        return new ConnectionHandle() {
+            @Override public Connection connection() {
+                events.add("transaction.connection");
+                return connection;
+            }
             @Override public void close() { events.add("transaction.close"); if (closeFailure != null) throw closeFailure; }
         };
     }
@@ -354,7 +355,7 @@ class JdbcSqlExecutorTest {
         Object invoke(String method, Object[] args) throws Throwable;
     }
 
-    private final class TrackingFactory implements TransactionFactory {
+    private final class TrackingFactory implements ConnectionHandleFactory {
         private final Connection connection;
         private final List<String> events;
         private int openCount;
@@ -365,10 +366,10 @@ class JdbcSqlExecutorTest {
         }
 
         @Override
-        public Transaction openTransaction() {
+        public ConnectionHandle openHandle() {
             openCount++;
             events.add("transaction.open");
-            return transaction(connection, null, events);
+            return connectionHandle(connection, null, events);
         }
     }
 }

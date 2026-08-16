@@ -51,18 +51,16 @@ JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
 UserMapper userMapper = new UserMapperImpl(assembly.sqlExecutor());
 ```
 
-Calls outside an explicit transaction use temporary auto-commit transaction handles. Use the assembly's callback executor when several Mapper calls must share one connection and commit or roll back together:
+Calls outside an explicit transaction use temporary auto-commit connection handles. Use the assembly's callback executor when several Mapper calls must share one connection and commit or roll back together:
 
 ```java
-User user = assembly.transactionalExecutor().execute(transaction -> {
+User user = assembly.transactionalExecutor().execute(() -> {
     userMapper.insert(1L, "Alice", "alice@example.com", 30);
     return userMapper.findById(1L);
 });
 ```
 
-`SqlExecutor` owns the fixed JDBC lifecycle. `TransactionFactory` creates one `Transaction` handle per execution. The handle owns connection acquisition, commit/rollback participation, and release semantics. `SimpleTransactionFactory` joins the thread-bound root transaction created by `TransactionalExecutor`; nested callbacks join the root transaction.
-
-The callback argument is the current `Transaction` handle, but ordinary application code normally continues to call generated Mappers rather than using the JDBC connection directly.
+`SqlExecutor` owns the fixed JDBC lifecycle. `ConnectionHandleFactory` creates one connection-only `ConnectionHandle` per execution. `SimpleConnectionHandleFactory` joins the thread-bound root transaction created by `TransactionalExecutor`; transaction completion remains internal and nested callbacks join the root transaction.
 
 ## Spring Boot
 
@@ -85,7 +83,7 @@ At startup the starter:
 
 Generated classes remain Spring-neutral. Registration occurs through `BeanDefinitionRegistryPostProcessor`; Mapper invocation is direct Java dispatch and performs no runtime package or bean lookup.
 
-Inside `@Transactional`, `SpringTransactionFactory` obtains and releases the thread-bound connection through `DataSourceUtils`. `SpringTransaction` does not commit or roll back because Spring owns boundary timing. Outside a Spring transaction, execution follows the DataSource's normal auto-commit behavior.
+Inside `@Transactional`, `SpringConnectionHandleFactory` obtains and releases the thread-bound connection through `DataSourceUtils`. The handle has no commit or rollback authority because Spring owns boundary timing. Outside a Spring transaction, execution follows the DataSource's normal auto-commit behavior.
 
 The `PlatformTransactionManager` used by `@Transactional` must manage the same DataSource as the Mapper package binding. A mismatch fails explicitly rather than silently executing outside the intended transaction.
 

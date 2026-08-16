@@ -1,6 +1,6 @@
 package org.liteorm.spring.boot;
 
-import org.liteorm.api.Transaction;
+import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.TransactionException;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -10,24 +10,24 @@ import java.sql.Connection;
 import java.util.Objects;
 
 /**
- * Transaction handle that participates in Spring's thread-bound DataSource lifecycle.
+ * Execution-scoped connection handle backed by Spring DataSource synchronization.
  */
-public final class SpringTransaction implements Transaction {
+public final class SpringConnectionHandle implements ConnectionHandle {
 
     private final DataSource dataSource;
     private Connection connection;
     private boolean closed;
 
-    SpringTransaction(DataSource dataSource) {
+    SpringConnectionHandle(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 
     @Override
-    public Connection getConnection() {
+    public Connection connection() {
         if (closed) {
             throw new TransactionException(
                 TransactionException.Type.CLEANUP_FAILED,
-                "Spring transaction handle is closed"
+                "Spring connection handle is closed"
             );
         }
         if (connection == null) {
@@ -35,14 +35,6 @@ public final class SpringTransaction implements Transaction {
             connection = DataSourceUtils.getConnection(dataSource);
         }
         return connection;
-    }
-
-    @Override
-    public void commit() {
-    }
-
-    @Override
-    public void rollback() {
     }
 
     @Override

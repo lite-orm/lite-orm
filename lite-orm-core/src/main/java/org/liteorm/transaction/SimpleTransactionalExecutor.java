@@ -10,24 +10,24 @@ import java.util.Objects;
  */
 public final class SimpleTransactionalExecutor implements TransactionalExecutor {
 
-    private final SimpleTransactionFactory transactionFactory;
+    private final SimpleConnectionHandleFactory connectionHandleFactory;
 
-    public SimpleTransactionalExecutor(SimpleTransactionFactory transactionFactory) {
-        this.transactionFactory = Objects.requireNonNull(transactionFactory, "transactionFactory");
+    public SimpleTransactionalExecutor(SimpleConnectionHandleFactory connectionHandleFactory) {
+        this.connectionHandleFactory = Objects.requireNonNull(connectionHandleFactory, "connectionHandleFactory");
     }
 
     @Override
     public <T> T execute(TransactionCallback<T> callback) {
         Objects.requireNonNull(callback, "callback");
-        SimpleTransaction current = transactionFactory.currentTransaction();
+        SimpleTransaction current = connectionHandleFactory.currentTransaction();
         if (current != null) {
-            return callback.execute(transactionFactory.openTransaction());
+            return callback.execute();
         }
 
-        SimpleTransaction transaction = transactionFactory.beginTransaction();
+        SimpleTransaction transaction = connectionHandleFactory.beginTransaction();
         Throwable primaryFailure = null;
         try {
-            T result = callback.execute(transaction);
+            T result = callback.execute();
             transaction.commit();
             return result;
         } catch (RuntimeException | Error failure) {
@@ -50,7 +50,7 @@ public final class SimpleTransactionalExecutor implements TransactionalExecutor 
                     throw closeFailure;
                 }
             } finally {
-                transactionFactory.clear(transaction);
+                connectionHandleFactory.clear(transaction);
             }
         }
     }

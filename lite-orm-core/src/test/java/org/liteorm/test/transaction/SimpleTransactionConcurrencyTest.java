@@ -1,8 +1,8 @@
 package org.liteorm.test.transaction;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.api.Transaction;
-import org.liteorm.transaction.SimpleTransactionFactory;
+import org.liteorm.api.ConnectionHandle;
+import org.liteorm.transaction.SimpleConnectionHandleFactory;
 import org.liteorm.transaction.SimpleTransactionalExecutor;
 
 import java.sql.Connection;
@@ -21,7 +21,7 @@ class SimpleTransactionConcurrencyTest {
     @Test
     void nestedAndConcurrentCallbacksKeepIndependentThreadBindings() throws Exception {
         SimpleTransactionTest.TrackingDataSource dataSource = new SimpleTransactionTest.TrackingDataSource();
-        SimpleTransactionFactory factory = new SimpleTransactionFactory(dataSource);
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
         SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
         Set<Connection> threadConnections = ConcurrentHashMap.newKeySet();
         CountDownLatch ready = new CountDownLatch(2);
@@ -29,13 +29,18 @@ class SimpleTransactionConcurrencyTest {
 
         try (var executor = Executors.newFixedThreadPool(2)) {
             for (int index = 0; index < 2; index++) {
-                executor.submit(() -> transactions.execute(root -> {
-                    Connection connection = root.getConnection();
+                executor.submit(() -> transactions.execute(() -> {
+                    Connection connection;
+                    try (ConnectionHandle root = factory.openHandle()) {
+                        connection = root.connection();
+                    }
                     threadConnections.add(connection);
-                    transactions.execute(nested -> {
-                        assertSame(connection, nested.getConnection());
-                        try (Transaction mapperCall = factory.openTransaction()) {
-                            assertSame(connection, mapperCall.getConnection());
+                    transactions.execute(() -> {
+                        try (ConnectionHandle nested = factory.openHandle()) {
+                            assertSame(connection, nested.connection());
+                        }
+                        try (ConnectionHandle mapperCall = factory.openHandle()) {
+                            assertSame(connection, mapperCall.connection());
                         }
                         return null;
                     });
