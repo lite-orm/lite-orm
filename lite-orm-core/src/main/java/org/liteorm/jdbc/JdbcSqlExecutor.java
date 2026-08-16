@@ -9,6 +9,7 @@ import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.RowMapper;
+import org.liteorm.api.ResultColumn;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
@@ -69,7 +70,8 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     resultSet = statement.executeQuery();
                     executionState = JdbcExecutionState.EXECUTED;
-                    result = SqlResult.forQuery(readRows(resultSet, plan.getRowMapper()));
+                    QueryRows queryRows = readRows(resultSet, plan.getRowMapper());
+                    result = SqlResult.forQuery(queryRows.columns(), queryRows.rows());
                 }
                 case INSERT, UPDATE, DELETE -> {
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
@@ -231,17 +233,28 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             : (ParameterBinder<Object>) binders[index];
     }
 
-    private List<Object[]> readRows(ResultSet resultSet, RowMapper<?> rowMapper) throws SQLException {
+    private QueryRows readRows(ResultSet resultSet, RowMapper<?> rowMapper) throws SQLException {
         if (rowMapper != null) {
             List<Object[]> rows = new ArrayList<>();
             while (resultSet.next()) {
                 rows.add(new Object[]{rowMapper.map(resultSet)});
             }
-            return rows;
+            return new QueryRows(List.of(), rows);
         }
 
         ResultSetMetaData metadata = resultSet.getMetaData();
         int columnCount = metadata.getColumnCount();
+        List<ResultColumn> columns = new ArrayList<>(columnCount);
+        for (int column = 1; column <= columnCount; column++) {
+            String label = metadata.getColumnLabel(column);
+            if (label == null || label.isBlank()) {
+                label = metadata.getColumnName(column);
+            }
+            if (label == null || label.isBlank()) {
+                label = "column" + column;
+            }
+            columns.add(new ResultColumn(label, column - 1));
+        }
         List<Object[]> rows = new ArrayList<>();
         while (resultSet.next()) {
             Object[] row = new Object[columnCount];
@@ -250,7 +263,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             rows.add(row);
         }
-        return rows;
+        return new QueryRows(columns, rows);
+    }
+
+    private record QueryRows(List<ResultColumn> columns, List<Object[]> rows) {
     }
 
     private Throwable closeResources(

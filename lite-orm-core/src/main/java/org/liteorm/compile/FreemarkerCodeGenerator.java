@@ -151,12 +151,17 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
             return """
                 List<Object[]> resultRows = executionResult.getQueryResults();
+                if (resultRows == null || resultRows.isEmpty()) {
+                    return new ArrayList<>();
+                }
+                %s
                 List<%s> mappedResults = new ArrayList<>(resultRows.size());
                 for (Object[] resultRow : resultRows) {
                     mappedResults.add(%s);
                 }
                 return mappedResults;
-                """.formatted(elementType, resultRowExpression(methodModel.resultMappingCode())).indent(8);
+                """.formatted(resultColumnIndexes(methodModel), elementType,
+                    resultRowExpression(methodModel.resultMappingCode())).indent(8);
         }
 
         if ("void".equals(returnType)) {
@@ -171,10 +176,20 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             if (resultRows.size() > 1) {
                 throw new NonUniqueResultException(%s, resultRows.size());
             }
+            %s
             Object[] resultRow = resultRows.get(0);
             return %s;
-            """.formatted(javaString(methodModel.statementId()),
+            """.formatted(javaString(methodModel.statementId()), resultColumnIndexes(methodModel),
                 resultRowExpression(methodModel.resultMappingCode())).indent(8);
+    }
+
+    private String resultColumnIndexes(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.resultColumnLabels().isEmpty()) {
+            return "";
+        }
+        return "int[] resultColumnIndexes = new int[]{" + methodModel.resultColumnLabels().stream()
+            .map(label -> "executionResult.requireColumnIndex(" + javaString(label) + ")")
+            .collect(java.util.stream.Collectors.joining(", ")) + "};";
     }
 
     private String mapperMethodLocation(MapperCompilationModel.MethodModel methodModel) {
@@ -187,7 +202,9 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String resultRowExpression(String mappingCode) {
-        return mappingCode.replace("row[", "resultRow[").replace("(row)", "(resultRow)");
+        return mappingCode.replace("row[", "resultRow[")
+            .replace("(row,", "(resultRow,")
+            .replace("(row)", "(resultRow)");
     }
 
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {

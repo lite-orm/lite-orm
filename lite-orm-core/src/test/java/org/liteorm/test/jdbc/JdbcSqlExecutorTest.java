@@ -9,6 +9,7 @@ import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
+import org.liteorm.api.ResultColumn;
 import org.liteorm.api.StatementOptions;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
@@ -106,6 +107,25 @@ class JdbcSqlExecutorTest {
             "rows.next:true", "rows.getObject:1", "rows.getObject:2", "rows.next:false",
             "rows.close", "statement.close", "transaction.close"
         ), events);
+    }
+
+    @Test
+    void capturesResultColumnLabelsOnceBeforeReadingRows() {
+        List<String> events = new ArrayList<>();
+        ResultSet rows = rows(
+            events,
+            List.of("USER_NAME", "id"),
+            List.<Object[]>of(new Object[]{"Alice", 7L}));
+        PreparedStatement statement = statement(events, rows, 0, null, null);
+
+        SqlResult result = executor(events, statement).execute(selectPlan(null));
+
+        assertEquals(List.of(new ResultColumn("USER_NAME", 0), new ResultColumn("id", 1)),
+            result.getResultColumns());
+        assertEquals(0, result.requireColumnIndex("user_name"));
+        assertEquals(1, result.requireColumnIndex("ID"));
+        assertEquals(1, events.stream().filter("metadata.getColumnLabel:1"::equals).count());
+        assertEquals(1, events.stream().filter("metadata.getColumnLabel:2"::equals).count());
     }
 
     @Test
@@ -417,6 +437,25 @@ class JdbcSqlExecutorTest {
             case "getMetaData" -> metadata;
             case "next" -> { boolean present = ++cursor[0] < values.size(); events.add("rows.next:" + present); yield present; }
             case "getObject" -> { events.add("rows.getObject:" + args[0]); yield values.get(cursor[0])[(int) args[0] - 1]; }
+            case "close" -> { events.add("rows.close"); yield null; }
+            default -> null;
+        });
+    }
+
+    private ResultSet rows(List<String> events, List<String> labels, List<Object[]> values) {
+        int[] cursor = {-1};
+        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, args) -> switch (method) {
+            case "getColumnCount" -> labels.size();
+            case "getColumnLabel" -> {
+                events.add("metadata.getColumnLabel:" + args[0]);
+                yield labels.get((int) args[0] - 1);
+            }
+            default -> null;
+        });
+        return proxy(ResultSet.class, (method, args) -> switch (method) {
+            case "getMetaData" -> metadata;
+            case "next" -> ++cursor[0] < values.size();
+            case "getObject" -> values.get(cursor[0])[(int) args[0] - 1];
             case "close" -> { events.add("rows.close"); yield null; }
             default -> null;
         });

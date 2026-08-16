@@ -31,6 +31,7 @@ class JdbcTypeCompilationTest {
             import java.time.Instant;
             import java.time.LocalDate;
             import java.time.LocalDateTime;
+            import org.liteorm.annotation.Column;
             import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.Select;
 
@@ -40,9 +41,9 @@ class JdbcTypeCompilationTest {
                 Long id,
                 Integer quantity,
                 BigDecimal amount,
-                LocalDate businessDate,
-                LocalDateTime createdAt,
-                Instant occurredAt,
+                @Column("business_date") LocalDate businessDate,
+                @Column("created_at") LocalDateTime createdAt,
+                @Column("occurred_at") Instant occurredAt,
                 Status status,
                 byte[] payload,
                 Boolean enabled
@@ -58,13 +59,15 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/JdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toLong(resultRow[0])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(resultRow[2])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDate(resultRow[3])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(resultRow[4])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[5])"), generated);
-        assertTrue(generated.contains("Status.valueOf(resultRow[6].toString())"), generated);
-        assertTrue(generated.contains("(byte[])resultRow[7]"), generated);
+        assertTrue(generated.contains("executionResult.requireColumnIndex(\"business_date\")"), generated);
+        assertTrue(generated.contains("executionResult.requireColumnIndex(\"created_at\")"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLong(resultRow[resultColumnIndexes[0]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(resultRow[resultColumnIndexes[2]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalDate(resultRow[resultColumnIndexes[3]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(resultRow[resultColumnIndexes[4]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[resultColumnIndexes[5]])"), generated);
+        assertTrue(generated.contains("Status.valueOf(resultRow[resultColumnIndexes[6]].toString())"), generated);
+        assertTrue(generated.contains("(byte[])resultRow[resultColumnIndexes[7]]"), generated);
     }
 
     private CompilationResult compile(String typeName, String source) throws Exception {

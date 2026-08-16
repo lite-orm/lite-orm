@@ -1,6 +1,7 @@
 package org.liteorm.test.api;
 
 import org.junit.jupiter.api.Test;
+import org.liteorm.api.ResultColumn;
 import org.liteorm.api.SqlResult;
 
 import java.util.ArrayList;
@@ -48,5 +49,19 @@ class SqlResultTest {
     void compatibilitySuccessFactoriesAreNotPublicApi() {
         assertFalse(Arrays.stream(SqlResult.class.getDeclaredMethods())
             .anyMatch(method -> method.getName().equals("success")));
+    }
+
+    @Test
+    void columnLabelsAreCaseInsensitiveAndUnique() {
+        SqlResult result = SqlResult.forQuery(
+            List.of(new ResultColumn("user_name", 0), new ResultColumn("ID", 1)),
+            List.<Object[]>of(new Object[]{"Alice", 7L}));
+
+        assertEquals(0, result.requireColumnIndex("USER_NAME"));
+        assertEquals(1, result.requireColumnIndex("id"));
+        assertThrows(IllegalArgumentException.class, () -> result.requireColumnIndex("missing"));
+        assertThrows(IllegalArgumentException.class, () -> SqlResult.forQuery(
+            List.of(new ResultColumn("id", 0), new ResultColumn("ID", 1)),
+            List.<Object[]>of(new Object[]{7L, 8L})));
     }
 }

@@ -32,6 +32,7 @@ public record MapperCompilationModel(
         String resultType,
         String resultMappingCode,
         String resultMappingHelperCode,
+        List<String> resultColumnLabels,
         String providerClassName,
         String providerFieldName,
         String providerArgumentExpression,
@@ -55,6 +56,7 @@ public record MapperCompilationModel(
             String resultType,
             String resultMappingCode,
             String resultMappingHelperCode,
+            List<String> resultColumnLabels,
             String providerClassName,
             String providerFieldName,
             String providerArgumentExpression,
@@ -67,7 +69,7 @@ public record MapperCompilationModel(
         ) {
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
                 sourceType, sqlTemplate, dynamic, false, resultType, resultMappingCode,
-                resultMappingHelperCode, providerClassName, providerFieldName, providerArgumentExpression,
+                resultMappingHelperCode, resultColumnLabels, providerClassName, providerFieldName, providerArgumentExpression,
                 adapterFields, parameterBinderFields, rowMapperFieldName, methodParameters, parameterBindings,
                 astNode);
         }

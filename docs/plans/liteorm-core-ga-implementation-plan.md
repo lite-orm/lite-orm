@@ -429,29 +429,31 @@ Commit: `feat: add scope-bound cursor queries`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/mapping/ColumnLabelMappingTest.java`
 
-- [ ] **Step 1: Write RED tests for reordered and aliased columns**
+- [x] **Step 1: Write RED tests for reordered and aliased columns**
 
 Verify Record components and JavaBean properties map by `ResultSetMetaData.getColumnLabel`, reordered SELECT lists remain correct, duplicate labels fail clearly, missing required labels fail clearly, and `@Column("user_id")` overrides the property name.
 
-- [ ] **Step 2: Capture immutable column metadata once per result**
+- [x] **Step 2: Capture immutable column metadata once per result**
 
 Store normalized labels and JDBC indexes without exposing mutable metadata objects.
 
-- [ ] **Step 3: Generate label-based mappings**
+- [x] **Step 3: Generate label-based mappings**
 
 Record components default to component names. JavaBean properties default to property names. Matching is case-insensitive but duplicate normalized labels are rejected.
 
-- [ ] **Step 4: Preserve explicit positional custom `RowMapper` behavior**
+- [x] **Step 4: Preserve explicit positional custom `RowMapper` behavior**
 
 Custom row mappers continue to receive the live `ResultSet` and own vendor-specific mapping decisions.
 
-- [ ] **Step 5: Run mapping and core tests, then commit**
+- [x] **Step 5: Run mapping and core tests, then commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `feat: map generated results by column label`
+
+Implementation status: Completed and verified on 2026-08-16 with runtime-generated Record/JavaBean mapping tests, JDBC metadata tests, all 144 core tests, and the full Maven reactor.
 
 ### Task 9: Complete Supported Mapper Return Shapes
 
@@ -773,10 +775,10 @@ Commit: `perf: establish core ga benchmark baseline`
 - [ ] Terminal interceptor failures cannot convert successful writes into SQL failures.
 - [ ] Queries support timeout, fetch size, maximum-row safety caps, and scope-bound cursor consumption.
 - [ ] Dynamic Mapper parameters can produce bound, dialect-appropriate pagination SQL without a separate core pagination abstraction.
-- [ ] Record and JavaBean mapping use validated column labels rather than declaration position.
+- [x] Record and JavaBean mapping use validated column labels rather than declaration position.
 - [ ] `Optional<T>`, primitive no-row behavior, inheritance, and unsupported generic shapes are explicit.
 - [ ] Generated-key behavior is typed and unsupported composite/batch forms fail at compile time.
-- [ ] `SqlResult` is deeply immutable and contains no compatibility aliases.
+- [x] `SqlResult` is deeply immutable and contains no compatibility aliases.
 - [ ] Every public failure extends `LiteOrmException` and default messages redact values.
 - [ ] Obsolete APIs, dead templates, disabled services, and narrative tests are removed.
 - [ ] PostgreSQL and MySQL compatibility suites pass.

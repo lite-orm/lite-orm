@@ -227,10 +227,10 @@ public class CompilePipeline {
             validateBatchMethod(mapperInterface, method, returnType, sqlInfo);
         }
         ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
-            ? new ResultMapping("", "")
+            ? new ResultMapping("", "", List.of())
             : adapterBindings.rowMapperFieldName() == null
                 ? generateResultMapping(mapperInterface, method, returnType)
-                : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "");
+                : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -246,6 +246,7 @@ public class CompilePipeline {
             returnType,
             resultMapping.expression(),
             resultMapping.helperCode(),
+            resultMapping.columnLabels(),
             providerBinding == null ? null : providerBinding.providerClassName(),
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
@@ -799,7 +800,7 @@ public class CompilePipeline {
         } else if (!returnType.equals("void")) {
             return generateSingleMapping(mapperInterface, method, returnType);
         } else {
-            return new ResultMapping("", "");
+            return new ResultMapping("", "", List.of());
         }
     }
     
@@ -819,7 +820,7 @@ public class CompilePipeline {
             TypeElement mapperInterface, ExecutableElement method, String objectType) throws CompileException {
         String scalarMapping = generateValueMapping(objectType, "row[0]");
         if (scalarMapping != null) {
-            return new ResultMapping(scalarMapping, "");
+            return new ResultMapping(scalarMapping, "", List.of());
         }
 
         var typeElement = elementUtils.getTypeElement(objectType);
@@ -828,8 +829,7 @@ public class CompilePipeline {
         }
 
         if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-            return new ResultMapping(
-                generateRecordMapping(mapperInterface, method, typeElement, objectType), "");
+            return generateRecordMapping(mapperInterface, method, typeElement, objectType);
         }
 
         return generateJavaBeanMapping(mapperInterface, method, typeElement, objectType);
@@ -871,23 +871,26 @@ public class CompilePipeline {
     /**
      * 生成record class映射代码（零反射）
      */
-    private String generateRecordMapping(
+    private ResultMapping generateRecordMapping(
             TypeElement mapperInterface, ExecutableElement mapperMethod,
             TypeElement typeElement, String objectType) throws CompileException {
         // 获取record components
         var recordComponents = typeElement.getRecordComponents();
+        List<String> columnLabels = new ArrayList<>(recordComponents.size());
         
         StringBuilder mapping = new StringBuilder("new " + objectType + "(");
         for (int i = 0; i < recordComponents.size(); i++) {
             var component = recordComponents.get(i);
             String componentName = component.getSimpleName().toString();
             String componentType = component.asType().toString();
+            columnLabels.add(resultColumnLabel(component, componentName));
             
             if (i > 0) {
                 mapping.append(", ");
             }
             
-            String convertedValue = generateValueMapping(componentType, "row[" + i + "]");
+            String convertedValue = generateValueMapping(
+                componentType, "row[resultColumnIndexes[" + i + "]]");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested record component " + objectType + "." + componentName
@@ -897,7 +900,7 @@ public class CompilePipeline {
         }
         mapping.append(")");
         
-        return mapping.toString();
+        return new ResultMapping(mapping.toString(), "", List.copyOf(columnLabels));
     }
     
     /**
@@ -929,12 +932,14 @@ public class CompilePipeline {
             + mapperMethod.getSimpleName().toString().substring(1) + "Row";
         StringBuilder helper = new StringBuilder();
         helper.append("    private ").append(objectType).append(" ").append(helperName)
-            .append("(Object[] row) {\n");
+            .append("(Object[] row, int[] resultColumnIndexes) {\n");
         helper.append("        ").append(objectType).append(" mapped = new ").append(objectType).append("();\n");
+        List<String> columnLabels = new ArrayList<>(fields.size());
 
         for (int index = 0; index < fields.size(); index++) {
             VariableElement field = fields.get(index);
             String fieldName = field.getSimpleName().toString();
+            columnLabels.add(resultColumnLabel(field, fieldName));
             String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
             ExecutableElement setter = typeElement.getEnclosedElements().stream()
                 .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
@@ -946,7 +951,8 @@ public class CompilePipeline {
                 .orElseThrow(() -> unsupportedResultMapping(mapperInterface, mapperMethod,
                     objectType + " is missing public setter " + setterName));
             String parameterType = setter.getParameters().get(0).asType().toString();
-            String convertedValue = generateValueMapping(parameterType, "row[" + index + "]");
+            String convertedValue = generateValueMapping(
+                parameterType, "row[resultColumnIndexes[" + index + "]]");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");
@@ -956,7 +962,20 @@ public class CompilePipeline {
         }
         helper.append("        return mapped;\n");
         helper.append("    }\n");
-        return new ResultMapping(helperName + "(row)", helper.toString());
+        return new ResultMapping(
+            helperName + "(row, resultColumnIndexes)", helper.toString(), List.copyOf(columnLabels));
+    }
+
+    private String resultColumnLabel(Element element, String defaultLabel) throws CompileException {
+        AnnotationMirror annotation = findAnnotation(element, "org.liteorm.annotation.Column");
+        if (annotation == null) {
+            return defaultLabel;
+        }
+        String label = (String) annotationValue(annotation, "value").getValue();
+        if (label.isBlank()) {
+            throw new CompileException(element + ": @Column value must not be blank");
+        }
+        return label;
     }
 
     private CompileException unsupportedResultMapping(
@@ -965,7 +984,7 @@ public class CompilePipeline {
             + ": Unsupported result mapping: " + detail);
     }
 
-    private record ResultMapping(String expression, String helperCode) {
+    private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {
     }
     
     /**
