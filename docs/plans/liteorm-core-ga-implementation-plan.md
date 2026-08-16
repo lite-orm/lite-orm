@@ -51,8 +51,8 @@
 
 1. Correct transaction and connection contracts.
 2. Define execution certainty and observer isolation.
-3. Add bounded and streaming query execution.
-4. Harden generated result contracts and mapping.
+3. Harden immutable result ownership and generated mapping contracts.
+4. Add bounded and streaming query execution after mapping contracts stabilize.
 5. Normalize exceptions, redaction, and immutable ownership.
 6. Verify PostgreSQL/MySQL and failure behavior.
 7. Benchmark only after all correctness gates pass.
@@ -333,7 +333,7 @@ public record StatementOptions(Integer timeoutSeconds, Integer fetchSize, Intege
 
 - [x] **Step 3: Store options on execution plans**
 
-All constructors defensively normalize `null` to defaults. Existing generated code uses the default constructor path until annotation/XML configuration is added in Task 6.
+All constructors defensively normalize `null` to defaults. Generated Mappers continue to use defaults; no Mapper annotation is added without a demonstrated application requirement.
 
 - [x] **Step 4: Apply options to `PreparedStatement`**
 
@@ -349,50 +349,16 @@ Commit: `feat: add jdbc statement controls`
 
 Implementation status: Completed and verified on 2026-08-16 with focused executor/plan tests, all 136 core tests, and the full Maven reactor.
 
-### Task 6: Expose Statement Options in Mapper Declarations
+### Decision: Do Not Add Mapper `@Options`
 
-**Files:**
-- Create: `lite-orm-core/src/main/java/org/liteorm/annotation/Options.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/MapperCompilationModel.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
-- Modify: `lite-orm-core/src/main/resources/templates/mapper-impl.java.ftl`
-- Test: `lite-orm-core/src/test/java/org/liteorm/test/StatementOptionsCompilationTest.java`
-- Test: `lite-orm-core/src/test/java/org/liteorm/test/generated/GeneratedSourceGoldenTest.java`
-
-- [ ] **Step 1: Write RED compilation tests**
-
-Verify annotation values generate immutable `StatementOptions`, invalid negative or zero values fail on the Mapper method, and omitted options generate defaults.
-
-- [ ] **Step 2: Add the annotation**
-
-```java
-@Target(ElementType.METHOD)
-@Retention(RetentionPolicy.SOURCE)
-public @interface Options {
-    int timeoutSeconds() default -1;
-    int fetchSize() default -1;
-    int maxRows() default -1;
-}
-```
-
-Use `-1` only as compile-time “unset”; generated runtime objects contain `null`, never sentinel values.
-
-- [ ] **Step 3: Add model fields and generated plan construction**
-
-Keep generated source deterministic and fully qualified. Do not add runtime reflection.
-
-- [ ] **Step 4: Run compiler and golden tests**
-
-Run: `mvn -pl lite-orm-core -Dtest=StatementOptionsCompilationTest,GeneratedSourceGoldenTest test`
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-Commit: `feat: generate mapper statement options`
+- No current Mapper use case requires a permanent annotation for timeout, fetch size, or maximum-row caps.
+- `StatementOptions` remains an immutable low-level execution-plan capability for direct executor composition and future integrations.
+- Generated Mappers use defaults. Add XML attributes or a narrower declaration API only when a concrete production requirement demonstrates where configuration belongs.
+- Do not copy MyBatis `@Options` merely for API similarity.
 
 ### Task 7: Add Scope-Bound Cursor Consumption
+
+**Dependency:** Do not start this task until `SqlResult` ownership, column-label mapping, and Mapper return contracts are complete. Otherwise cursor support would create a second, premature typed-mapping path beside generated `Object[]` mapping.
 
 **Files:**
 - Create: `lite-orm-core/src/main/java/org/liteorm/api/RowCursor.java`
@@ -449,6 +415,8 @@ Commit: `feat: add scope-bound cursor queries`
 ---
 
 ## Phase G4: Mapping and Mapper Method Contracts
+
+**Execution priority:** Task 11 (`SqlResult` immutability) → Task 8 (column labels) → Task 9 (return shapes) → Task 10 (generated keys) → Task 7 (cursor consumption). Task numbers are retained to avoid rewriting completed-task references; this dependency order controls implementation.
 
 ### Task 8: Add Column-Label Result Metadata
 
