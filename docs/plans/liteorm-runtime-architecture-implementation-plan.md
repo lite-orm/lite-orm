@@ -683,8 +683,8 @@ registration mode.
 - [x] Keep generated code free of reflection, runtime expression parsing, generic maps for ordered JDBC parameters, and framework internals.
 - [x] Verify javac diagnostics point to the Mapper method/XML statement for unsupported behavior.
 - [x] Run generator tests, external fixture compilation, and `mvn clean test`.
-- [ ] Commit with `refactor: improve generated mapper readability`.
-- [ ] Push immediately.
+- [x] Commit with `refactor: improve generated mapper readability`.
+- [x] Push immediately.
 
 Completion notes:
 - Shared golden-source tests cover stable imports/comments plus annotation and XML dynamic rendering; focused compilation fixtures continue to cover provider, binder, row mapper, batch, and generated-key source shapes.
