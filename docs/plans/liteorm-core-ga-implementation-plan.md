@@ -502,32 +502,34 @@ Implementation status: Completed and verified on 2026-08-16 with RED/GREEN runti
 ### Task 10: Complete Generated-Key Contracts
 
 **Files:**
-- Modify: `lite-orm-core/src/main/java/org/liteorm/annotation/GeneratedKey.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlResult.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/runtime/ResultValueConverters.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/GeneratedKeyCompilationTest.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
-- [ ] **Step 1: Write RED generated-key tests**
+- [x] **Step 1: Write RED generated-key tests**
 
 Cover `int`, `long`, boxed numeric types, `String`, UUID through a custom converter/row mapper, missing key rows, unexpected multiple key rows, and batch generated-key rejection.
 
-- [ ] **Step 2: Convert supported key scalar types explicitly**
+- [x] **Step 2: Convert supported key scalar types explicitly**
 
 Reuse `ResultValueConverters`; do not cast arbitrary driver values directly.
 
-- [ ] **Step 3: Keep composite and batch generated keys unsupported explicitly**
+- [x] **Step 3: Keep composite and batch generated keys unsupported explicitly**
 
 Reject unsupported declarations at compile time with a Mapper-method diagnostic rather than silently returning partial data.
 
-- [ ] **Step 4: Run generated-key and core tests; commit**
+- [x] **Step 4: Run generated-key and core tests; commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `feat: harden generated key contracts`
+
+Implementation status: Completed and verified on 2026-08-16 with explicit scalar conversion tests, custom `RowMapper<UUID>` coverage, missing/multiple/composite JDBC key rejection, all 150 core tests, and the full Maven reactor.
 
 ---
 

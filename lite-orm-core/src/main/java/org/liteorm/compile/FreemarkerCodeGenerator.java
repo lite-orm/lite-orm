@@ -134,7 +134,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         }
 
         if (methodModel.generatedKey()) {
-            return "        return ((Number) executionResult.getGeneratedKey()).longValue();\n";
+            return "        return " + generatedKeyExpression(methodModel) + ";\n";
         }
 
         if (!isSelect) {
@@ -201,6 +201,25 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         return switch (typeName) {
             case "boolean", "byte", "short", "int", "long", "char", "float", "double" -> true;
             default -> false;
+        };
+    }
+
+    private String generatedKeyExpression(MapperCompilationModel.MethodModel methodModel) {
+        String key = "executionResult.getGeneratedKey()";
+        if (methodModel.rowMapperFieldName() != null) {
+            return "(" + methodModel.returnType() + ") " + key;
+        }
+        return switch (methodModel.returnType()) {
+            case "int", "java.lang.Integer" -> "ResultValueConverters.toInteger(" + key + ")";
+            case "long", "java.lang.Long" -> "ResultValueConverters.toLong(" + key + ")";
+            case "short", "java.lang.Short" -> "ResultValueConverters.toShort(" + key + ")";
+            case "byte", "java.lang.Byte" -> "ResultValueConverters.toByte(" + key + ")";
+            case "double", "java.lang.Double" -> "ResultValueConverters.toDouble(" + key + ")";
+            case "float", "java.lang.Float" -> "ResultValueConverters.toFloat(" + key + ")";
+            case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + key + ")";
+            case "java.lang.String" -> "ResultValueConverters.toStringValue(" + key + ")";
+            default -> throw new IllegalStateException(
+                "Unsupported generated-key return type: " + methodModel.returnType());
         };
     }
 

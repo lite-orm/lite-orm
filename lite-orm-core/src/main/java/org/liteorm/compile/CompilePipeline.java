@@ -239,7 +239,8 @@ public class CompilePipeline {
         validateWriteReturnType(mapperInterface, method, statementType, returnType, generatedKey);
         if (generatedKey) {
             validateGeneratedKeyMethod(
-                mapperInterface, method, returnType, statementType, sqlInfo, providerBinding);
+                mapperInterface, method, returnType, statementType, sqlInfo, providerBinding,
+                adapterBindings.rowMapperFieldName() != null);
         }
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
@@ -340,12 +341,11 @@ public class CompilePipeline {
         AnnotationMirror rowMapperAnnotation = findAnnotation(method, "org.liteorm.annotation.UseRowMapper");
         String rowMapperField = null;
         if (rowMapperAnnotation != null) {
-            if (providerBinding != null && providerBinding.statementType() != ExecutionPlan.StatementType.SELECT) {
-                throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
-            }
             ExecutionPlan.StatementType statementType = providerBinding == null
                 ? mapStatementType(sqlInfo.sqlType()) : providerBinding.statementType();
-            if (statementType != ExecutionPlan.StatementType.SELECT) {
+            boolean generatedKeyInsert = method.getAnnotation(org.liteorm.annotation.GeneratedKey.class) != null
+                && statementType == ExecutionPlan.StatementType.INSERT;
+            if (statementType != ExecutionPlan.StatementType.SELECT && !generatedKeyInsert) {
                 throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
             }
             String mappedType = extractMappedType(resolvedMethodType.getReturnType().toString());
@@ -779,7 +779,8 @@ public class CompilePipeline {
             String returnType,
             ExecutionPlan.StatementType statementType,
             SqlContentParser.SqlParseResult sqlInfo,
-            ProviderBinding providerBinding) throws CompileException {
+            ProviderBinding providerBinding,
+            boolean hasRowMapper) throws CompileException {
         String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
         if (providerBinding != null) {
             throw new CompileException(location + ": generated keys are not supported with SQL providers");
@@ -793,9 +794,20 @@ public class CompilePipeline {
         if (sqlInfo != null && sqlInfo.isDynamic()) {
             throw new CompileException(location + ": generated keys require static SQL");
         }
-        if (!"long".equals(returnType) && !"java.lang.Long".equals(returnType)) {
-            throw new CompileException(location + ": generated-key methods must return long or java.lang.Long");
+        if (!hasRowMapper && !isSupportedGeneratedKeyScalar(returnType)) {
+            throw new CompileException(location + ": generated-key return type " + returnType
+                + " requires @UseRowMapper");
         }
+    }
+
+    private boolean isSupportedGeneratedKeyScalar(String returnType) {
+        return switch (returnType) {
+            case "int", "java.lang.Integer", "long", "java.lang.Long",
+                "short", "java.lang.Short", "byte", "java.lang.Byte",
+                "double", "java.lang.Double", "float", "java.lang.Float",
+                "java.math.BigDecimal", "java.lang.String" -> true;
+            default -> false;
+        };
     }
 
     private void validateSingleResultReturnType(

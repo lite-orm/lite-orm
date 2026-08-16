@@ -25,10 +25,12 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -159,6 +161,57 @@ class JdbcSqlExecutorTest {
                 .map(event -> Integer.parseInt(event.substring(event.indexOf(':') + 1))).orElseThrow());
         assertEquals(List.of("keys.close", "statement.close", "transaction.close"),
             events.subList(events.size() - 3, events.size()));
+    }
+
+    @Test
+    void rejectsMissingAndMultipleGeneratedKeyRows() {
+        for (List<?> keyRows : List.of(List.of(), List.of(1L, 2L))) {
+            List<String> events = new ArrayList<>();
+            PreparedStatement statement = statement(
+                events, null, 1, generatedKeys(events, keyRows), null);
+
+            SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+                executor(events, statement).execute(
+                    writePlan(ExecutionPlan.StatementType.INSERT, true, null)));
+
+            SQLException cause = assertInstanceOf(SQLException.class, failure.getCause());
+            assertEquals(keyRows.isEmpty()
+                ? "JDBC returned no generated key"
+                : "JDBC returned multiple generated keys for one insert", cause.getMessage());
+            assertEquals(List.of("keys.close", "statement.close", "transaction.close"),
+                events.subList(events.size() - 3, events.size()));
+        }
+    }
+
+    @Test
+    void mapsGeneratedKeyWithConfiguredRowMapper() {
+        List<String> events = new ArrayList<>();
+        String keyValue = "7dc53df5-703e-49b3-8670-b1c468f47f1f";
+        PreparedStatement statement = statement(
+            events, null, 1, generatedKeys(events, List.of(keyValue)), null);
+        ExecutionPlan plan = new ExecutionPlan(
+            "test.Mapper.insert", "INSERT INTO users(name) VALUES (?)", new Object[]{"Alice"},
+            ExecutionPlan.StatementType.INSERT, ExecutionPlan.SqlSource.ANNOTATION,
+            true, null, resultSet -> UUID.fromString(resultSet.getString(1)));
+
+        SqlResult result = executor(events, statement).execute(plan);
+
+        assertEquals(UUID.fromString(keyValue), result.getGeneratedKey());
+        assertEquals(1, events.stream().filter("keys.getString:1"::equals).count());
+    }
+
+    @Test
+    void rejectsCompositeGeneratedKeyRows() {
+        List<String> events = new ArrayList<>();
+        PreparedStatement statement = statement(
+            events, null, 1, generatedKeys(events, List.of(1L), 2), null);
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(events, statement).execute(
+                writePlan(ExecutionPlan.StatementType.INSERT, true, null)));
+
+        SQLException cause = assertInstanceOf(SQLException.class, failure.getCause());
+        assertEquals("JDBC returned a composite generated key with 2 columns", cause.getMessage());
     }
 
     @Test
@@ -472,10 +525,25 @@ class JdbcSqlExecutorTest {
     }
 
     private ResultSet generatedKeys(List<String> events, Object key) {
+        return generatedKeys(events, List.of(key));
+    }
+
+    private ResultSet generatedKeys(List<String> events, List<?> keys) {
+        return generatedKeys(events, keys, 1);
+    }
+
+    private ResultSet generatedKeys(List<String> events, List<?> keys, int columnCount) {
         int[] cursor = {-1};
+        ResultSetMetaData metadata = proxy(ResultSetMetaData.class,
+            (method, args) -> method.equals("getColumnCount") ? columnCount : null);
         return proxy(ResultSet.class, (method, args) -> switch (method) {
-            case "next" -> ++cursor[0] == 0;
-            case "getObject" -> key;
+            case "getMetaData" -> metadata;
+            case "next" -> ++cursor[0] < keys.size();
+            case "getObject" -> keys.get(cursor[0]);
+            case "getString" -> {
+                events.add("keys.getString:" + args[0]);
+                yield keys.get(cursor[0]).toString();
+            }
             case "close" -> { events.add("keys.close"); yield null; }
             default -> null;
         });

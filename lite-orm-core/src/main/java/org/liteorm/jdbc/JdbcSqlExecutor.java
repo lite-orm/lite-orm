@@ -80,7 +80,8 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                     executionState = JdbcExecutionState.EXECUTED;
                     if (plan.returnsGeneratedKey()) {
                         resultSet = statement.getGeneratedKeys();
-                        result = SqlResult.forGeneratedKey(updateCount, readGeneratedKey(resultSet));
+                        result = SqlResult.forGeneratedKey(
+                            updateCount, readGeneratedKey(resultSet, plan.getRowMapper()));
                     } else {
                         result = SqlResult.forUpdate(updateCount);
                     }
@@ -195,11 +196,17 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         }
     }
 
-    private Object readGeneratedKey(ResultSet generatedKeys) throws SQLException {
+    private Object readGeneratedKey(ResultSet generatedKeys, RowMapper<?> rowMapper) throws SQLException {
+        int columnCount = generatedKeys.getMetaData().getColumnCount();
+        if (columnCount != 1) {
+            throw new SQLException("JDBC returned a composite generated key with " + columnCount + " columns");
+        }
         if (!generatedKeys.next()) {
             throw new SQLException("JDBC returned no generated key");
         }
-        Object generatedKey = generatedKeys.getObject(1);
+        Object generatedKey = rowMapper == null
+            ? generatedKeys.getObject(1)
+            : rowMapper.map(generatedKeys);
         if (generatedKeys.next()) {
             throw new SQLException("JDBC returned multiple generated keys for one insert");
         }

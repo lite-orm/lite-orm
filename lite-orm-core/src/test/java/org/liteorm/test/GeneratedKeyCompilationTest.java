@@ -24,31 +24,80 @@ class GeneratedKeyCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void generatesExplicitLongKeyReturnForOptedInInsert() throws Exception {
+    void generatesExplicitScalarConversionsForOptedInInsert() throws Exception {
         CompilationResult result = compile("GeneratedKeyMapper", """
             package org.liteorm.test.generatedkeyfixture;
 
+            import java.math.BigDecimal;
             import org.liteorm.annotation.GeneratedKey;
             import org.liteorm.annotation.Insert;
             import org.liteorm.annotation.Mapper;
 
             @Mapper
             interface GeneratedKeyMapper {
-                @GeneratedKey
-                @Insert("INSERT INTO users (name) VALUES (#{name})")
-                Long insert(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") int insertInt(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Integer insertInteger(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") long insertLong(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Long insertBoxedLong(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Short insertShort(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Byte insertByte(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Double insertDouble(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") Float insertFloat(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") BigDecimal insertDecimal(String name);
+                @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})") String insertString(String name);
             }
             """);
 
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedKeyMapperImpl.java"));
-        assertTrue(generated.contains("return ((Number) executionResult.getGeneratedKey()).longValue();"));
+        assertTrue(generated.contains("ResultValueConverters.toInteger(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toLong(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toShort(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toByte(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toDouble(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toFloat(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("true, null, null"));
     }
 
     @Test
-    void rejectsNonInsertAndUnsupportedReturnType() throws Exception {
+    void supportsCustomRowMapperForNonScalarGeneratedKeys() throws Exception {
+        CompilationResult result = compile("GeneratedUuidKeyMapper", """
+            package org.liteorm.test.generatedkeyfixture;
+
+            import java.sql.ResultSet;
+            import java.sql.SQLException;
+            import java.util.UUID;
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.RowMapper;
+
+            class UuidKeyRowMapper implements RowMapper<UUID> {
+                public UuidKeyRowMapper() {}
+                public UUID map(ResultSet resultSet) throws SQLException {
+                    return UUID.fromString(resultSet.getString(1));
+                }
+            }
+
+            @Mapper interface GeneratedUuidKeyMapper {
+                @GeneratedKey
+                @UseRowMapper(UuidKeyRowMapper.class)
+                @Insert("INSERT INTO users (name) VALUES (#{name})")
+                UUID insert(String name);
+            }
+            """);
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
+        assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
+        assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
+        assertTrue(generated.contains("true, null, insertRowMapper"));
+    }
+
+    @Test
+    void rejectsNonInsertAndUnsupportedReturnTypeWithoutRowMapper() throws Exception {
         CompilationResult update = compile("GeneratedKeyUpdateMapper", """
             package org.liteorm.test.generatedkeyfixture;
             import org.liteorm.annotation.*;
@@ -57,17 +106,18 @@ class GeneratedKeyCompilationTest {
                 Long update(String name);
             }
             """);
-        CompilationResult integerReturn = compile("GeneratedKeyIntegerMapper", """
+        CompilationResult unsupportedReturn = compile("GeneratedKeyUuidMapper", """
             package org.liteorm.test.generatedkeyfixture;
+            import java.util.UUID;
             import org.liteorm.annotation.*;
-            @Mapper interface GeneratedKeyIntegerMapper {
+            @Mapper interface GeneratedKeyUuidMapper {
                 @GeneratedKey @Insert("INSERT INTO users (name) VALUES (#{name})")
-                Integer insert(String name);
+                UUID insert(String name);
             }
             """);
 
         assertFailure(update, "generated keys require an INSERT statement");
-        assertFailure(integerReturn, "generated-key methods must return long or java.lang.Long");
+        assertFailure(unsupportedReturn, "generated-key return type java.util.UUID requires @UseRowMapper");
     }
 
     @Test

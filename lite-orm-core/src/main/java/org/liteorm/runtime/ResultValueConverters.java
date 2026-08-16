@@ -47,6 +47,10 @@ public final class ResultValueConverters {
         throw unsupported(value, BigDecimal.class);
     }
 
+    public static String toStringValue(Object value) {
+        return value == null ? null : value.toString();
+    }
+
     public static Boolean toBoolean(Object value) {
         if (value == null) return null;
         if (value instanceof Boolean bool) return bool;
