@@ -2,6 +2,7 @@ package org.liteorm.test.transaction;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ConnectionHandle;
+import org.liteorm.api.TransactionException;
 import org.liteorm.transaction.SimpleConnectionHandleFactory;
 import org.liteorm.transaction.SimpleTransactionalExecutor;
 
@@ -135,6 +136,57 @@ class SimpleTransactionTest {
 
         assertEquals(1, dataSource.connectionCount);
         assertEquals(1, dataSource.closeCount);
+    }
+
+    @Test
+    void nestedCallbackSuccessCommitsTheRootOnce() {
+        TrackingDataSource dataSource = new TrackingDataSource();
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
+
+        String result = transactions.execute(() -> {
+            acquire(factory);
+            return transactions.execute(() -> "done");
+        });
+
+        assertEquals("done", result);
+        assertEquals(List.of(
+            "getConnection:1",
+            "1.setAutoCommit:false",
+            "1.commit",
+            "1.setAutoCommit:true",
+            "1.close"
+        ), dataSource.events);
+    }
+
+    @Test
+    void caughtNestedFailureMarksTheRootRollbackOnly() {
+        TrackingDataSource dataSource = new TrackingDataSource();
+        SimpleConnectionHandleFactory factory = new SimpleConnectionHandleFactory(dataSource);
+        SimpleTransactionalExecutor transactions = new SimpleTransactionalExecutor(factory);
+
+        TransactionException failure = assertThrows(TransactionException.class, () ->
+            transactions.execute(() -> {
+                acquire(factory);
+                try {
+                    transactions.execute(() -> {
+                        throw new IllegalStateException("nested failed");
+                    });
+                } catch (IllegalStateException expected) {
+                    assertEquals("nested failed", expected.getMessage());
+                }
+                return null;
+            })
+        );
+
+        assertEquals(TransactionException.Type.ROLLBACK_ONLY, failure.getType());
+        assertEquals(List.of(
+            "getConnection:1",
+            "1.setAutoCommit:false",
+            "1.rollback",
+            "1.setAutoCommit:true",
+            "1.close"
+        ), dataSource.events);
     }
 
     @Test

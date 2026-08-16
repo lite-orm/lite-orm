@@ -60,7 +60,7 @@ User user = assembly.transactionalExecutor().execute(() -> {
 });
 ```
 
-`SqlExecutor` owns the fixed JDBC lifecycle. `ConnectionHandleFactory` creates one connection-only `ConnectionHandle` per execution. `SimpleConnectionHandleFactory` joins the thread-bound root transaction created by `TransactionalExecutor`; transaction completion remains internal and nested callbacks join the root transaction.
+`SqlExecutor` owns the fixed JDBC lifecycle. `ConnectionHandleFactory` creates one connection-only `ConnectionHandle` per execution. `SimpleConnectionHandleFactory` joins the thread-bound root transaction created by `TransactionalExecutor`; transaction completion remains internal, nested callbacks join the root, and a nested failure marks that local transaction rollback-only. Propagation policies, savepoints, declarative isolation/read-only rules, and production transaction orchestration belong to Spring or another host transaction manager.
 
 ## Spring Boot
 

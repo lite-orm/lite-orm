@@ -20,10 +20,9 @@ public class TransactionException extends LiteOrmException {
         BEGIN_FAILED,    // 开始事务失败（连接、权限等问题）
         COMMIT_FAILED,   // 提交失败（约束、锁等问题）
         ROLLBACK_FAILED, // 回滚失败（连接断开等问题）
+        ROLLBACK_ONLY,   // 嵌套工作失败后根事务禁止提交
         CLEANUP_FAILED,  // 事务完成后的连接状态恢复或释放失败
-        DOMAIN_MISMATCH, // 事务期间选择了另一个 DataSource 域
-        TIMEOUT,         // 事务超时（长时间未完成）
-        DEADLOCK         // 死锁检测（资源竞争）
+        DOMAIN_MISMATCH  // 事务期间选择了另一个 DataSource 域
     }
     
     private final Type type;
@@ -50,10 +49,9 @@ public class TransactionException extends LiteOrmException {
             case BEGIN_FAILED -> "事务启动失败: " + getMessage();
             case COMMIT_FAILED -> "事务提交失败: " + getMessage();
             case ROLLBACK_FAILED -> "事务回滚失败: " + getMessage();
+            case ROLLBACK_ONLY -> "事务已标记为仅回滚: " + getMessage();
             case CLEANUP_FAILED -> "事务清理失败: " + getMessage();
             case DOMAIN_MISMATCH -> "事务数据源域不匹配: " + getMessage();
-            case TIMEOUT -> "事务执行超时: " + getMessage();
-            case DEADLOCK -> "检测到死锁: " + getMessage();
         };
     }
 }

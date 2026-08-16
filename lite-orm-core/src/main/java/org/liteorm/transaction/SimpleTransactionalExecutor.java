@@ -1,6 +1,7 @@
 package org.liteorm.transaction;
 
 import org.liteorm.api.TransactionCallback;
+import org.liteorm.api.TransactionException;
 import org.liteorm.api.TransactionalExecutor;
 
 import java.util.Objects;
@@ -21,13 +22,25 @@ public final class SimpleTransactionalExecutor implements TransactionalExecutor 
         Objects.requireNonNull(callback, "callback");
         SimpleTransaction current = connectionHandleFactory.currentTransaction();
         if (current != null) {
-            return callback.execute();
+            try {
+                return callback.execute();
+            } catch (RuntimeException | Error failure) {
+                current.markRollbackOnly();
+                throw failure;
+            }
         }
 
         SimpleTransaction transaction = connectionHandleFactory.beginTransaction();
         Throwable primaryFailure = null;
         try {
             T result = callback.execute();
+            if (transaction.isRollbackOnly()) {
+                transaction.rollback();
+                throw new TransactionException(
+                    TransactionException.Type.ROLLBACK_ONLY,
+                    "Nested transaction work failed; the root transaction was rolled back"
+                );
+            }
             transaction.commit();
             return result;
         } catch (RuntimeException | Error failure) {

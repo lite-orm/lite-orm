@@ -18,6 +18,7 @@ final class SimpleTransaction implements ConnectionHandle {
     private Connection connection;
     private boolean originalAutoCommit;
     private boolean transactionStarted;
+    private boolean rollbackOnly;
     private boolean completed;
     private boolean closed;
 
@@ -128,6 +129,15 @@ final class SimpleTransaction implements ConnectionHandle {
 
     boolean isRollbackRequired() {
         return transactionStarted && !completed;
+    }
+
+    void markRollbackOnly() {
+        ensureOpen();
+        rollbackOnly = true;
+    }
+
+    boolean isRollbackOnly() {
+        return rollbackOnly;
     }
 
     private void ensureOpen() {

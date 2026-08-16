@@ -264,7 +264,7 @@ Follow-up findings:
 - `NonUniqueResultException` extends `RuntimeException` rather than `LiteOrmException`.
 - `MappingException` is currently unused.
 - executor plan validation still uses `IllegalArgumentException` for some invalid plan shapes.
-- `TransactionException.Type.TIMEOUT` and `DEADLOCK` exist without current production creation paths.
+- Local transaction failures now describe only implemented begin, commit, rollback, rollback-only, cleanup, and DataSource-domain behavior. Statement timeout and database deadlock failures remain JDBC execution failures rather than standalone transaction-manager features.
 - `ConfigurationException` can include configuration values, `MappingException` can include full row data, and `SqlExecutionException` includes SQL text. A security policy should define redaction before these exceptions are used with secrets or sensitive row values.
 
 These are API-hardening tasks, not runtime lifecycle defects.

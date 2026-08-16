@@ -178,17 +178,17 @@ Implementation status: Completed and verified on 2026-08-16 with focused transac
 - Modify: `lite-orm-core/src/main/java/org/liteorm/transaction/SimpleTransactionalExecutor.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/transaction/SimpleTransactionTest.java`
 
-- [ ] **Step 1: Write RED nested rollback-only tests**
+- [x] **Step 1: Write RED nested rollback-only tests**
 
 Cover nested success joining the root, nested failure marking the root rollback-only, the outer callback catching the original nested failure, rollback instead of commit, and an explicit rollback-only completion exception.
 
-- [ ] **Step 2: Run the focused transaction test**
+- [x] **Step 2: Run the focused transaction test**
 
 Run: `mvn -pl lite-orm-core -Dtest=SimpleTransactionTest test`
 
 Expected: FAIL because rollback-only completion does not exist.
 
-- [ ] **Step 3: Add rollback-only state to the internal transaction**
+- [x] **Step 3: Add rollback-only state to the internal transaction**
 
 ```java
 void markRollbackOnly();
@@ -197,26 +197,28 @@ boolean isRollbackOnly();
 
 Keep this state package-private. Do not add transaction options, propagation enums, savepoints, isolation configuration, or read-only configuration to core.
 
-- [ ] **Step 4: Mark the root rollback-only when nested work fails**
+- [x] **Step 4: Mark the root rollback-only when nested work fails**
 
 Wrap only the joined callback invocation. On `RuntimeException` or `Error`, call `markRollbackOnly()` and rethrow the original failure.
 
-- [ ] **Step 5: Prevent root commit after a caught nested failure**
+- [x] **Step 5: Prevent root commit after a caught nested failure**
 
 If root work returns while rollback-only is set, roll back and throw `TransactionException` with a new `ROLLBACK_ONLY` type.
 
-- [ ] **Step 6: Run transaction tests and core tests**
+- [x] **Step 6: Run transaction tests and core tests**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lite-orm-core docs/plans/liteorm-core-ga-implementation-plan.md
 git commit -m "fix: enforce local rollback-only semantics"
 ```
+
+Implementation status: Completed on 2026-08-16. Core retains only minimal local JDBC transaction semantics; advanced transaction policies remain outside core.
 
 ---
 
