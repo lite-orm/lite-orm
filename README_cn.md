@@ -191,25 +191,38 @@ flowchart LR
 
 ## 完整角色表
 
-| 角色 | 所属层 | 主要职责 | 生命周期与边界 |
+| 职责 | Core / Standalone | Spring Boot 接入 | 边界结论 |
 | --- | --- | --- | --- |
-| Mapper 接口 | 应用/core 契约 | 声明 SQL、参数和返回类型 | 应用源码；编译期输入 |
-| `LiteOrmProcessor` | core 编译期 | javac 注解处理入口，发现 `@Mapper` | 编译期间运行 |
-| `CompilePipeline` | core 编译期内部 | 统一注解/XML、校验方法并建立生成模型 | 非应用扩展 API |
-| `XxxMapperImpl` | 生成代码 | 构造执行计划、调用 executor、完成静态结果映射 | 普通 Java 类；每个实例绑定一个 executor |
-| `ExecutionPlan` / `BatchExecutionPlan` | core 运行期契约 | 描述最终 SQL、有序参数、statement 类型和适配器 | 单次调用创建，不包含 DataSource 名称 |
-| `SqlResult` | core 运行期契约 | 承载查询行、更新数、批量结果或 generated key | JDBC 执行成功后的不可变结果边界 |
-| `SqlExecutor` | core 运行期入口 | 执行一个计划 | 生成 Mapper 的唯一构造器依赖 |
-| `JdbcSqlExecutor` | core JDBC 实现 | 固定 JDBC 生命周期、异常语义和拦截器通知 | 一个实例属于一个 DataSource/事务域 |
-| `ConnectionHandleFactory` | core 连接参与契约 | 为一次执行提供 `ConnectionHandle` | standalone 与 Spring 的主要适配边界 |
-| `TransactionalExecutor` | core standalone 契约 | 提供简单本地事务回调 | 不实现 Spring 传播策略或分布式事务 |
-| `SqlProvider<P>` | core 编译期绑定扩展 | 为少数特殊场景运行时构造 `BoundSql` | 生成 Mapper 直接持有，不自动注册为 Spring Bean |
-| `ParameterBinder<T>` | core 编译期绑定扩展 | 处理 JDBC 默认绑定不足的特殊 Java 类型 | 生成 Mapper 直接持有；实现必须线程安全或无状态 |
-| `RowMapper<T>` | core 编译期绑定扩展 | 映射内建规则不支持的单行形状 | 生成 Mapper 直接持有；不负责多行对象图聚合 |
-| `ExecutionInterceptor` | core 观察扩展 | 日志、指标、审计、授权和执行观察 | standalone 显式传入；Spring 收集有序 Bean |
-| Starter Registrar | Spring Boot 集成 | 扫描生成实现、注册 Mapper 和对应 executor | 只负责 IOC 装配，不改变生成代码和 JDBC 热路径 |
+| Mapper 声明 | 应用编写 `@Mapper` 接口 | 使用同一接口 | **完全复用** |
+| 编译期处理 | `LiteOrmProcessor`、内部 `CompilePipeline` | 使用同一注解处理器和生成结果 | **完全复用；Spring 不参与编译** |
+| 生成 Mapper | 应用手工 `new XxxMapperImpl(sqlExecutor)` | Registrar 将 `XxxMapperImpl` 注册为 Mapper 接口 Bean | **生成类完全复用；实例创建方式不同** |
+| 执行计划 | `ExecutionPlan`、`BatchExecutionPlan` | 使用相同计划 | **完全复用；计划中不保存 DataSource 或 Spring Bean 名** |
+| 执行结果 | `SqlResult` | 使用相同结果契约 | **完全复用** |
+| SQL 执行入口 | `SqlExecutor` | 生成 Mapper 仍只依赖 `SqlExecutor` | **完全复用** |
+| 固定 JDBC 生命周期 | `JdbcSqlExecutor` | `SpringJdbcSqlExecutorFactoryBean` 创建同一个 `JdbcSqlExecutor` | **完全复用；Spring 不重写执行流程** |
+| JDBC 组件装配 | `LiteOrm.jdbc(...)`、`JdbcAssembly` | `mapper-bindings`、Registrar、`SpringJdbcSqlExecutorFactoryBean` | **Spring 替代手工装配过程** |
+| 连接参与工厂 | `SimpleConnectionHandleFactory` | `SpringConnectionHandleFactory` | **Spring 替代 standalone 实现** |
+| 单次连接句柄 | `SimpleTransaction` 或其参与句柄实现 `ConnectionHandle` | `SpringConnectionHandle` 通过 `DataSourceUtils` 获取和释放连接 | **契约复用，实现替换** |
+| 事务边界 | `SimpleTransactionalExecutor` 提供本地回调事务 | `PlatformTransactionManager`、`@Transactional` 管理事务 | **Spring 接管事务边界，不注册 standalone executor** |
+| 事务连接绑定 | `SimpleConnectionHandleFactory` 使用实例级 `ThreadLocal` | Spring `TransactionSynchronizationManager` 绑定 DataSource 资源 | **Spring 替代线程事务上下文实现** |
+| SQL Provider | 生成 Mapper 直接持有 `SqlProvider<P>` | 使用同一生成实例，不自动注册为 Spring Bean | **完全复用** |
+| 参数绑定 | 生成 Mapper 持有 `ParameterBinder<T>`，`JdbcSqlExecutor` 调用 | 使用同一 binder | **完全复用** |
+| 结果映射 | 生成 Mapper 持有 `RowMapper<T>`，`JdbcSqlExecutor` 调用 | 使用同一 row mapper | **完全复用** |
+| 执行观察 | `JdbcAssembly` 显式接收 `ExecutionInterceptor` 列表 | FactoryBean 收集并排序 `ExecutionInterceptor` Bean | **契约和调用时机复用；实例发现交给 Spring** |
+| Mapper IOC 注册 | 无；应用自行管理 Mapper 实例 | `GeneratedMapperBeanDefinitionRegistrar` 扫描并注册生成实现 | **仅 Spring 存在** |
+| DataSource 路由 | 绑定一个物理或路由 DataSource | 绑定一个命名的物理或路由 DataSource Bean | **路由策略始终属于 DataSource** |
 
-关键边界是：**Spring 不替代生成 Mapper、`ExecutionPlan`、`SqlExecutor` 或 `JdbcSqlExecutor`；Spring 接管的是 Bean 创建、连接参与方式和事务边界。**
+Spring 真正替换的是 standalone 的外围装配与宿主能力：
+
+```text
+SimpleConnectionHandleFactory  -> SpringConnectionHandleFactory
+SimpleTransaction/参与句柄      -> SpringConnectionHandle + DataSourceUtils
+SimpleTransactionalExecutor    -> PlatformTransactionManager + @Transactional
+手工创建 Mapper                 -> GeneratedMapperBeanDefinitionRegistrar
+显式 interceptor 列表           -> Spring ordered interceptor Beans
+```
+
+Spring 不替代生成 Mapper、`ExecutionPlan`、`SqlExecutor`、`JdbcSqlExecutor`、Provider、Binder 或 RowMapper。它接管的是 Bean 创建、连接参与实现、线程事务资源和事务边界。
 
 ## 两种装配方式
 
