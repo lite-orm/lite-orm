@@ -1,20 +1,19 @@
-# LiteORM Architecture Review
+# LiteORM Final Architecture Review
 
 Date: 2026-08-16
 
-This document describes the current architecture after the runtime refactor. It intentionally excludes the deleted `SqlEngine`, processor-chain, mutable execution-context, `ConnectionProvider`, and `TransactionCoordinator` designs.
+## Executive Result
 
-## Architectural Goal
-
-LiteORM is a compile-time Mapper platform. SQL source selection, supported dynamic expressions, ordered parameters, binder selection, and result mapping become ordinary Java during annotation processing. Runtime code owns only the fixed JDBC lifecycle and explicitly typed extension calls.
-
-The desired path is readable without historical compatibility knowledge:
+LiteORM now has one understandable dependency path from user Mapper source to JDBC:
 
 ```text
 Mapper interface + annotations/XML
         |
         v
-LiteOrmProcessor -> CompilePipeline -> MapperCompilationModel
+LiteOrmProcessor
+        |
+        v
+CompilePipeline -> MapperCompilationModel -> FreemarkerCodeGenerator
         |
         v
 Generated *MapperImpl
@@ -26,118 +25,337 @@ SqlExecutor.execute(ExecutionPlan)
 JdbcSqlExecutor -> TransactionFactory -> Transaction -> JDBC
 ```
 
-## Compile-Time Flow
+The architecture no longer depends on the deleted `SqlEngine`, fixed-phase processor chain, mutable execution context, `ConnectionProvider`, `TransactionCoordinator`, global configuration singleton, runtime Mapper proxy, runtime XML parser, or runtime expression engine.
 
-1. `LiteOrmProcessor` discovers Mapper interfaces.
-2. `CompilePipeline` resolves XML-over-annotation precedence, validates supported signatures and XML, and creates one `MapperCompilationModel`.
-3. Dynamic SQL is represented as a compile-time AST and rendered as native Java conditions, scopes, and loops.
-4. `FreemarkerCodeGenerator` emits a concrete `*MapperImpl` with stable source comments, statement IDs, ordered parameters, and direct result mapping.
-5. Unsupported behavior fails compilation with diagnostics attached to the Mapper method when javac exposes a language element.
+The principal design is accepted. Remaining findings are API-hardening and test-cleanup work, not reasons to reintroduce the previous abstractions.
 
-Generated source has no runtime Mapper proxy, runtime XML parser, runtime expression engine, reflective provider invocation, reflective parameter lookup, or reflective result mapping.
+## End-To-End Review
 
-## Runtime Flow
+### Compile-Time Input
+
+User input consists of:
+
+- LiteORM Mapper annotations;
+- Mapper method signatures;
+- optional Mapper XML resources;
+- typed provider, binder, and row-mapper declarations.
+
+`LiteOrmProcessor` is the annotation-processing entry point. XML has method-scoped precedence over SQL annotations and produces a compiler warning when both define the same statement.
+
+Review result: **accepted**. Input ownership is explicit and unsupported behavior fails compilation instead of falling back to runtime interpretation.
+
+### Compile-Time Model
+
+`CompilePipeline` validates signatures, resolves SQL sources, builds the dynamic SQL AST, determines ordered parameters and adapters, and produces `MapperCompilationModel`.
+
+The compiler package is implementation code even though several types are currently public because processor and runtime classes share one Maven artifact. Application code should not treat `CompilePipeline`, parser implementations, AST nodes, compilation models, or code generators as supported runtime extension APIs.
+
+Review result: **accepted with packaging follow-up**. Splitting processor implementation into a dedicated artifact may reduce the apparent public surface, but it is not required for correctness.
+
+### Source Generation
+
+`FreemarkerCodeGenerator` emits concrete Mapper implementations with:
+
+- one constructor dependency: `SqlExecutor`;
+- stable explicit imports;
+- Mapper method and SQL-source comments;
+- statement IDs;
+- native Java dynamic conditions and loops;
+- ordered parameter arrays or lists;
+- direct provider, binder, and row-mapper references;
+- direct scalar, record, and JavaBean mapping.
+
+Review result: **accepted**. Golden-source tests cover annotation and XML rendering, and focused compiler fixtures cover provider, binder, row mapper, batch, generated keys, diagnostics, and unsupported behavior.
+
+### Runtime Execution
 
 `JdbcSqlExecutor` owns one fixed sequence:
 
 ```text
-validate plan
-  -> interceptor before callbacks
-  -> open or join Transaction
-  -> obtain Connection
-  -> prepare PreparedStatement
+validate
+  -> before interceptors
+  -> open or join transaction handle
+  -> acquire connection
+  -> prepare statement
   -> bind ordered parameters
-  -> execute query/update/batch
-  -> extract rows/update count/generated key
-  -> interceptor success or failure callbacks
+  -> execute
+  -> extract result
+  -> terminal interceptors
   -> close ResultSet
   -> close PreparedStatement
-  -> close/release Transaction
+  -> close/release transaction handle
 ```
 
-These phases are not a responsibility chain and are not reorderable plugins. `ExecutionInterceptor` is the narrow observational before/after extension point.
+Cleanup failures are preserved, earlier SQL failures remain primary, and interceptor failure callbacks are suppressed onto the earlier failure.
 
-## Execution And Transaction Roles
+Review result: **accepted**. This sequence is mandatory lifecycle code, not a Chain of Responsibility.
 
-| Role | Responsibility | Ownership |
-| --- | --- | --- |
-| `SqlExecutor` | Mapper-facing execution contract | Core public API |
-| `JdbcSqlExecutor` | Fixed JDBC lifecycle | Core runtime |
-| `ExecutionPlan` / `BatchExecutionPlan` | Immutable statement input | Generated code and core API |
-| `SqlResult` | JDBC-neutral execution result consumed by generated Mapper code | Core API |
-| `TransactionFactory` | Creates one execution-scoped transaction handle | Host-specific strategy |
-| `Transaction` | Connection acquisition, participation, completion, timeout, and release semantics | One execution handle |
-| `TransactionalExecutor` | Explicit standalone transaction callback boundary | Core API |
-| `SimpleTransactionFactory` | Temporary auto-commit handles or participation in the current local root transaction | Standalone core implementation |
-| `SpringTransactionFactory` | Spring thread-bound connection participation | Spring starter implementation |
+### Standalone Assembly
 
-`JdbcSqlExecutor` never asks whether a connection is standalone or Spring-owned. It depends only on `TransactionFactory` and `Transaction`.
+`LiteOrm.jdbc(dataSource)` returns the only assembly builder. `JdbcAssembly` contains one `SqlExecutor` and one `TransactionalExecutor` sharing one `SimpleTransactionFactory`.
 
-## Standalone Assembly
+- Calls outside a callback use temporary auto-commit handles.
+- A callback binds one root `SimpleTransaction` to the current thread.
+- Mapper calls inside the callback receive participating handles.
+- Nested callbacks join the root.
+- The outer callback owns commit, rollback, cleanup, and thread-local removal.
 
-`LiteOrm.jdbc(dataSource).build()` creates one immutable `JdbcAssembly` containing:
+Review result: **accepted**. The builder is justified because assembly has optional domain and interceptor configuration; generated execution plans do not use a builder.
 
-- one Mapper-facing `SqlExecutor`;
-- one `TransactionalExecutor` sharing the same `SimpleTransactionFactory`;
-- one transaction domain and domain guard;
-- an immutable ordered interceptor list.
+### Spring Assembly
 
-Calls outside a transaction callback receive temporary auto-commit handles. A callback binds one root `SimpleTransaction` to the current thread. Mapper calls in that callback receive participating handles, and nested callbacks join the same root.
+The starter requires explicit `mapper-bindings`. `GeneratedMapperBeanDefinitionRegistrar` scans configured packages, resolves the named DataSource, registers one Spring-aware executor per DataSource, and registers each generated Mapper once under the JavaBeans-decapped interface name.
 
-## Spring Assembly
+`SpringTransactionFactory` adapts the core transaction strategy to `DataSourceUtils`. `SpringTransaction` participates in Spring connection ownership and deliberately leaves commit/rollback timing to `PlatformTransactionManager`.
 
-The starter requires explicit package-to-DataSource bindings. For each named DataSource it registers one Spring-aware `SqlExecutor`; each generated Mapper is registered once under the JavaBeans-decapped interface name and receives that executor through its constructor.
+Review result: **accepted**. Core has no Spring dependency and generated Mapper classes remain Spring-neutral.
 
-`SpringTransaction` obtains and releases connections through `DataSourceUtils`. Its `commit` and `rollback` methods are intentionally empty because `PlatformTransactionManager` owns boundary timing. An active Spring transaction that is not bound to the configured DataSource fails with a transaction-domain mismatch.
+### Multiple DataSources
 
-Generated Mapper classes remain independent of Spring annotations and APIs.
+Multiple DataSources are represented by independent assembly graphs:
 
-## Multiple DataSources
+- one Mapper interface is registered once;
+- one Mapper package binding names one physical or routing DataSource bean;
+- package bindings are disjoint;
+- each executor remains permanently associated with one transaction domain;
+- the same Mapper is not rebound to several DataSources;
+- core does not coordinate distributed commit.
 
-One Mapper interface belongs to one DataSource domain. Multiple application DataSources require disjoint Mapper package bindings and independent executor graphs.
+Review result: **accepted**. DataSource selection is application assembly, not statement metadata.
 
-Core does not:
+## SOLID Review
 
-- put DataSource names in `ExecutionPlan`;
-- register the same Mapper against several DataSources;
-- coordinate commits across assemblies;
-- provide distributed transactions;
-- own tenant or shard routing context.
+### Single Responsibility Principle
 
-A physical or routing DataSource may sit behind one binding. The DataSource and matching transaction manager own physical connection selection. A whole-`SqlExecutor` decorator is reserved for exceptional routing that cannot be expressed by the DataSource itself.
+Accepted boundaries:
 
-## Extension Boundary
+- `LiteOrmProcessor`: annotation-processing entry point;
+- `CompilePipeline`: compiler orchestration and validation;
+- `FreemarkerCodeGenerator`: Java source rendering;
+- generated Mapper: statement construction and typed return mapping;
+- `JdbcSqlExecutor`: fixed physical JDBC lifecycle;
+- `TransactionFactory`: transaction-handle creation strategy;
+- `Transaction`: one handle's ownership and participation semantics;
+- `TransactionalExecutor`: explicit transaction boundary;
+- registrar: Spring bean-definition assembly.
 
-The preferred order is:
+Follow-up: `CompilePipeline` remains the largest compiler class. Split only when a concrete validation/modeling responsibility can be extracted with focused tests; do not create ceremonial layers.
 
-1. generated annotation/XML SQL;
-2. typed `SqlProvider`;
-3. typed `ParameterBinder`;
-4. typed `RowMapper`;
-5. observational `ExecutionInterceptor`;
-6. exceptional `SqlExecutor` decorator;
-7. explicit raw JDBC.
+### Open/Closed Principle
 
-Provider, binder, row-mapper, and interceptor instances are reused and therefore must be stateless, thread-safe, or externally synchronized.
+Accepted extension points are typed and narrow:
 
-## Dependency Direction
+- `SqlProvider` for exceptional SQL structure;
+- `ParameterBinder` for one value type;
+- `RowMapper` for one row shape;
+- `ExecutionInterceptor` for observation;
+- `TransactionFactory` for host connection participation;
+- optional `SqlExecutor` decoration for exceptional whole-execution routing.
 
-| Package/module | May depend on | Must not depend on |
-| --- | --- | --- |
-| `org.liteorm.annotation` | Java annotation types | Compiler and runtime implementations |
-| `org.liteorm.compile` | Annotation-processing APIs and public generated-code contracts | Spring |
-| `org.liteorm.api` | JDK/JDBC contracts | Compiler or Spring implementations |
-| Core JDBC/transaction implementations | `org.liteorm.api` | Compiler models and Spring |
-| Spring starter | Core public API and Spring | Compiler internals |
-| Generated Mapper source | Mapper types and narrow core API | Spring, compiler internals, runtime reflection |
+Fixed JDBC phases are intentionally closed to reordering and replacement. New behavior should use a typed extension or change the executor implementation with lifecycle tests.
 
-## Current Review Result
+### Liskov Substitution Principle
 
-- Generated Mappers depend on one stable `SqlExecutor` contract.
-- Fixed JDBC phases are explicit and non-reorderable.
-- Standalone and Spring connection ownership are isolated behind transaction strategies.
-- Multiple DataSources are application assembly, not statement metadata.
-- Cross-cutting observation uses interceptors rather than fixed-phase processors.
-- Generated source is stable, readable, and covered by golden-source and compiler-diagnostic tests.
+`SimpleTransaction` and `SpringTransaction` are substitutable from `JdbcSqlExecutor`'s perspective because the executor requires only connection access and close/release behavior.
 
-The remaining architecture review work is to evaluate SOLID boundaries, justified design patterns, public API size, exception taxonomy, concurrency guarantees, and optimization gates in the final R9.2 review.
+Follow-up: the public `Transaction` interface also exposes `commit` and `rollback`. Root standalone handles perform completion, participating handles reject direct completion, and Spring handles use no-op completion because Spring owns the boundary. This is operationally correct but semantically broad. A future API-hardening change should either strengthen the documented participation contract or separate execution-scoped connection handles from locally completable transaction boundaries.
+
+### Interface Segregation Principle
+
+Strong small interfaces:
+
+- `SqlExecutor` has one operation;
+- `TransactionFactory` has one creation method;
+- `TransactionalExecutor` has one callback method;
+- provider, binder, row mapper, and domain guard are focused contracts.
+
+Follow-up: `Transaction` completion methods are unused by `JdbcSqlExecutor` and create the semantic variation described above. Also, `JdbcAssembly.Builder.domainGuard(...)` accepts concrete `SimpleTransactionDomainGuard`, while public `TransactionDomainGuard` exposes only verification and cannot provide the binding lifecycle required by the factory. Either keep the guard entirely internal or define a complete standalone-domain scope contract before advertising customization.
+
+### Dependency Inversion Principle
+
+Accepted dependency direction:
+
+```text
+generated Mapper -> org.liteorm.api
+JdbcSqlExecutor -> TransactionFactory / Transaction
+standalone transaction implementation -> org.liteorm.api + JDBC
+Spring transaction implementation -> org.liteorm.api + Spring JDBC
+Spring registrar -> core public assembly contracts
+```
+
+Core runtime does not depend on compiler models or Spring. Spring depends on core contracts rather than core depending on Spring callbacks.
+
+## Design Pattern Review
+
+### Strategy
+
+Justified for `TransactionFactory` and `Transaction` implementations. Standalone and Spring have genuinely different connection ownership semantics behind the same executor dependency.
+
+### Factory
+
+Justified for `TransactionFactory.openTransaction()`. Each SQL execution needs a fresh ownership/participation handle even when it joins an existing root transaction.
+
+### Explicit Lifecycle / Template
+
+The fixed sequence inside `JdbcSqlExecutor` is template-like, but it is intentionally not an inheritance-based Template Method. The lifecycle is explicit code because subclasses must not reorder resource ownership phases.
+
+### Interceptor
+
+Justified for before/after observation. Logging, slow-query reporting, audit, metrics, tracing, and authorization can observe immutable plan/outcome data without replacing fixed phases.
+
+### Adapter
+
+Justified for `SpringTransactionFactory` and `SpringTransaction`, which adapt Spring JDBC connection participation to the core transaction contracts.
+
+### Builder
+
+Justified only for `LiteOrm.jdbc(dataSource)` assembly because domain and interceptor options are optional. Builders are not used for execution plans generated on hot paths.
+
+### Decorator
+
+Allowed only for optional whole-`SqlExecutor` routing that cannot be represented by a routing DataSource. No implicit routing decorator is part of core.
+
+### Rejected: Chain Of Responsibility
+
+Connection acquisition, preparation, binding, execution, extraction, and cleanup have hard dependencies and one valid order. Presenting them as independently reorderable handlers weakens correctness and hides ownership. They remain explicit inside `JdbcSqlExecutor`.
+
+## Public API Review
+
+### Accepted Stable Surface
+
+- annotations under `org.liteorm.annotation`;
+- generated-code contracts under `org.liteorm.api`;
+- `LiteOrm` and `JdbcAssembly` for standalone assembly;
+- typed interceptors and adapters;
+- Spring configuration properties and auto-configuration entry points.
+
+### Surface Reduction Candidates
+
+- `MappingException` currently has no production usage.
+- `SqlResult.success(...)` methods are compatibility aliases for `forQuery` and `forUpdate`.
+- `JdbcSqlExecutor`, `SimpleTransaction`, `SimpleTransactionFactory`, and `SimpleTransactionalExecutor` may not all need to remain direct user construction APIs once assembly is established.
+- `SpringTransaction` has a package-private constructor and may not need a public type.
+- compiler implementation types are public for processor mechanics, not application extension.
+- `domainGuard(...)` exposes a concrete implementation rather than a complete abstraction.
+
+Do not remove these in the documentation review. Handle them as separately tested compatibility changes.
+
+## Package Naming Review
+
+- `org.liteorm.annotation`: user compiler input, clear.
+- `org.liteorm.api`: generated/runtime shared contracts, clear but should stay small.
+- `org.liteorm.compile`: processor implementation, clear but currently visible in the same artifact.
+- `org.liteorm.jdbc`: physical JDBC executor, clear.
+- `org.liteorm.transaction`: standalone transaction implementation, clear.
+- `org.liteorm.interceptor`: provided observation implementations, clear.
+- `org.liteorm.runtime`: currently contains only result conversion helpers; consider moving or renaming only if a broader runtime package taxonomy emerges.
+
+Review result: **acceptable**. Avoid package churn without a compatibility or discoverability benefit.
+
+## Exception Taxonomy Review
+
+Accepted categories:
+
+- `ConfigurationException` for assembly/provider contract failures;
+- `SqlExecutionException` for physical execution failure with statement context;
+- `TransactionException` for begin/commit/rollback/cleanup/domain failures;
+- compile diagnostics for unsupported Mapper behavior.
+
+Follow-up findings:
+
+- `NonUniqueResultException` extends `RuntimeException` rather than `LiteOrmException`.
+- `MappingException` is currently unused.
+- executor plan validation still uses `IllegalArgumentException` for some invalid plan shapes.
+- `TransactionException.Type.TIMEOUT` and `DEADLOCK` exist without current production creation paths.
+- `ConfigurationException` can include configuration values, `MappingException` can include full row data, and `SqlExecutionException` includes SQL text. A security policy should define redaction before these exceptions are used with secrets or sensitive row values.
+
+These are API-hardening tasks, not runtime lifecycle defects.
+
+## Concurrency And Immutability Review
+
+- Generated Mapper fields are final and adapter instances are reused.
+- `JdbcSqlExecutor` copies its interceptor list and keeps no per-call mutable state in fields.
+- execution-local resources live in method locals.
+- `SimpleTransactionFactory` and `SimpleTransactionDomainGuard` isolate active transaction state with instance-scoped `ThreadLocal` values.
+- Spring connection state is delegated to Spring's thread-bound transaction synchronization.
+- the XML compiler cache is an instance-scoped `ConcurrentHashMap`, not a global mutable cache.
+- `ExecutionPlan` clones parameter and binder arrays; `BatchExecutionPlan` clones row arrays.
+- `BoundSql` copies the parameter list.
+
+Follow-up: `SqlResult.forQuery` stores and returns the query-result list and row arrays directly, so its current immutability is conventional rather than defensive. Generated Mappers consume it immediately, but a public contract claiming immutability should either copy results or document ownership clearly.
+
+Extension instances must be stateless, thread-safe, or externally synchronized. LiteORM does not clone provider, binder, row-mapper, or interceptor instances per call.
+
+## Test Readability Review
+
+Strong suites:
+
+- focused compiler diagnostics and generated-source golden tests;
+- JDBC lifecycle and cleanup-order tests;
+- standalone transaction and concurrency characterization;
+- Spring transaction participation and package-binding tests;
+- external Maven processor fixture;
+- executable H2 standalone example.
+
+Follow-up: `GeneratedCodeTest` and `EdgeCaseTest` still contain legacy console-driven demonstrations with limited assertions. Their useful contracts should move into focused tests, and narrative-only methods should be removed rather than counted as coverage.
+
+Proxy-based JDBC characterization tests are verbose but valuable because they assert physical ordering and suppression semantics without relying on a database driver's incidental behavior.
+
+## Generated-Source Readability Review
+
+Accepted properties:
+
+- deterministic header without timestamps;
+- explicit imports;
+- Mapper method and SQL-source comments;
+- descriptive execution/result variables;
+- scoped names for `foreach`, `choose`, `where`, `set`, and `trim`;
+- statement IDs in plans and exceptions;
+- direct typed mapping and adapter calls;
+- diagnostics attached to Mapper methods.
+
+XML resources cannot be attached to javac as language-model elements. XML failures therefore navigate to the corresponding Mapper method while retaining statement/tag context in the diagnostic message.
+
+## Remaining Work Before Optimization
+
+Keep correctness and API-hardening changes separate from performance work:
+
+1. decide whether to narrow the `Transaction` completion contract;
+2. remove or internalize unused/implementation public types with compatibility tests;
+3. normalize exception inheritance and define redaction rules;
+4. clarify or harden `SqlResult` query-result ownership;
+5. replace narrative print tests with focused assertions;
+6. consider processor/runtime artifact separation only if dependency or public-surface costs justify it.
+
+Do not add caches or hot-path complexity as part of those changes.
+
+## Optimization Gate
+
+No performance change is approved without a reproducible benchmark. Future measurements must include:
+
+- scalar query;
+- record mapping;
+- JavaBean mapping;
+- dynamic SQL;
+- JDBC batch;
+- generated keys;
+- interceptor overhead;
+- standalone transaction callback;
+- Spring transaction participation;
+- comparison with direct JDBC and a documented MyBatis baseline.
+
+Measure allocations and throughput before changing generated lists, plan copies, row arrays, interceptor tracking, or compiler caches. Keep any accepted cache immutable or instance-scoped.
+
+## Final Decision
+
+The architecture is understandable from component names and dependency direction:
+
+- compilation owns interpretation and generation;
+- generated Mappers own statement construction and typed mapping;
+- `SqlExecutor` owns physical execution;
+- transaction strategies own connection participation;
+- assembly owns DataSource selection;
+- interceptors own observation;
+- applications own distributed transactions and routing infrastructure.
+
+Proceed to optimization only after the recorded API-hardening tasks are either completed or explicitly deferred with compatibility rationale.

@@ -732,15 +732,21 @@ Completion notes:
 - Replace: `docs/architecture/liteorm-architecture-review.md`
 - Update this plan's checkboxes and completion notes.
 
-- [ ] Review compile-time input, model, generation, runtime execution, standalone assembly, Spring assembly, and multi-DataSource assembly end to end.
-- [ ] Review SRP, OCP, LSP, ISP, and DIP with concrete class dependencies.
-- [ ] Review justified patterns only: Strategy for transaction implementations, Factory for transaction creation, Template/explicit lifecycle inside the executor, Interceptor for observation, Adapter for Spring JDBC semantics, Builder only for assembly, Decorator only for optional routing.
-- [ ] Explicitly reject responsibility-chain usage for fixed JDBC phases.
-- [ ] Review public API size, package naming, exception taxonomy, concurrency guarantees, test readability, and generated-source readability.
-- [ ] Record remaining optimization work separately; do not mix benchmarks or caches into correctness changes.
-- [ ] Run `mvn clean test` and all external examples.
+- [x] Review compile-time input, model, generation, runtime execution, standalone assembly, Spring assembly, and multi-DataSource assembly end to end.
+- [x] Review SRP, OCP, LSP, ISP, and DIP with concrete class dependencies.
+- [x] Review justified patterns only: Strategy for transaction implementations, Factory for transaction creation, Template/explicit lifecycle inside the executor, Interceptor for observation, Adapter for Spring JDBC semantics, Builder only for assembly, Decorator only for optional routing.
+- [x] Explicitly reject responsibility-chain usage for fixed JDBC phases.
+- [x] Review public API size, package naming, exception taxonomy, concurrency guarantees, test readability, and generated-source readability.
+- [x] Record remaining optimization work separately; do not mix benchmarks or caches into correctness changes.
+- [x] Run `mvn clean test` and all external examples.
 - [ ] Commit with `docs: complete runtime architecture review`.
 - [ ] Push immediately.
+
+Completion notes:
+- Accepted the compile-time-to-JDBC dependency direction and the explicit fixed lifecycle; rejected responsibility-chain treatment of JDBC ownership phases.
+- Confirmed Strategy, Factory, explicit lifecycle, Interceptor, Spring Adapter, assembly Builder, and optional routing Decorator as the only currently justified patterns.
+- Recorded separate API-hardening work for `Transaction` completion semantics, concrete domain-guard exposure, exception hierarchy/redaction, `SqlResult` ownership, implementation-type visibility, and narrative print tests.
+- Kept optimization behind a benchmark gate covering generated mapping, dynamic SQL, batch, interceptors, standalone transactions, and Spring participation.
 
 **Completion criteria:** The final architecture is understandable from component names and dependency direction without relying on historical compatibility knowledge.
 
@@ -767,19 +773,19 @@ Completion notes:
 
 ## Global Definition of Done
 
-- [ ] Generated Mapper hot paths use no runtime proxy, reflective method dispatch, runtime XML parsing, or runtime expression engine.
-- [ ] XML-over-annotation precedence remains method-scoped and emits a compiler warning.
-- [ ] `SqlExecutor` is the only generated Mapper-facing runtime execution contract.
-- [ ] `Transaction` is the single connection/commit/rollback/close abstraction.
+- [x] Generated Mapper hot paths use no runtime proxy, reflective method dispatch, runtime XML parsing, or runtime expression engine.
+- [x] XML-over-annotation precedence remains method-scoped and emits a compiler warning.
+- [x] `SqlExecutor` is the only generated Mapper-facing runtime execution contract.
+- [x] `Transaction` is the single connection/commit/rollback/close abstraction.
 - [ ] Standalone and Spring transaction implementations pass the same lifecycle characterization suite.
-- [ ] Multiple application DataSources are isolated through disjoint Mapper groups and explicit executor graphs; one Mapper interface never spans multiple DataSource domains.
-- [ ] Each Mapper package and Mapper interface binds to exactly one named physical or routing Spring DataSource bean.
-- [ ] Generated Mapper implementations contain no Spring component, injection, qualifier, or conditional annotations.
-- [ ] Method-level static DataSource binding is implemented only if a concrete requirement remains after first-stage integration.
-- [ ] Dynamic read/write, tenant, and shard routing remains owned by the configured DataSource implementation.
-- [ ] Cross-DataSource calls cannot silently escape an active local or Spring transaction boundary.
-- [ ] Fixed JDBC phases are not configurable processors.
-- [ ] Runtime and compiler singletons are concurrency-safe.
+- [x] Multiple application DataSources are isolated through disjoint Mapper groups and explicit executor graphs; one Mapper interface never spans multiple DataSource domains.
+- [x] Each Mapper package and Mapper interface binds to exactly one named physical or routing Spring DataSource bean.
+- [x] Generated Mapper implementations contain no Spring component, injection, qualifier, or conditional annotations.
+- [x] Method-level static DataSource binding is implemented only if a concrete requirement remains after first-stage integration.
+- [x] Dynamic read/write, tenant, and shard routing remains owned by the configured DataSource implementation.
+- [x] Cross-DataSource calls cannot silently escape an active local or Spring transaction boundary.
+- [x] Fixed JDBC phases are not configurable processors.
+- [x] Runtime and compiler singletons are concurrency-safe.
 - [ ] Obsolete APIs, tests, templates, service placeholders, and docs are removed.
-- [ ] `mvn clean test` and external Mapper examples pass from a clean checkout.
+- [x] `mvn clean test` and external Mapper examples pass from a clean checkout.
 - [ ] Every completed module has an English commit and has been pushed.
