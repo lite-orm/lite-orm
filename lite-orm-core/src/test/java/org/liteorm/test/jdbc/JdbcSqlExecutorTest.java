@@ -17,6 +17,7 @@ import org.liteorm.api.SqlResult;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 
 import java.lang.reflect.Proxy;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -390,6 +391,50 @@ class JdbcSqlExecutorTest {
                 .execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
 
         assertSame(executeFailure, failure.getCause());
+        assertEquals(ExecutionPhase.EXECUTION, failure.getPhase());
+        assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failure.getExecutionState());
+    }
+
+    @Test
+    void preservesBatchUpdateCountsWhenDriverReportsPartialFailure() {
+        BatchUpdateException batchFailure = new BatchUpdateException(
+            "batch failed", "23505", 0, new int[]{1, Statement.EXECUTE_FAILED});
+        PreparedStatement statement = proxy(PreparedStatement.class, (method, args) -> switch (method) {
+            case "setObject", "addBatch", "close" -> null;
+            case "executeBatch" -> throw batchFailure;
+            default -> null;
+        });
+        BatchExecutionPlan plan = new BatchExecutionPlan(
+            "test.Mapper.insertAll", "INSERT INTO users(id, name) VALUES (?, ?)",
+            List.of(new Object[]{1L, "Alice"}, new Object[]{2L, "Bob"}),
+            ExecutionPlan.SqlSource.GENERATED);
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(new ArrayList<>(), statement).execute(plan));
+
+        BatchUpdateException cause = assertInstanceOf(BatchUpdateException.class, failure.getCause());
+        assertSame(batchFailure, cause);
+        assertArrayEquals(new int[]{1, Statement.EXECUTE_FAILED}, cause.getUpdateCounts());
+        assertEquals(ExecutionPhase.EXECUTION, failure.getPhase());
+        assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failure.getExecutionState());
+    }
+
+    @Test
+    void reportsUnknownOutcomeWhenDriverCancelsExecution() {
+        SQLException cancellation = new SQLException("statement cancelled", "57014");
+        PreparedStatement statement = proxy(PreparedStatement.class, (method, args) -> switch (method) {
+            case "setObject", "close" -> null;
+            case "executeUpdate" -> throw cancellation;
+            default -> null;
+        });
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(new ArrayList<>(), statement)
+                .execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
+
+        SQLException cause = assertInstanceOf(SQLException.class, failure.getCause());
+        assertSame(cancellation, cause);
+        assertEquals("57014", cause.getSQLState());
         assertEquals(ExecutionPhase.EXECUTION, failure.getPhase());
         assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failure.getExecutionState());
     }

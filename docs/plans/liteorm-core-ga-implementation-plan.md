@@ -686,29 +686,30 @@ Implementation status: Completed and verified on 2026-08-16 with Testcontainers 
 ### Task 15: Add JDBC Failure and Concurrency Characterization
 
 **Files:**
-- Create: `lite-orm-core/src/test/java/org/liteorm/test/database/JdbcFailureCompatibilityTest.java`
 - Create: `lite-orm-core/src/test/java/org/liteorm/test/database/CoreConcurrencySoakTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
-- [ ] **Step 1: Add deterministic failure tests**
+- [x] **Step 1: Complete deterministic failure characterization**
 
-Cover `BatchUpdateException` update counts, connection acquisition failure, statement preparation failure, bind failure, execute failure, generated-key failure, result mapping failure, cancellation, timeout, commit failure, rollback failure, and close failure.
+Keep the existing focused coverage for connection acquisition, statement preparation, bind, execute, generated-key, result mapping, timeout, commit, rollback, and close failures. Add only the missing deterministic contracts for `BatchUpdateException` update counts and driver-reported cancellation; do not duplicate failure cases that are already characterized in `JdbcSqlExecutorTest`, `SimpleTransactionTest`, or the production-database compatibility suites.
 
-- [ ] **Step 2: Assert completion certainty for every failure phase**
+- [x] **Step 2: Assert certainty at the owning layer**
 
-Every case must assert `NOT_EXECUTED`, `EXECUTED`, `COMMITTED`, `ROLLED_BACK`, or `UNKNOWN` as appropriate.
+JDBC execution failures must assert `JdbcExecutionState.NOT_EXECUTED`, `OUTCOME_UNKNOWN`, or `EXECUTED` as appropriate. Local transaction failures must assert `TransactionException.Type` and observable commit or rollback side effects separately. Do not add executor-level `COMMITTED` or `ROLLED_BACK`: `JdbcSqlExecutor` does not own transaction completion under Spring or another host transaction manager.
 
-- [ ] **Step 3: Add bounded concurrency soak coverage**
+- [x] **Step 3: Add bounded concurrency soak coverage**
 
 Run concurrent generated Mapper calls and transaction callbacks across independent DataSources for a fixed duration, verify no cross-thread connection reuse, no leaked transaction binding, and no corrupted result data.
 
-- [ ] **Step 4: Run core verification and commit**
+- [x] **Step 4: Run core verification and commit**
 
 Run: `mvn -pl lite-orm-core verify`
 
 Expected: PASS.
 
 Commit: `test: characterize core jdbc failures`
+
+Implementation status: Completed and verified on 2026-08-16. Existing phase-specific failure tests remain in their owning JDBC and transaction suites; Task 15 adds explicit preservation of `BatchUpdateException` partial counts, driver-reported cancellation certainty, and a bounded H2 concurrency soak across two independent generated-Mapper assemblies. The soak verifies thread-owned connection use, one connection per root transaction, cleared transaction bindings before subsequent non-transactional Mapper calls, balanced connection closure, DataSource isolation, and uncorrupted row results. `mvn -pl lite-orm-core verify` passed all 158 core tests and the external Maven annotation-processor fixture.
 
 ---
 
