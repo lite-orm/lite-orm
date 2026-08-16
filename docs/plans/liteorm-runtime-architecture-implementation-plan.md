@@ -416,7 +416,7 @@ Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecuto
 - [x] The obsolete processor implementations were already deleted in Module R2.5.1.
 - [x] Run interceptor, runtime, and full core tests.
 - [x] Commit with `refactor: move execution observers to interceptors`.
-- [ ] Push immediately.
+- [x] Push immediately.
 
 **Completion criteria:** Cross-cutting observation uses a genuine ordered interceptor pattern; physical JDBC work does not.
 
@@ -553,7 +553,7 @@ Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecuto
 - [x] Keep package binding and `TransactionDomainGuard` behavior unchanged.
 - [x] Run focused core tests and `mvn clean test`.
 - [x] Commit with `refactor: remove premature datasource routing contracts`.
-- [ ] Push immediately.
+- [x] Push immediately.
 
 **Completion criteria:** First-stage multi-DataSource support has one clear ownership model: LiteORM
 binds Mapper packages, while the configured `DataSource` owns any dynamic routing.
@@ -570,7 +570,7 @@ binds Mapper packages, while the configured `DataSource` owns any dynamic routin
 - [x] Keep routing DataSources valid when the transaction manager and Mapper binding use the same routing DataSource bean.
 - [x] Run focused Spring transaction tests and `mvn clean test`.
 - [x] Commit with `fix: enforce spring datasource transaction alignment`.
-- [ ] Push immediately.
+- [x] Push immediately.
 
 **Completion criteria:** A Mapper cannot silently escape an active single-DataSource Spring
 transaction and auto-commit work through another configured DataSource.
