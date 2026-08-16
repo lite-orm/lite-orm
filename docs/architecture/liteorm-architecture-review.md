@@ -234,7 +234,7 @@ Connection acquisition, preparation, binding, execution, extraction, and cleanup
 ### Surface Reduction Candidates
 
 - `MappingException` currently has no production usage.
-- `SqlResult.success(...)` methods are compatibility aliases for `forQuery` and `forUpdate`.
+- `SqlResult` exposes only explicit factories such as `forQuery` and `forUpdate`; pre-release compatibility aliases were removed.
 - `JdbcSqlExecutor`, `SimpleConnectionHandleFactory`, and `SimpleTransactionalExecutor` may not all need to remain direct user construction APIs once assembly is established.
 - `SpringConnectionHandle` has a package-private constructor and may not need a public type.
 - compiler implementation types are public for processor mechanics, not application extension.

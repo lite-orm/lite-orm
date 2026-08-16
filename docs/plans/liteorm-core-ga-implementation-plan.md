@@ -534,25 +534,27 @@ Commit: `feat: harden generated key contracts`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlResult.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/api/SqlResultTest.java`
 
-- [ ] **Step 1: Write RED mutation tests**
+- [x] **Step 1: Write RED mutation tests**
 
 Mutate the source list, source row arrays, returned list, returned row arrays, source batch counts, and returned batch counts. None may alter stored state.
 
-- [ ] **Step 2: Remove compatibility aliases**
+- [x] **Step 2: Remove compatibility aliases**
 
 Delete both `SqlResult.success(...)` methods without deprecation bridges.
 
-- [ ] **Step 3: Defensively copy query rows**
+- [x] **Step 3: Defensively copy query rows**
 
 Use `List.copyOf` over cloned row arrays and return newly cloned row arrays from the query-results accessor.
 
-- [ ] **Step 4: Run API and core tests; commit**
+- [x] **Step 4: Run API and core tests; commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `refactor: make sql results deeply immutable`
+
+Implementation status: Completed and verified on 2026-08-16 with focused mutation tests, all 139 core tests, and the full Maven reactor.
 
 ### Task 12: Normalize Exception Taxonomy and Redaction
 

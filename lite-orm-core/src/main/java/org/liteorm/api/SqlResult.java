@@ -1,6 +1,7 @@
 package org.liteorm.api;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * SQL执行结果
@@ -14,7 +15,7 @@ import java.util.List;
  * @author lite-orm
  * @since 2024/09/29
  */
-public class SqlResult {
+public final class SqlResult {
     
     private final List<Object[]> queryResults;   // 查询结果的原始数据
     private final int updateCount;               // 更新行数
@@ -37,17 +38,7 @@ public class SqlResult {
     }
 
     public static SqlResult forBatch(int[] updateCounts) {
-        return new SqlResult(null, 0, false, updateCounts.clone(), null);
-    }
-    
-    // 兼容方法：success for query
-    public static SqlResult success(List<Object[]> results) {
-        return forQuery(results);
-    }
-    
-    // 兼容方法：success for update
-    public static SqlResult success(int updateCount) {
-        return forUpdate(updateCount);
+        return new SqlResult(null, 0, false, updateCounts, null);
     }
     
     private SqlResult(
@@ -56,16 +47,16 @@ public class SqlResult {
             boolean isQuery,
             int[] batchUpdateCounts,
             Object generatedKey) {
-        this.queryResults = queryResults;
+        this.queryResults = copyRows(queryResults);
         this.updateCount = updateCount;
         this.isQuery = isQuery;
-        this.batchUpdateCounts = batchUpdateCounts;
+        this.batchUpdateCounts = batchUpdateCounts == null ? null : batchUpdateCounts.clone();
         this.generatedKey = generatedKey;
     }
     
     // Getters
     public List<Object[]> getQueryResults() {
-        return queryResults;
+        return copyRows(queryResults);
     }
     
     public int getUpdateCount() {
@@ -83,5 +74,13 @@ public class SqlResult {
     public Object getGeneratedKey() {
         return generatedKey;
     }
-    
+
+    private static List<Object[]> copyRows(List<Object[]> rows) {
+        if (rows == null) {
+            return null;
+        }
+        return rows.stream()
+            .map(row -> Objects.requireNonNull(row, "query row").clone())
+            .toList();
+    }
 }
