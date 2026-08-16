@@ -459,42 +459,45 @@ Implementation status: Completed and verified on 2026-08-16 with runtime-generat
 
 **Files:**
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/MapperCompilationModel.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/api/NonUniqueResultException.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/SqlParameterParser.java`
+- Modify: `lite-orm-core/src/main/resources/templates/mapper-impl.ftl`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/MapperReturnContractCompilationTest.java`
+- Test: `lite-orm-core/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/generated/GeneratedSourceGoldenTest.java`
 
-- [ ] **Step 1: Write RED return-contract tests**
+- [x] **Step 1: Write RED return-contract tests**
 
 Cover `T`, primitive scalar, `Optional<T>`, `List<T>`, update counts, batch counts, generated keys, default interface methods, inherited abstract Mapper methods, and rejection of raw/generic unresolved return shapes.
 
-- [ ] **Step 2: Define no-row behavior**
+- [x] **Step 2: Define no-row behavior**
 
 - Reference `T`: return `null`.
 - `Optional<T>`: return `Optional.empty()`.
 - Primitive scalar: throw `MappingException` identifying the Mapper method and expected primitive type.
 - Single result with more than one row: throw `NonUniqueResultException`.
 
-- [ ] **Step 3: Generate `Optional<T>` without intermediate wrappers**
+- [x] **Step 3: Generate `Optional<T>` without intermediate wrappers**
 
 Generate `Optional.ofNullable(mappedValue)` after enforcing at-most-one-row semantics.
 
-- [ ] **Step 4: Support inherited abstract methods and preserve default methods**
+- [x] **Step 4: Support inherited abstract methods and preserve default methods**
 
 Generate implementations for inherited Mapper methods exactly once. Do not override Java default methods unless they are explicitly SQL-annotated and supported.
 
-- [ ] **Step 5: Reject unresolved generic base methods**
+- [x] **Step 5: Reject unresolved generic base methods**
 
 Attach diagnostics to the concrete Mapper declaration or inherited method element with the unresolved type variable in the message.
 
-- [ ] **Step 6: Run compiler, golden, and core tests; commit**
+- [x] **Step 6: Run compiler, golden, and core tests; commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `feat: complete mapper return contracts`
+
+Implementation status: Completed and verified on 2026-08-16 with RED/GREEN runtime compilation tests for reference, primitive, `Optional<T>`, `List<T>`, default methods, inherited resolved generic methods, unresolved generic diagnostics, all 146 core tests, and the full Maven reactor.
 
 ### Task 10: Complete Generated-Key Contracts
 

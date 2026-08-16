@@ -3,6 +3,7 @@ package org.liteorm.compile;
 import org.liteorm.annotation.Param;
 
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -26,6 +27,14 @@ public class SqlParameterParser {
      * 根据编译期方法参数生成标准化参数描述。
      */
     public List<MethodParameter> describeMethodParameters(List<? extends VariableElement> methodParameters) {
+        return describeMethodParameters(methodParameters, methodParameters.stream()
+            .map(VariableElement::asType)
+            .toList());
+    }
+
+    public List<MethodParameter> describeMethodParameters(
+            List<? extends VariableElement> methodParameters,
+            List<? extends TypeMirror> resolvedParameterTypes) {
         List<MethodParameter> parameters = new ArrayList<>(methodParameters.size());
         for (int i = 0; i < methodParameters.size(); i++) {
             VariableElement param = methodParameters.get(i);
@@ -41,7 +50,7 @@ public class SqlParameterParser {
             aliases.add("param" + (i + 1));
             aliases.add("arg" + i);
 
-            String typeName = param.asType().toString();
+            String typeName = resolvedParameterTypes.get(i).toString();
             if (methodParameters.size() == 1) {
                 if (typeName.endsWith("[]")) {
                     aliases.add("array");

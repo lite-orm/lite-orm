@@ -11,14 +11,19 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.ExecutableType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -129,14 +134,17 @@ public class CompilePipeline {
      */
     private List<MapperCompilationModel.MethodModel> analyzeInterfaceMethods(TypeElement mapperInterface)
             throws CompileException {
-        List<MapperCompilationModel.MethodModel> methodInfos = new ArrayList<>();
-        
-        for (var element : mapperInterface.getEnclosedElements()) {
+        Map<String, MapperCompilationModel.MethodModel> methodInfos = new LinkedHashMap<>();
+
+        for (var element : elementUtils.getAllMembers(mapperInterface)) {
             if (element instanceof ExecutableElement method) {
                 try {
-                    MapperCompilationModel.MethodModel methodInfo = analyzeMethod(mapperInterface, method);
+                    ExecutableType resolvedMethodType = (ExecutableType) typeUtils.asMemberOf(
+                        (DeclaredType) mapperInterface.asType(), method);
+                    MapperCompilationModel.MethodModel methodInfo = analyzeMethod(
+                        mapperInterface, method, resolvedMethodType);
                     if (methodInfo != null) {
-                        methodInfos.add(methodInfo);
+                        methodInfos.putIfAbsent(methodKey(method, resolvedMethodType), methodInfo);
                     }
                 } catch (CompileException exception) {
                     throw exception.element() == null ? exception.at(method) : exception;
@@ -144,17 +152,24 @@ public class CompilePipeline {
             }
         }
         
-        return methodInfos;
+        return List.copyOf(methodInfos.values());
+    }
+
+    private String methodKey(ExecutableElement method, ExecutableType resolvedMethodType) {
+        return method.getSimpleName() + resolvedMethodType.getParameterTypes().toString();
     }
     
     /**
      * 分析单个方法
      */
-    private MapperCompilationModel.MethodModel analyzeMethod(TypeElement mapperInterface, ExecutableElement method)
+    private MapperCompilationModel.MethodModel analyzeMethod(
+            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType)
             throws CompileException {
-        validateMethodSignature(mapperInterface, method);
+        if (method.isDefault() && !hasExplicitSqlDeclaration(method)) {
+            return null;
+        }
 
-        ProviderBinding providerBinding = analyzeProviderBinding(mapperInterface, method);
+        ProviderBinding providerBinding = analyzeProviderBinding(mapperInterface, method, resolvedMethodType);
 
         // 1. 解析SQL内容
         SqlContentParser.SqlParseResult sqlInfo = null;
@@ -184,6 +199,8 @@ public class CompilePipeline {
             }
             return null; // 跳过没有SQL的方法
         }
+        validateMethodSignature(mapperInterface, method);
+        validateResolvedMethodTypes(mapperInterface, method, resolvedMethodType);
         if (sqlInfo != null) {
             validateSafeSqlSubstitution(mapperInterface, method, sqlInfo);
             validateDynamicExpressions(mapperInterface, method, sqlInfo.astNode());
@@ -192,7 +209,8 @@ public class CompilePipeline {
         
         // 2. 生成标准化参数模型和绑定顺序
         List<SqlParameterParser.MethodParameter> methodParameters =
-            parameterParser.describeMethodParameters(method.getParameters());
+            parameterParser.describeMethodParameters(
+                method.getParameters(), resolvedMethodType.getParameterTypes());
         SqlParameterParser.SqlParseResult parameterResult = new SqlParameterParser.SqlParseResult(
             sqlInfo == null ? "" : sqlInfo.sqlTemplate(), List.of());
         if (sqlInfo != null && !sqlInfo.isDynamic()) {
@@ -207,24 +225,24 @@ public class CompilePipeline {
         }
 
         AdapterBindings adapterBindings = analyzeAdapterBindings(
-            mapperInterface, method, sqlInfo, providerBinding, methodParameters, parameterResult.bindings());
+            mapperInterface, method, resolvedMethodType, sqlInfo, providerBinding,
+            methodParameters, parameterResult.bindings());
 
         // 3. 构建方法信息
         String methodName = method.getSimpleName().toString();
-        String returnType = method.getReturnType().toString();
-        String parameterList = buildParameterList(method);
+        String returnType = resolvedMethodType.getReturnType().toString();
+        String parameterList = buildParameterList(method, resolvedMethodType);
         boolean generatedKey = method.getAnnotation(org.liteorm.annotation.GeneratedKey.class) != null;
         ExecutionPlan.StatementType statementType = providerBinding == null
             ? mapStatementType(sqlInfo.sqlType())
             : providerBinding.statementType();
-        validateSingleResultReturnType(mapperInterface, method, statementType, returnType);
         validateWriteReturnType(mapperInterface, method, statementType, returnType, generatedKey);
         if (generatedKey) {
             validateGeneratedKeyMethod(
                 mapperInterface, method, returnType, statementType, sqlInfo, providerBinding);
         }
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
-            validateBatchMethod(mapperInterface, method, returnType, sqlInfo);
+            validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
         }
         ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
             ? new ResultMapping("", "", List.of())
@@ -260,7 +278,7 @@ public class CompilePipeline {
     }
 
     private AdapterBindings analyzeAdapterBindings(
-            TypeElement mapperInterface, ExecutableElement method,
+            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType,
             SqlContentParser.SqlParseResult sqlInfo, ProviderBinding providerBinding,
             List<SqlParameterParser.MethodParameter> methodParameters,
             List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
@@ -277,7 +295,8 @@ public class CompilePipeline {
 
         java.util.Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters =
             new java.util.LinkedHashMap<>();
-        for (VariableElement parameter : method.getParameters()) {
+        for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
+            VariableElement parameter = method.getParameters().get(parameterIndex);
             AnnotationMirror annotation = findAnnotation(
                 parameter, "org.liteorm.annotation.UseParameterBinder");
             if (annotation == null) {
@@ -285,7 +304,8 @@ public class CompilePipeline {
             }
             TypeElement binderElement = validateAdapter(
                 mapperInterface, method, annotationTypeValue(annotation, "value"),
-                "org.liteorm.api.ParameterBinder", parameter.asType(), "parameter binder target type");
+                "org.liteorm.api.ParameterBinder", resolvedMethodType.getParameterTypes().get(parameterIndex),
+                "parameter binder target type");
             String fieldName = method.getSimpleName() + capitalize(parameter.getSimpleName().toString())
                 + "ParameterBinder";
             MapperCompilationModel.AdapterField adapterField = new MapperCompilationModel.AdapterField(
@@ -328,10 +348,10 @@ public class CompilePipeline {
             if (statementType != ExecutionPlan.StatementType.SELECT) {
                 throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
             }
-            String mappedType = extractMappedType(method.getReturnType().toString());
+            String mappedType = extractMappedType(resolvedMethodType.getReturnType().toString());
             TypeElement mappedTypeElement = elementUtils.getTypeElement(mappedType);
             TypeMirror mappedTypeMirror = mappedTypeElement == null
-                ? method.getReturnType() : mappedTypeElement.asType();
+                ? resolvedMethodType.getReturnType() : mappedTypeElement.asType();
             TypeElement rowMapperElement = validateAdapter(
                 mapperInterface, method, annotationTypeValue(rowMapperAnnotation, "value"),
                 "org.liteorm.api.RowMapper", mappedTypeMirror, "row mapper target type");
@@ -423,7 +443,13 @@ public class CompilePipeline {
     }
 
     private String extractMappedType(String returnType) {
-        return returnType.contains("List<") ? extractListElementType(returnType) : returnType;
+        if (returnType.startsWith("java.util.List<")) {
+            return extractListElementType(returnType);
+        }
+        if (returnType.startsWith("java.util.Optional<")) {
+            return extractOptionalElementType(returnType);
+        }
+        return returnType;
     }
 
     private String capitalize(String value) {
@@ -436,7 +462,8 @@ public class CompilePipeline {
         String rowMapperFieldName) {
     }
 
-    private ProviderBinding analyzeProviderBinding(TypeElement mapperInterface, ExecutableElement method)
+    private ProviderBinding analyzeProviderBinding(
+            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType)
             throws CompileException {
         AnnotationMirror annotation = findUseSqlProvider(method);
         if (annotation == null) {
@@ -483,7 +510,7 @@ public class CompilePipeline {
         }
         TypeMirror mapperInput = method.getParameters().isEmpty()
             ? elementUtils.getTypeElement("java.lang.Void").asType()
-            : method.getParameters().get(0).asType();
+            : resolvedMethodType.getParameterTypes().get(0);
         if (!typeUtils.isSameType(typeUtils.erasure(providerInput), typeUtils.erasure(mapperInput))) {
             throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
                 + ": provider input type " + providerInput + " does not match Mapper parameter type " + mapperInput);
@@ -654,15 +681,53 @@ public class CompilePipeline {
 
     private void validateMethodSignature(TypeElement mapperInterface, ExecutableElement method) throws CompileException {
         String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
-        if (method.isDefault()) {
-            throw new CompileException(methodLocation + ": default mapper methods are not supported");
-        }
         if (method.isVarArgs()) {
             throw new CompileException(methodLocation + ": varargs mapper methods are not supported");
         }
         if (method.getModifiers().contains(javax.lang.model.element.Modifier.STATIC)) {
             throw new CompileException(methodLocation + ": static mapper methods are not supported");
         }
+    }
+
+    private boolean hasExplicitSqlDeclaration(ExecutableElement method) {
+        return hasUseSqlProvider(method) || sqlParsers.get(1).supports(method);
+    }
+
+    private void validateResolvedMethodTypes(
+            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType)
+            throws CompileException {
+        String unresolvedReturnType = findUnresolvedGenericType(resolvedMethodType.getReturnType());
+        if (unresolvedReturnType != null) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": unresolved generic type " + unresolvedReturnType + " in return type "
+                + resolvedMethodType.getReturnType());
+        }
+        for (TypeMirror parameterType : resolvedMethodType.getParameterTypes()) {
+            String unresolvedParameterType = findUnresolvedGenericType(parameterType);
+            if (unresolvedParameterType != null) {
+                throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                    + ": unresolved generic type " + unresolvedParameterType + " in parameter type "
+                    + parameterType);
+            }
+        }
+    }
+
+    private String findUnresolvedGenericType(TypeMirror type) {
+        if (type.getKind() == TypeKind.TYPEVAR || type.getKind() == TypeKind.WILDCARD) {
+            return type.toString();
+        }
+        if (type.getKind() == TypeKind.ARRAY) {
+            return findUnresolvedGenericType(((ArrayType) type).getComponentType());
+        }
+        if (type instanceof DeclaredType declaredType) {
+            for (TypeMirror typeArgument : declaredType.getTypeArguments()) {
+                String unresolvedType = findUnresolvedGenericType(typeArgument);
+                if (unresolvedType != null) {
+                    return unresolvedType;
+                }
+            }
+        }
+        return null;
     }
 
     private ExecutionPlan.StatementType mapStatementType(SqlContentParser.SqlType sqlType) {
@@ -680,7 +745,8 @@ public class CompilePipeline {
             ExecutableElement method,
             String sql,
             List<SqlParameterParser.MethodParameter> methodParameters) throws CompileException {
-        validateBatchMethod(mapperInterface, method, method.getReturnType().toString(), null);
+        validateBatchMethod(
+            mapperInterface, method, method.getReturnType().toString(), methodParameters, null);
         String elementType = batchElementType(methodParameters.get(0).typeName());
         SqlParameterParser.MethodParameter item = new SqlParameterParser.MethodParameter(
             "item", "item", elementType, List.of("item")
@@ -692,10 +758,11 @@ public class CompilePipeline {
             TypeElement mapperInterface,
             ExecutableElement method,
             String returnType,
+            List<SqlParameterParser.MethodParameter> methodParameters,
             SqlContentParser.SqlParseResult sqlInfo) throws CompileException {
         String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
-        if (method.getParameters().size() != 1
-                || !method.getParameters().get(0).asType().toString().startsWith("java.util.List<")) {
+        if (methodParameters.size() != 1
+                || !methodParameters.get(0).typeName().startsWith("java.util.List<")) {
             throw new CompileException(location + ": batch methods require exactly one java.util.List<T> parameter");
         }
         if (!"int[]".equals(returnType)) {
@@ -779,10 +846,11 @@ public class CompilePipeline {
     /**
      * 构建参数列表字符串
      */
-    private String buildParameterList(ExecutableElement method) {
+    private String buildParameterList(ExecutableElement method, ExecutableType resolvedMethodType) {
         List<String> params = new ArrayList<>();
-        for (var param : method.getParameters()) {
-            String paramType = param.asType().toString();
+        for (int index = 0; index < method.getParameters().size(); index++) {
+            VariableElement param = method.getParameters().get(index);
+            String paramType = resolvedMethodType.getParameterTypes().get(index).toString();
             String paramName = param.getSimpleName().toString();
             params.add(paramType + " " + paramName);
         }
@@ -797,6 +865,8 @@ public class CompilePipeline {
         if (returnType.contains("List<")) {
             String elementType = extractListElementType(returnType);
             return generateSingleMapping(mapperInterface, method, elementType);
+        } else if (returnType.startsWith("java.util.Optional<")) {
+            return generateSingleMapping(mapperInterface, method, extractOptionalElementType(returnType));
         } else if (!returnType.equals("void")) {
             return generateSingleMapping(mapperInterface, method, returnType);
         } else {
@@ -811,6 +881,12 @@ public class CompilePipeline {
         int start = listType.indexOf('<') + 1;
         int end = listType.lastIndexOf('>');
         return listType.substring(start, end);
+    }
+
+    private String extractOptionalElementType(String optionalType) {
+        int start = optionalType.indexOf('<') + 1;
+        int end = optionalType.lastIndexOf('>');
+        return optionalType.substring(start, end);
     }
     
     /**

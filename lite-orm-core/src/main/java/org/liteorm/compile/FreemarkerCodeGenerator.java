@@ -168,10 +168,24 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             return "        return;\n";
         }
 
+        boolean optional = returnType.startsWith("java.util.Optional<");
+        boolean primitive = isPrimitive(returnType);
+        String noRows = optional
+            ? "return java.util.Optional.empty();"
+            : primitive
+                ? "throw new MappingException(" + javaString(
+                    "No row returned for " + methodModel.statementId() + " required primitive " + returnType)
+                    + ", " + returnType + ".class, null);"
+                : "return null;";
+        String mappedValue = resultRowExpression(methodModel.resultMappingCode());
+        String mappedReturn = optional
+            ? "java.util.Optional.ofNullable(" + mappedValue + ")"
+            : mappedValue;
+
         return """
             List<Object[]> resultRows = executionResult.getQueryResults();
             if (resultRows == null || resultRows.isEmpty()) {
-                return null;
+                %s
             }
             if (resultRows.size() > 1) {
                 throw new NonUniqueResultException(%s, resultRows.size());
@@ -179,8 +193,15 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             %s
             Object[] resultRow = resultRows.get(0);
             return %s;
-            """.formatted(javaString(methodModel.statementId()), resultColumnIndexes(methodModel),
-                resultRowExpression(methodModel.resultMappingCode())).indent(8);
+            """.formatted(noRows, javaString(methodModel.statementId()), resultColumnIndexes(methodModel),
+                mappedReturn).indent(8);
+    }
+
+    private boolean isPrimitive(String typeName) {
+        return switch (typeName) {
+            case "boolean", "byte", "short", "int", "long", "char", "float", "double" -> true;
+            default -> false;
+        };
     }
 
     private String resultColumnIndexes(MapperCompilationModel.MethodModel methodModel) {

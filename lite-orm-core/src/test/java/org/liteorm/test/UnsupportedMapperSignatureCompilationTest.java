@@ -25,21 +25,6 @@ class UnsupportedMapperSignatureCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void defaultMapperMethodFailsWithMapperAndMethodName() throws Exception {
-        assertUnsupportedMethod(
-            "DefaultMethodMapper",
-            """
-                @Select("SELECT 1")
-                default int unsupportedDefault() {
-                    return 1;
-                }
-                """,
-            "unsupportedDefault",
-            "default mapper methods are not supported"
-        );
-    }
-
-    @Test
     void staticMapperMethodFailsWithMapperAndMethodName() throws Exception {
         assertUnsupportedMethod(
             "StaticMethodMapper",
@@ -230,16 +215,6 @@ class UnsupportedMapperSignatureCompilationTest {
                 """,
             "findValue",
             "Unsupported result mapping: nested record component org.liteorm.test.diagnostics.NestedRecord.detail"
-        );
-    }
-
-    @Test
-    void primitiveSingleResultFailsBecauseZeroRowsCannotBeRepresented() throws Exception {
-        assertUnsupportedMethod(
-            "PrimitiveSingleResultMapper",
-            "@Select(\"SELECT COUNT(*) FROM users\") long count();",
-            "count",
-            "primitive SELECT return types cannot represent zero rows"
         );
     }
 

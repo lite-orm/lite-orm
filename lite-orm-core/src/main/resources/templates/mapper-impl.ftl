@@ -3,6 +3,7 @@ package ${packageName};
 import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.BoundSql;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.MappingException;
 import org.liteorm.api.NonUniqueResultException;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.SqlExecutor;
