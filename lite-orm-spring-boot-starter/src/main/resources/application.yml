@@ -23,5 +23,3 @@ lite-orm:
   mapper-bindings:
     - package-name: com.example.mapper
       data-source: dataSource
-      # 同一 Mapper 包绑定多次时，用前缀生成不同的 Mapper Bean 名
-      bean-name-prefix: ""

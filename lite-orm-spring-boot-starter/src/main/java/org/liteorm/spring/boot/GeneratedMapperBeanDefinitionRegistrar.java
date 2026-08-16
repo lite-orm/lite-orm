@@ -17,6 +17,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.type.filter.TypeFilter;
 import org.springframework.util.ClassUtils;
 
+import java.beans.Introspector;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.List;
@@ -88,9 +89,7 @@ final class GeneratedMapperBeanDefinitionRegistrar
                     "Invalid generated LiteORM mapper " + className + ": missing public SqlExecutor constructor");
             }
 
-            String baseName = Character.toLowerCase(mapperInterface.getSimpleName().charAt(0))
-                + mapperInterface.getSimpleName().substring(1);
-            String beanName = prefixedName(binding.getBeanNamePrefix(), baseName);
+            String beanName = Introspector.decapitalize(mapperInterface.getSimpleName());
             if (registry.containsBeanDefinition(beanName)) {
                 BeanDefinition existing = registry.getBeanDefinition(beanName);
                 throw new BeanDefinitionStoreException(
@@ -122,8 +121,8 @@ final class GeneratedMapperBeanDefinitionRegistrar
             }
             for (int otherIndex = 0; otherIndex < index; otherIndex++) {
                 String otherPackage = bindings.get(otherIndex).getPackageName();
-                if (!binding.getPackageName().equals(otherPackage)
-                        && packagesOverlap(binding.getPackageName(), otherPackage)) {
+                if (binding.getPackageName().equals(otherPackage)
+                        || packagesOverlap(binding.getPackageName(), otherPackage)) {
                     throw new BeanDefinitionStoreException(
                         "Mapper package bindings overlap: '" + otherPackage
                             + "' and '" + binding.getPackageName() + "'");
@@ -146,13 +145,6 @@ final class GeneratedMapperBeanDefinitionRegistrar
 
     private boolean packagesOverlap(String left, String right) {
         return left.startsWith(right + ".") || right.startsWith(left + ".");
-    }
-
-    private String prefixedName(String prefix, String baseName) {
-        if (prefix == null || prefix.isBlank()) {
-            return baseName;
-        }
-        return prefix + Character.toUpperCase(baseName.charAt(0)) + baseName.substring(1);
     }
 
     private void requireText(String value, String property) {

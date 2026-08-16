@@ -22,7 +22,7 @@ The repository currently contains a working core loop:
 - `lite-orm-core`: annotation processor, SQL parsers, dynamic SQL AST, generated Mapper source, execution-plan contracts, and the current JDBC runtime.
 - `lite-orm-spring-boot-starter`: Spring Boot auto-configuration, generated Mapper bean registration, and Spring-managed connection/transaction participation.
 
-The compile-time feature loop is working. The obsolete engine, processor chain, mutable execution context, connection-provider/coordinator abstractions, and global runtime configuration have been deleted. Generated Mappers depend only on `SqlExecutor`; the fixed JDBC executor and Spring transaction adapter are intentionally rebuilt after the core role foundation is complete.
+The compile-time and runtime loops are working. The obsolete engine, processor chain, mutable execution context, connection-provider/coordinator abstractions, and global runtime configuration have been deleted. Generated Mappers depend only on `SqlExecutor`; core provides the fixed JDBC executor and Spring participates through its transaction adapter.
 
 Recently verified with:
 
@@ -61,17 +61,18 @@ Generated Mapper implementations can be registered as Spring beans without runti
 ```yaml
 lite-orm:
   enabled: true
-  mapper-packages:
-    - com.example.mapper
+  mapper-bindings:
+    - package-name: com.example.mapper
+      data-source: dataSource
 ```
 
-The starter scans those packages at application startup and registers generated implementations by their Mapper interface type. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
+The starter scans each explicitly configured package at application startup, resolves the named Spring `DataSource`, assembles one `SqlExecutor`, and registers each generated implementation once under the decapitalized Mapper interface name. Generated implementations remain plain Java classes without Spring component annotations. Startup scanning may inspect classes and constructors, but Mapper invocation remains direct Java dispatch with no reflective SQL or result mapping.
 
-The starter currently registers generated Mapper implementations and expects an application-provided `SqlExecutor`. Default JDBC and Spring transaction assembly will return only after the new contracts and transaction-domain rules are complete.
+Every Mapper package and Mapper interface belongs to exactly one DataSource domain. Package bindings are always explicit, including applications with a single DataSource; the starter does not infer a default DataSource or Mapper scan package.
 
 The target runtime gives each generated Mapper one `SqlExecutor`. A `JdbcSqlExecutor` is bound to one `TransactionFactory` and therefore one DataSource/transaction domain. Standalone transactions use core `SimpleTransaction` semantics; Spring uses a `SpringTransaction` adapter and continues to control transaction boundary timing.
 
-Multiple DataSources are represented by multiple explicitly named executor graphs and qualified Mapper instances. LiteORM does not hide DataSource selection inside an execution plan and does not provide distributed commit in core. Dynamic tenant, shard, or read/write routing remains an optional executor decorator above the JDBC executor.
+Applications with multiple DataSources use disjoint Mapper package bindings and independent executor graphs. The same Mapper interface is not registered against multiple DataSources. LiteORM does not hide DataSource selection inside an execution plan and does not provide distributed commit in core. Dynamic tenant, shard, or read/write routing belongs to an application-provided routing DataSource behind one explicit binding.
 
 ## SQL Provider Escape Hatch
 

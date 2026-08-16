@@ -120,7 +120,6 @@ public class LiteOrmProperties {
 
         private String packageName;
         private String dataSource;
-        private String beanNamePrefix = "";
 
         public String getPackageName() {
             return packageName;
@@ -136,14 +135,6 @@ public class LiteOrmProperties {
 
         public void setDataSource(String dataSource) {
             this.dataSource = dataSource;
-        }
-
-        public String getBeanNamePrefix() {
-            return beanNamePrefix;
-        }
-
-        public void setBeanNamePrefix(String beanNamePrefix) {
-            this.beanNamePrefix = beanNamePrefix;
         }
     }
 }

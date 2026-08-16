@@ -64,7 +64,7 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - 扫描并注册编译期生成的 Mapper 实现。
   - 当前仅保留生成 Mapper 注册入口；默认 JDBC 与 Spring 事务装配将在新地基完成后实现。
 
-编译期核心闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；固定 JDBC 执行器和 Spring 事务适配将在核心角色、多数据源角色与事务域约束完成后重新实现。
+编译期与运行期闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；core 提供固定 JDBC 执行器，Spring 通过事务适配器参与连接生命周期。
 
 已验证能力包括：
 
@@ -224,20 +224,9 @@ lite-orm:
 
 应用启动时，Starter 扫描配置包中的生成类，解析 `data-source` 指定的 Spring `DataSource` Bean，并通过 `SpringTransactionFactory` 与 core `JdbcAssembly` 创建 Mapper 所需的 `SqlExecutor`。该 Bean 可以是真实连接池，也可以是 `AbstractRoutingDataSource` 或 dynamic-datasource 提供的路由代理。Mapper 调用热路径不再查找 Spring Bean。
 
-同一个 Mapper 包需要针对两个 DataSource 创建两组实例时，配置不同的 `bean-name-prefix`：
+每个 Mapper 包和 Mapper 接口只绑定一个 DataSource 域。同一个包不能重复绑定，父子包规则也不能重叠；应用存在多个 DataSource 时，使用互不重叠的 Mapper 包分别绑定。单 DataSource 应用同样保留显式 `package-name + data-source` 配置，Starter 不推断默认 DataSource 或扫描包。
 
-```yaml
-lite-orm:
-  mapper-bindings:
-    - package-name: com.example.shared.mapper
-      data-source: usersDataSource
-      bean-name-prefix: users
-    - package-name: com.example.shared.mapper
-      data-source: archiveDataSource
-      bean-name-prefix: archive
-```
-
-例如 `UserMapper` 会注册为 `usersUserMapper` 和 `archiveUserMapper`。父子包规则不能重叠，因为同一个生成类会同时匹配两条规则；DataSource Bean 缺失、绑定未命名或生成的 Mapper Bean 重名都会在启动期间失败。
+生成的 `*MapperImpl` 不包含 Spring `@Component`、注入或条件注解。Starter 在 IOC BeanDefinition 注册阶段发现生成类，按 Mapper 接口名的 JavaBeans decapitalize 规则注册一次，例如 `UserMapper` 注册为 `userMapper`，并注入该包对应的唯一 `SqlExecutor`。
 
 Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
 

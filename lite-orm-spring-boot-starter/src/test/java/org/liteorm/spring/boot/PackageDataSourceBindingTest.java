@@ -4,7 +4,9 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.TransactionException;
+import org.liteorm.spring.boot.archivefixture.ArchiveUserMapper;
 import org.liteorm.spring.boot.fixture.SpringUserMapper;
+import org.liteorm.spring.boot.fixture.URLMapper;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -17,9 +19,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,15 +36,33 @@ class PackageDataSourceBindingTest {
         .withUserConfiguration(MultipleDataSourceConfiguration.class);
 
     @Test
-    void bindsSameGeneratedMapperToTwoNamedExecutors() {
+    void usesSpringBeanNameRulesForAcronymMapperNames() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource", "users",
-                "org.liteorm.spring.boot.fixture", "ordersDataSource", "orders"))
+                "org.liteorm.spring.boot.fixture", "usersDataSource"))
             .run(context -> {
                 assertNull(context.getStartupFailure());
-                SpringUserMapper users = context.getBean("usersSpringUserMapper", SpringUserMapper.class);
-                SpringUserMapper orders = context.getBean("ordersSpringUserMapper", SpringUserMapper.class);
+                assertNotNull(context.getBean("URLMapper", URLMapper.class));
+            });
+    }
+
+    @Test
+    void mapperBindingDoesNotExposeBeanNamePrefix() {
+        assertFalse(Arrays.stream(LiteOrmProperties.MapperBinding.class.getMethods())
+            .anyMatch(method -> method.getName().equals("getBeanNamePrefix")
+                || method.getName().equals("setBeanNamePrefix")));
+    }
+
+    @Test
+    void bindsDisjointMapperPackagesToNamedExecutors() {
+        contextRunner
+            .withPropertyValues(bindings(
+                "org.liteorm.spring.boot.fixture", "usersDataSource",
+                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
+            .run(context -> {
+                assertNull(context.getStartupFailure());
+                SpringUserMapper users = context.getBean("springUserMapper", SpringUserMapper.class);
+                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
 
                 users.insert(1L, "users");
                 orders.insert(1L, "orders");
@@ -54,11 +76,11 @@ class PackageDataSourceBindingTest {
     void matchingTransactionManagerControlsOnlyItsExecutor() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource", "users",
-                "org.liteorm.spring.boot.fixture", "ordersDataSource", "orders"))
+                "org.liteorm.spring.boot.fixture", "usersDataSource",
+                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
             .run(context -> {
-                SpringUserMapper users = context.getBean("usersSpringUserMapper", SpringUserMapper.class);
-                SpringUserMapper orders = context.getBean("ordersSpringUserMapper", SpringUserMapper.class);
+                SpringUserMapper users = context.getBean("springUserMapper", SpringUserMapper.class);
+                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
                 TransactionTemplate usersTransactions = new TransactionTemplate(
                     context.getBean("usersTransactionManager", PlatformTransactionManager.class));
                 TransactionTemplate ordersTransactions = new TransactionTemplate(
@@ -80,10 +102,10 @@ class PackageDataSourceBindingTest {
     void rejectsMapperBoundToAnotherDataSourceInsideActiveTransaction() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource", "users",
-                "org.liteorm.spring.boot.fixture", "ordersDataSource", "orders"))
+                "org.liteorm.spring.boot.fixture", "usersDataSource",
+                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
             .run(context -> {
-                SpringUserMapper orders = context.getBean("ordersSpringUserMapper", SpringUserMapper.class);
+                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
                 TransactionTemplate usersTransactions = new TransactionTemplate(
                     context.getBean("usersTransactionManager", PlatformTransactionManager.class));
 
@@ -101,7 +123,7 @@ class PackageDataSourceBindingTest {
     void failsForMissingExecutorBean() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "missingDataSource", "missing"))
+                "org.liteorm.spring.boot.fixture", "missingDataSource"))
             .run(context -> assertStartupFailureContains(context.getStartupFailure(), "missingDataSource"));
     }
 
@@ -109,8 +131,8 @@ class PackageDataSourceBindingTest {
     void failsForOverlappingPackageRules() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot", "usersDataSource", "all",
-                "org.liteorm.spring.boot.fixture", "ordersDataSource", "fixture"))
+                "org.liteorm.spring.boot", "usersDataSource",
+                "org.liteorm.spring.boot.fixture", "ordersDataSource"))
             .run(context -> assertStartupFailureContains(context.getStartupFailure(), "overlap"));
     }
 
@@ -118,16 +140,16 @@ class PackageDataSourceBindingTest {
     void failsForDuplicateMapperBeanNames() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource", "",
-                "org.liteorm.spring.boot.fixture", "ordersDataSource", ""))
-            .run(context -> assertStartupFailureContains(context.getStartupFailure(), "Duplicate"));
+                "org.liteorm.spring.boot.fixture", "usersDataSource",
+                "org.liteorm.spring.boot.fixture", "ordersDataSource"))
+            .run(context -> assertStartupFailureContains(context.getStartupFailure(), "overlap"));
     }
 
     @Test
     void requiresDataSourceNameInsteadOfChoosingAmongMultipleBeans() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "", "users"))
+                "org.liteorm.spring.boot.fixture", ""))
             .run(context -> assertStartupFailureContains(context.getStartupFailure(), "data-source"));
     }
 
@@ -135,10 +157,10 @@ class PackageDataSourceBindingTest {
     void acceptsRoutingDataSourceAsTheConfiguredDataSource() {
         contextRunner
             .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "userRoutingDataSource", "routed"))
+                "org.liteorm.spring.boot.fixture", "userRoutingDataSource"))
             .run(context -> {
                 SpringUserMapper mapper = context.getBean(
-                    "routedSpringUserMapper", SpringUserMapper.class);
+                    "springUserMapper", SpringUserMapper.class);
 
                 mapper.insert(3L, "routed");
 
@@ -148,13 +170,11 @@ class PackageDataSourceBindingTest {
 
     private String[] bindings(String... values) {
         String[] properties = new String[values.length];
-        for (int index = 0; index < values.length; index += 3) {
-            int bindingIndex = index / 3;
+        for (int index = 0; index < values.length; index += 2) {
+            int bindingIndex = index / 2;
             properties[index] = "lite-orm.mapper-bindings[" + bindingIndex + "].package-name=" + values[index];
             properties[index + 1] = "lite-orm.mapper-bindings[" + bindingIndex
                 + "].data-source=" + values[index + 1];
-            properties[index + 2] = "lite-orm.mapper-bindings[" + bindingIndex
-                + "].bean-name-prefix=" + values[index + 2];
         }
         return properties;
     }
