@@ -44,7 +44,7 @@ class FreemarkerCodeGeneratorTest {
 
         String code = generator.generateMethodImpl(method);
 
-        assertTrue(code.contains("ExecutionPlan plan = buildFindByIdExecutionPlan(id);"));
+        assertTrue(code.contains("ExecutionPlan executionPlan = buildFindByIdExecutionPlan(id);"));
         assertTrue(code.contains("private ExecutionPlan buildFindByIdExecutionPlan(Long id)"));
         assertTrue(code.contains("return new ExecutionPlan(\"org.liteorm.test.UserMapper.findById\", sql, params"));
     }

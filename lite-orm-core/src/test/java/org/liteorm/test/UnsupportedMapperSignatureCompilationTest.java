@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -323,11 +324,16 @@ class UnsupportedMapperSignatureCompilationTest {
         boolean compilationSucceeded = compile(mapperSource, classesDirectory, generatedDirectory, diagnostics);
 
         assertFalse(compilationSucceeded, () -> diagnostics.getDiagnostics().toString());
-        assertTrue(diagnostics.getDiagnostics().stream().anyMatch(diagnostic ->
-                diagnostic.getKind() == Diagnostic.Kind.ERROR
-                    && diagnostic.getMessage(null).contains(mapperName + "#" + methodName)
-                    && diagnostic.getMessage(null).contains(expectedMessage)),
-            () -> diagnostics.getDiagnostics().toString());
+        Diagnostic<? extends JavaFileObject> diagnostic = diagnostics.getDiagnostics().stream()
+            .filter(candidate -> candidate.getKind() == Diagnostic.Kind.ERROR)
+            .filter(candidate -> candidate.getMessage(null).contains(mapperName + "#" + methodName))
+            .filter(candidate -> candidate.getMessage(null).contains(expectedMessage))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(diagnostics.getDiagnostics().toString()));
+        long methodLine = Files.readAllLines(mapperSource).stream()
+            .takeWhile(line -> !line.contains(methodName + "("))
+            .count() + 1;
+        assertEquals(methodLine, diagnostic.getLineNumber(), diagnostics.getDiagnostics().toString());
     }
 
     private boolean compile(

@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,12 +74,16 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
     public String generateMethodImpl(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
 
+        code.append("    /**\n");
+        code.append("     * Mapper method: ").append(mapperMethodLocation(methodModel)).append("\n");
+        code.append("     * SQL source: ").append(methodModel.sourceType().name()).append("\n");
+        code.append("     */\n");
         code.append("    @Override\n");
         code.append("    public ").append(methodModel.returnType()).append(" ")
             .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
-        code.append("        ExecutionPlan plan = ").append(methodModel.executionPlanFactoryName()).append("(")
+        code.append("        ExecutionPlan executionPlan = ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
-        code.append("        SqlResult result = sqlExecutor.execute(plan);\n");
+        code.append("        SqlResult executionResult = sqlExecutor.execute(executionPlan);\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));
@@ -127,11 +130,11 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         boolean isSelect = methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.SELECT;
 
         if (methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.BATCH) {
-            return "        return result.getBatchUpdateCounts();\n";
+            return "        return executionResult.getBatchUpdateCounts();\n";
         }
 
         if (methodModel.generatedKey()) {
-            return "        return ((Number) result.getGeneratedKey()).longValue();\n";
+            return "        return ((Number) executionResult.getGeneratedKey()).longValue();\n";
         }
 
         if (!isSelect) {
@@ -139,21 +142,21 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 return "        return;\n";
             }
             if ("long".equals(returnType)) {
-                return "        return (long) result.getUpdateCount();\n";
+                return "        return (long) executionResult.getUpdateCount();\n";
             }
-            return "        return result.getUpdateCount();\n";
+            return "        return executionResult.getUpdateCount();\n";
         }
 
         if (returnType.contains("List<")) {
             String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
             return """
-                List<Object[]> rows = result.getQueryResults();
-                List<%s> resultList = new ArrayList<>(rows.size());
-                for (Object[] row : rows) {
-                    resultList.add(%s);
+                List<Object[]> resultRows = executionResult.getQueryResults();
+                List<%s> mappedResults = new ArrayList<>(resultRows.size());
+                for (Object[] resultRow : resultRows) {
+                    mappedResults.add(%s);
                 }
-                return resultList;
-                """.formatted(elementType, methodModel.resultMappingCode()).indent(8);
+                return mappedResults;
+                """.formatted(elementType, resultRowExpression(methodModel.resultMappingCode())).indent(8);
         }
 
         if ("void".equals(returnType)) {
@@ -161,16 +164,30 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
         }
 
         return """
-            List<Object[]> rows = result.getQueryResults();
-            if (rows == null || rows.isEmpty()) {
+            List<Object[]> resultRows = executionResult.getQueryResults();
+            if (resultRows == null || resultRows.isEmpty()) {
                 return null;
             }
-            if (rows.size() > 1) {
-                throw new NonUniqueResultException(%s, rows.size());
+            if (resultRows.size() > 1) {
+                throw new NonUniqueResultException(%s, resultRows.size());
             }
-            Object[] row = rows.get(0);
+            Object[] resultRow = resultRows.get(0);
             return %s;
-            """.formatted(javaString(methodModel.statementId()), methodModel.resultMappingCode()).indent(8);
+            """.formatted(javaString(methodModel.statementId()),
+                resultRowExpression(methodModel.resultMappingCode())).indent(8);
+    }
+
+    private String mapperMethodLocation(MapperCompilationModel.MethodModel methodModel) {
+        int methodSeparator = methodModel.statementId().lastIndexOf('.');
+        if (methodSeparator < 0) {
+            return methodModel.statementId();
+        }
+        return methodModel.statementId().substring(0, methodSeparator) + "#"
+            + methodModel.statementId().substring(methodSeparator + 1);
+    }
+
+    private String resultRowExpression(String mappingCode) {
+        return mappingCode.replace("row[", "resultRow[").replace("(row)", "(resultRow)");
     }
 
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
@@ -214,7 +231,6 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             code.append("        StringBuilder sql = new StringBuilder();\n");
             code.append("        List<Object> parameters = new ArrayList<>();\n");
             code.append("        List<ParameterBinder<?>> binders = new ArrayList<>();\n");
-            AtomicInteger sequence = new AtomicInteger();
             if (methodModel.astNode() != null) {
                 code.append(generateAstLogic(
                     methodModel.astNode(),
@@ -223,7 +239,6 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                     "parameters",
                     "binders",
                     "        ",
-                    sequence,
                     new LinkedHashSet<>()
                 ));
             } else {
@@ -268,7 +283,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String generateAstLogic(AstNode astNode, MapperCompilationModel.MethodModel methodModel,
-                                    String sqlVar, String paramsVar, String bindersVar, String indent, AtomicInteger sequence,
+                                    String sqlVar, String paramsVar, String bindersVar, String indent,
                                     Set<String> localRoots)
         throws GenerationException {
         StringBuilder code = new StringBuilder();
@@ -276,7 +291,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             case CONTAINER -> {
                 Set<String> scope = new LinkedHashSet<>(localRoots);
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar, indent, sequence, scope));
+                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar, indent, scope));
                     if (child instanceof AstNode.BindNode bindNode) {
                         scope.add(bindNode.name());
                     }
@@ -287,7 +302,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                 AstNode.IfNode ifNode = (AstNode.IfNode) astNode;
                 code.append(indent).append("if (").append(translateCondition(ifNode.test(), methodModel, localRoots)).append(") {\n");
                 for (AstNode child : ifNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar, indent + "    ", sequence, localRoots));
+                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar, indent + "    ", localRoots));
                 }
                 code.append(indent).append("}\n");
             }
@@ -298,114 +313,129 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
                     throw new GenerationException(methodModel.statementId()
                         + ": collection parameter binder cannot bind foreach items; bind item values explicitly");
                 }
-                String index = String.valueOf(sequence.incrementAndGet());
-                code.append(indent).append(sqlVar).append(".append(").append(javaString(foreachNode.open())).append(");\n");
-                code.append(indent).append("boolean firstItem").append(index).append(" = true;\n");
-                code.append(indent).append("for (").append(resolveForeachItemType(foreachNode, methodModel)).append(" ")
+                code.append(indent).append("{\n");
+                String scopedIndent = indent + "    ";
+                code.append(scopedIndent).append(sqlVar).append(".append(").append(javaString(foreachNode.open())).append(");\n");
+                code.append(scopedIndent).append("boolean foreachFirstItem = true;\n");
+                code.append(scopedIndent).append("for (").append(resolveForeachItemType(foreachNode, methodModel)).append(" ")
                     .append(foreachNode.item()).append(" : ")
                     .append(toJavaAccess(foreachNode.collection(), methodModel, false, localRoots)).append(") {\n");
-                code.append(indent).append("    if (!firstItem").append(index).append(") {\n");
-                code.append(indent).append("        ").append(sqlVar).append(".append(")
+                code.append(scopedIndent).append("    if (!foreachFirstItem) {\n");
+                code.append(scopedIndent).append("        ").append(sqlVar).append(".append(")
                     .append(javaString(foreachNode.separator())).append(");\n");
-                code.append(indent).append("    }\n");
-                code.append(indent).append("    firstItem").append(index).append(" = false;\n");
+                code.append(scopedIndent).append("    }\n");
+                code.append(scopedIndent).append("    foreachFirstItem = false;\n");
                 Set<String> foreachScope = new LinkedHashSet<>(localRoots);
                 foreachScope.add(foreachNode.item());
                 for (AstNode child : foreachNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar, indent + "    ", sequence, foreachScope));
+                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar,
+                        scopedIndent + "    ", foreachScope));
                 }
+                code.append(scopedIndent).append("}\n");
+                code.append(scopedIndent).append(sqlVar).append(".append(").append(javaString(foreachNode.close())).append(");\n");
                 code.append(indent).append("}\n");
-                code.append(indent).append(sqlVar).append(".append(").append(javaString(foreachNode.close())).append(");\n");
             }
             case CHOOSE -> {
                 AstNode.ChooseNode chooseNode = (AstNode.ChooseNode) astNode;
-                String matchedVar = "matched" + sequence.incrementAndGet();
-                code.append(indent).append("boolean ").append(matchedVar).append(" = false;\n");
+                code.append(indent).append("{\n");
+                String scopedIndent = indent + "    ";
+                String matchedVar = "chooseBranchMatched";
+                code.append(scopedIndent).append("boolean ").append(matchedVar).append(" = false;\n");
                 for (AstNode child : chooseNode.children()) {
                     if (child instanceof AstNode.WhenNode whenNode) {
-                        code.append(indent).append("if (!").append(matchedVar).append(" && ")
+                        code.append(scopedIndent).append("if (!").append(matchedVar).append(" && ")
                             .append(translateCondition(whenNode.test(), methodModel, localRoots)).append(") {\n");
-                        code.append(indent).append("    ").append(matchedVar).append(" = true;\n");
+                        code.append(scopedIndent).append("    ").append(matchedVar).append(" = true;\n");
                         for (AstNode whenChild : whenNode.children()) {
-                            code.append(generateAstLogic(whenChild, methodModel, sqlVar, paramsVar, bindersVar, indent + "    ", sequence, localRoots));
+                            code.append(generateAstLogic(whenChild, methodModel, sqlVar, paramsVar, bindersVar,
+                                scopedIndent + "    ", localRoots));
                         }
-                        code.append(indent).append("}\n");
+                        code.append(scopedIndent).append("}\n");
                     } else if (child instanceof AstNode.OtherwiseNode otherwiseNode) {
-                        code.append(indent).append("if (!").append(matchedVar).append(") {\n");
+                        code.append(scopedIndent).append("if (!").append(matchedVar).append(") {\n");
                         for (AstNode otherwiseChild : otherwiseNode.children()) {
-                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar, paramsVar, bindersVar, indent + "    ", sequence, localRoots));
+                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar, paramsVar, bindersVar,
+                                scopedIndent + "    ", localRoots));
                         }
-                        code.append(indent).append("}\n");
+                        code.append(scopedIndent).append("}\n");
                     }
                 }
+                code.append(indent).append("}\n");
             }
             case WHERE -> {
-                String index = String.valueOf(sequence.incrementAndGet());
-                String innerSql = "whereSql" + index;
-                String innerParams = "whereParams" + index;
-                String innerBinders = "whereBinders" + index;
-                code.append(indent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(indent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(indent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                code.append(indent).append("{\n");
+                String scopedIndent = indent + "    ";
+                String innerSql = "whereClauseSql";
+                String innerParams = "whereClauseParameters";
+                String innerBinders = "whereClauseBinders";
+                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
+                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
+                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders, indent, sequence, localRoots));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
+                        scopedIndent, localRoots));
                 }
-                code.append(indent).append("String normalizedWhere").append(index)
+                code.append(scopedIndent).append("String normalizedWhereClause")
                     .append(" = normalizeWhereClause(").append(innerSql).append(".toString());\n");
-                code.append(indent).append("if (!normalizedWhere").append(index).append(".isBlank()) {\n");
-                code.append(indent).append("    ").append(sqlVar).append(".append(\" WHERE \").append(normalizedWhere")
-                    .append(index).append(");\n");
-                code.append(indent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(indent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(scopedIndent).append("if (!normalizedWhereClause.isBlank()) {\n");
+                code.append(scopedIndent).append("    ").append(sqlVar).append(".append(\" WHERE \").append(normalizedWhereClause);\n");
+                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
+                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(scopedIndent).append("}\n");
                 code.append(indent).append("}\n");
             }
             case SET -> {
-                String index = String.valueOf(sequence.incrementAndGet());
-                String innerSql = "setSql" + index;
-                String innerParams = "setParams" + index;
-                String innerBinders = "setBinders" + index;
-                code.append(indent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(indent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(indent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                code.append(indent).append("{\n");
+                String scopedIndent = indent + "    ";
+                String innerSql = "setClauseSql";
+                String innerParams = "setClauseParameters";
+                String innerBinders = "setClauseBinders";
+                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
+                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
+                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders, indent, sequence, localRoots));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
+                        scopedIndent, localRoots));
                 }
-                code.append(indent).append("String normalizedSet").append(index)
+                code.append(scopedIndent).append("String normalizedSetClause")
                     .append(" = normalizeSetClause(").append(innerSql).append(".toString());\n");
-                code.append(indent).append("if (normalizedSet").append(index).append(".isBlank()) {\n");
-                code.append(indent).append("    throw new IllegalStateException(")
+                code.append(scopedIndent).append("if (normalizedSetClause.isBlank()) {\n");
+                code.append(scopedIndent).append("    throw new IllegalStateException(")
                     .append(javaString("Dynamic <set> produced no assignments [statementId="
                         + methodModel.statementId() + "]"))
                     .append(");\n");
+                code.append(scopedIndent).append("}\n");
+                code.append(scopedIndent).append(sqlVar).append(".append(\" SET \").append(normalizedSetClause);\n");
+                code.append(scopedIndent).append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
+                code.append(scopedIndent).append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
                 code.append(indent).append("}\n");
-                code.append(indent).append(sqlVar).append(".append(\" SET \").append(normalizedSet")
-                    .append(index).append(");\n");
-                code.append(indent).append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(indent).append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
             }
             case TRIM -> {
                 AstNode.TrimNode trimNode = (AstNode.TrimNode) astNode;
-                String index = String.valueOf(sequence.incrementAndGet());
-                String innerSql = "trimSql" + index;
-                String innerParams = "trimParams" + index;
-                String innerBinders = "trimBinders" + index;
-                code.append(indent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(indent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(indent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                code.append(indent).append("{\n");
+                String scopedIndent = indent + "    ";
+                String innerSql = "trimmedClauseSql";
+                String innerParams = "trimmedClauseParameters";
+                String innerBinders = "trimmedClauseBinders";
+                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
+                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
+                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
                 for (AstNode child : trimNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders, indent, sequence, localRoots));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
+                        scopedIndent, localRoots));
                 }
-                code.append(indent).append("String normalizedTrim").append(index).append(" = applyTrim(")
+                code.append(scopedIndent).append("String normalizedTrimmedClause = applyTrim(")
                     .append(innerSql).append(".toString(), ")
                     .append(javaString(trimNode.prefix())).append(", ")
                     .append(javaString(trimNode.suffix())).append(", ")
                     .append(javaString(trimNode.prefixOverrides())).append(", ")
                     .append(javaString(trimNode.suffixOverrides())).append(");\n");
-                code.append(indent).append("if (!normalizedTrim").append(index).append(".isBlank()) {\n");
-                code.append(indent).append("    appendSqlFragment(").append(sqlVar).append(", normalizedTrim")
-                    .append(index).append(");\n");
-                code.append(indent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(indent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(scopedIndent).append("if (!normalizedTrimmedClause.isBlank()) {\n");
+                code.append(scopedIndent).append("    appendSqlFragment(").append(sqlVar)
+                    .append(", normalizedTrimmedClause);\n");
+                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
+                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(scopedIndent).append("}\n");
                 code.append(indent).append("}\n");
             }
             case BIND -> {

@@ -677,14 +677,20 @@ registration mode.
 - Modify compiler models under: `lite-orm-core/src/main/java/org/liteorm/compile`
 - Add golden-source tests under: `lite-orm-core/src/test/java/org/liteorm/test/generated`
 
-- [ ] Add golden tests for annotation SQL, XML override, dynamic conditions, foreach, provider, binder, row mapper, batch, and generated keys.
-- [ ] Require stable imports, descriptive local names, compact methods, statement IDs, and source comments that identify Mapper methods without embedding unstable absolute paths.
-- [ ] Split generated helper methods when one Mapper method's renderer/binding code becomes difficult to read.
-- [ ] Keep generated code free of reflection, runtime expression parsing, generic maps for ordered JDBC parameters, and framework internals.
-- [ ] Verify javac diagnostics point to the Mapper method/XML statement for unsupported behavior.
-- [ ] Run generator tests, external fixture compilation, and `mvn clean test`.
+- [x] Add golden tests for annotation SQL, XML override, dynamic conditions, foreach, provider, binder, row mapper, batch, and generated keys.
+- [x] Require stable imports, descriptive local names, compact methods, statement IDs, and source comments that identify Mapper methods without embedding unstable absolute paths.
+- [x] Split generated helper methods when one Mapper method's renderer/binding code becomes difficult to read.
+- [x] Keep generated code free of reflection, runtime expression parsing, generic maps for ordered JDBC parameters, and framework internals.
+- [x] Verify javac diagnostics point to the Mapper method/XML statement for unsupported behavior.
+- [x] Run generator tests, external fixture compilation, and `mvn clean test`.
 - [ ] Commit with `refactor: improve generated mapper readability`.
 - [ ] Push immediately.
+
+Completion notes:
+- Shared golden-source tests cover stable imports/comments plus annotation and XML dynamic rendering; focused compilation fixtures continue to cover provider, binder, row mapper, batch, and generated-key source shapes.
+- Dynamic `foreach`, `choose`, `where`, `set`, and `trim` renderers now use scoped semantic locals, so the generated methods remain readable without numbered mechanical names or additional helper extraction.
+- `CompileException` carries the originating `ExecutableElement`; javac errors, including XML parsing failures, now underline the matching Mapper method instead of the interface declaration. External XML resources are not language-model elements, so the diagnostic message retains the XML statement/tag context while navigation targets the Mapper method.
+- Verified `mvn -pl lite-orm-core -am verify` including the external Maven Invoker fixture, then verified `mvn clean test` across Core, Spring Boot Starter, and examples.
 
 **Completion criteria:** Generated Java is a first-class debuggable artifact rather than an opaque compiler by-product.
 

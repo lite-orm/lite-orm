@@ -43,7 +43,7 @@ class GeneratedKeyCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedKeyMapperImpl.java"));
-        assertTrue(generated.contains("return ((Number) result.getGeneratedKey()).longValue();"));
+        assertTrue(generated.contains("return ((Number) executionResult.getGeneratedKey()).longValue();"));
         assertTrue(generated.contains("true, null, null"));
     }
 

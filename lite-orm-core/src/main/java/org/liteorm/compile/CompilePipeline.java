@@ -4,6 +4,7 @@ import org.liteorm.api.ExecutionPlan;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.Filer;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -132,9 +133,13 @@ public class CompilePipeline {
         
         for (var element : mapperInterface.getEnclosedElements()) {
             if (element instanceof ExecutableElement method) {
-                MapperCompilationModel.MethodModel methodInfo = analyzeMethod(mapperInterface, method);
-                if (methodInfo != null) {
-                    methodInfos.add(methodInfo);
+                try {
+                    MapperCompilationModel.MethodModel methodInfo = analyzeMethod(mapperInterface, method);
+                    if (methodInfo != null) {
+                        methodInfos.add(methodInfo);
+                    }
+                } catch (CompileException exception) {
+                    throw exception.element() == null ? exception.at(method) : exception;
                 }
             }
         }
@@ -967,12 +972,27 @@ public class CompilePipeline {
      * 编译异常
      */
     public static class CompileException extends Exception {
+        private final Element element;
+
         public CompileException(String message) {
-            super(message);
+            this(message, null, null);
         }
         
         public CompileException(String message, Throwable cause) {
+            this(message, cause, null);
+        }
+
+        private CompileException(String message, Throwable cause, Element element) {
             super(message, cause);
+            this.element = element;
+        }
+
+        public Element element() {
+            return element;
+        }
+
+        public CompileException at(Element diagnosticElement) {
+            return new CompileException(getMessage(), getCause(), diagnosticElement);
         }
     }
 }

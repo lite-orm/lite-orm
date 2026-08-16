@@ -58,13 +58,13 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/JdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toLong(row[0])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(row[2])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDate(row[3])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(row[4])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toInstant(row[5])"), generated);
-        assertTrue(generated.contains("Status.valueOf(row[6].toString())"), generated);
-        assertTrue(generated.contains("(byte[])row[7]"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLong(resultRow[0])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(resultRow[2])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalDate(resultRow[3])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(resultRow[4])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[5])"), generated);
+        assertTrue(generated.contains("Status.valueOf(resultRow[6].toString())"), generated);
+        assertTrue(generated.contains("(byte[])resultRow[7]"), generated);
     }
 
     private CompilationResult compile(String typeName, String source) throws Exception {

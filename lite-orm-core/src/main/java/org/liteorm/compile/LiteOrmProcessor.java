@@ -127,7 +127,8 @@ public class LiteOrmProcessor extends AbstractProcessor {
                 
         } catch (CompilePipeline.CompileException e) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "Failed to compile mapper implementation: " + e.getMessage(), mapperInterface);
+                "Failed to compile mapper implementation: " + e.getMessage(),
+                e.element() != null ? e.element() : mapperInterface);
         }
     }
 }
