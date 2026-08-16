@@ -604,8 +604,8 @@ transaction and auto-commit work through another configured DataSource.
 - [x] Keep generated `*MapperImpl` classes free of Spring `@Component`, `@Repository`, `@Autowired`, `@Qualifier`, and conditional annotations; Spring integration remains a Starter-only responsibility.
 - [x] Continue registering generated implementations through `BeanDefinitionRegistryPostProcessor`, injecting the one `SqlExecutor` assembled for the Mapper package's configured DataSource.
 - [x] Run focused Starter registration tests, all Starter tests, and `mvn clean test`.
-- [ ] Commit with `refactor: enforce one datasource per spring mapper`.
-- [ ] Push immediately.
+- [x] Commit with `refactor: enforce one datasource per spring mapper`.
+- [x] Push immediately.
 
 **Completion criteria:** Every Spring Mapper interface has one stable default Bean name, one generated
 implementation instance, one executor, and one DataSource domain. Generated code remains independent
@@ -661,8 +661,8 @@ registration mode.
 - [x] Remove unused dependencies only after `mvn dependency:analyze` and source searches prove they are unnecessary.
 - [x] Update module descriptions that still advertise a responsibility-chain runtime.
 - [x] Run the Maven Invoker fixture, focused processor tests, `mvn dependency:analyze`, and `mvn clean test`.
-- [ ] Commit with `chore: remove obsolete build and generation assets`.
-- [ ] Push immediately.
+- [x] Commit with `chore: remove obsolete build and generation assets`.
+- [x] Push immediately.
 
 **Completion criteria:** Build configuration and resources reflect the actual processor bootstrap and generator implementation.
 
