@@ -16,7 +16,7 @@ public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
 
     public static BoundSql requireValid(BoundSql boundSql, String statementId) {
         if (boundSql == null) {
-            throw new ConfigurationException("SQL provider returned null BoundSql", "statementId", statementId);
+            throw ConfigurationException.forStatement("SQL provider returned null BoundSql", statementId);
         }
         return boundSql;
     }

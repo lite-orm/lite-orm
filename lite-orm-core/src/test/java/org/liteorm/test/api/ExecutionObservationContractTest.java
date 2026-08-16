@@ -3,6 +3,7 @@ package org.liteorm.test.api;
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.SqlExecutionException;
@@ -73,11 +74,15 @@ class ExecutionObservationContractTest {
         ExecutionPlan plan = plan(new Object[]{"sensitive-value"});
 
         SqlExecutionException failure = new SqlExecutionException(
-            plan, JdbcExecutionState.NOT_EXECUTED, new IllegalStateException("failed"));
+            plan,
+            ExecutionPhase.PREPARATION,
+            JdbcExecutionState.NOT_EXECUTED,
+            new IllegalStateException("failed"));
 
         assertEquals("test.Mapper.find", failure.getStatementId());
+        assertEquals(ExecutionPhase.PREPARATION, failure.getPhase());
         assertEquals(ExecutionPlan.SqlSource.XML, failure.getSourceType());
-        assertEquals("SELECT name FROM users WHERE id = ?", failure.getSql());
+        assertEquals("SELECT name FROM users WHERE id = ?", failure.diagnostics().sql());
         assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
         assertFalse(failure.getMessage().contains("sensitive-value"));
     }

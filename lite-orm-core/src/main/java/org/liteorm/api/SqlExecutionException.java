@@ -1,48 +1,55 @@
 package org.liteorm.api;
 
-/**
- * SQL执行异常
- * 
- * SQL执行过程中发生的异常
- * 
- * @author lite-orm
- * @since 2024/11/15
- */
 public class SqlExecutionException extends LiteOrmException {
 
     private final String statementId;
-    private final ExecutionPlan.SqlSource sourceType;
-    private final String sql;
-    private final JdbcExecutionState executionState;
+    private final ExecutionPhase phase;
+    private final Diagnostics diagnostics;
 
     public SqlExecutionException(
-            ExecutionPlan plan, JdbcExecutionState executionState, Throwable cause) {
-        super(buildMessage(plan, executionState), cause);
+            ExecutionPlan plan,
+            ExecutionPhase phase,
+            JdbcExecutionState executionState,
+            Throwable cause) {
+        super(buildMessage(plan, phase, executionState), cause);
         this.statementId = plan.getStatementId();
-        this.sourceType = plan.getSourceType();
-        this.sql = plan.getSql();
-        this.executionState = executionState;
-    }
-
-    private static String buildMessage(ExecutionPlan plan, JdbcExecutionState executionState) {
-        return "SQL execution failed [statementId=" + plan.getStatementId()
-            + ", source=" + plan.getSourceType()
-            + ", executionState=" + executionState + "]\nSQL: " + plan.getSql();
+        this.phase = phase;
+        this.diagnostics = new Diagnostics(
+            plan.getStatementId(), plan.getSourceType(), plan.getSql(), executionState);
     }
 
     public String getStatementId() {
         return statementId;
     }
 
-    public ExecutionPlan.SqlSource getSourceType() {
-        return sourceType;
+    public ExecutionPhase getPhase() {
+        return phase;
     }
 
-    public String getSql() {
-        return sql;
+    public ExecutionPlan.SqlSource getSourceType() {
+        return diagnostics.sourceType();
     }
 
     public JdbcExecutionState getExecutionState() {
-        return executionState;
+        return diagnostics.executionState();
+    }
+
+    public Diagnostics diagnostics() {
+        return diagnostics;
+    }
+
+    private static String buildMessage(
+            ExecutionPlan plan, ExecutionPhase phase, JdbcExecutionState executionState) {
+        return "SQL execution failed [statementId=" + plan.getStatementId()
+            + ", phase=" + phase
+            + ", source=" + plan.getSourceType()
+            + ", executionState=" + executionState + "]";
+    }
+
+    public record Diagnostics(
+        String statementId,
+        ExecutionPlan.SqlSource sourceType,
+        String sql,
+        JdbcExecutionState executionState) {
     }
 }

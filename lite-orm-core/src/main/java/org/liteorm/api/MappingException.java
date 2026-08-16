@@ -1,50 +1,62 @@
 package org.liteorm.api;
 
-/**
- * 映射异常
- * 
- * 结果集映射到对象时发生的异常
- * 
- * @author lite-orm
- * @since 2024/11/15
- */
 public class MappingException extends LiteOrmException {
-    
+
+    private final String statementId;
     private final Class<?> targetType;
-    private final Object[] row;
-    
-    public MappingException(String message, Class<?> targetType, Object[] row) {
-        super(buildMessage(message, targetType, row));
+    private final String columnLabel;
+    private final Integer columnIndex;
+
+    public MappingException(
+            String message,
+            String statementId,
+            Class<?> targetType,
+            String columnLabel,
+            Integer columnIndex,
+            Throwable cause) {
+        super(buildMessage(message, statementId, targetType, columnLabel, columnIndex), cause);
+        this.statementId = statementId;
         this.targetType = targetType;
-        this.row = row;
+        this.columnLabel = columnLabel;
+        this.columnIndex = columnIndex;
     }
-    
-    public MappingException(String message, Class<?> targetType, Object[] row, Throwable cause) {
-        super(buildMessage(message, targetType, row), cause);
-        this.targetType = targetType;
-        this.row = row;
+
+    public ExecutionPhase getPhase() {
+        return ExecutionPhase.MAPPING;
     }
-    
-    private static String buildMessage(String message, Class<?> targetType, Object[] row) {
-        StringBuilder sb = new StringBuilder(message);
-        sb.append("\nTarget Type: ").append(targetType != null ? targetType.getName() : "null");
-        if (row != null && row.length > 0) {
-            sb.append("\nRow Data: [");
-            for (int i = 0; i < row.length; i++) {
-                if (i > 0) sb.append(", ");
-                sb.append(row[i]);
-            }
-            sb.append("]");
-        }
-        return sb.toString();
+
+    public String getStatementId() {
+        return statementId;
     }
-    
+
     public Class<?> getTargetType() {
         return targetType;
     }
-    
-    public Object[] getRow() {
-        return row;
+
+    public String getColumnLabel() {
+        return columnLabel;
+    }
+
+    public Integer getColumnIndex() {
+        return columnIndex;
+    }
+
+    private static String buildMessage(
+            String message,
+            String statementId,
+            Class<?> targetType,
+            String columnLabel,
+            Integer columnIndex) {
+        StringBuilder result = new StringBuilder(message)
+            .append(" [statementId=").append(statementId)
+            .append(", phase=").append(ExecutionPhase.MAPPING)
+            .append(", targetType=").append(targetType == null ? "null" : targetType.getName());
+        if (columnLabel != null) {
+            result.append(", columnLabel=").append(columnLabel);
+        }
+        if (columnIndex != null) {
+            result.append(", columnIndex=").append(columnIndex);
+        }
+        return result.append(']').toString();
     }
 }
-

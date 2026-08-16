@@ -1,52 +1,54 @@
 package org.liteorm.api;
 
-/**
- * 配置异常
- * 
- * LiteORM配置错误时抛出的异常
- * 
- * @author lite-orm
- * @since 2024/11/15
- */
 public class ConfigurationException extends LiteOrmException {
-    
+
     private final String configKey;
-    private final String configValue;
-    
+    private final String statementId;
+
     public ConfigurationException(String message) {
-        this(message, null, null);
+        this(message, null, null, null);
     }
-    
-    public ConfigurationException(String message, String configKey, String configValue) {
-        super(buildMessage(message, configKey, configValue));
-        this.configKey = configKey;
-        this.configValue = configValue;
-    }
-    
+
     public ConfigurationException(String message, Throwable cause) {
-        super(message, cause);
-        this.configKey = null;
-        this.configValue = null;
+        this(message, null, null, cause);
     }
-    
-    private static String buildMessage(String message, String configKey, String configValue) {
-        if (configKey == null) {
-            return message;
-        }
-        StringBuilder sb = new StringBuilder(message);
-        sb.append("\nConfig Key: ").append(configKey);
-        if (configValue != null) {
-            sb.append("\nConfig Value: ").append(configValue);
-        }
-        return sb.toString();
+
+    public static ConfigurationException forConfigKey(String message, String configKey) {
+        return new ConfigurationException(message, configKey, null, null);
     }
-    
+
+    public static ConfigurationException forStatement(String message, String statementId) {
+        return new ConfigurationException(message, null, statementId, null);
+    }
+
+    private ConfigurationException(
+            String message, String configKey, String statementId, Throwable cause) {
+        super(buildMessage(message, configKey, statementId), cause);
+        this.configKey = configKey;
+        this.statementId = statementId;
+    }
+
+    public ExecutionPhase getPhase() {
+        return ExecutionPhase.CONFIGURATION;
+    }
+
     public String getConfigKey() {
         return configKey;
     }
-    
-    public String getConfigValue() {
-        return configValue;
+
+    public String getStatementId() {
+        return statementId;
+    }
+
+    private static String buildMessage(String message, String configKey, String statementId) {
+        StringBuilder result = new StringBuilder(message)
+            .append(" [phase=").append(ExecutionPhase.CONFIGURATION);
+        if (configKey != null) {
+            result.append(", configKey=").append(configKey);
+        }
+        if (statementId != null) {
+            result.append(", statementId=").append(statementId);
+        }
+        return result.append(']').toString();
     }
 }
-

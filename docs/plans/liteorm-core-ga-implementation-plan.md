@@ -577,29 +577,31 @@ Implementation status: Completed and verified on 2026-08-16 with focused mutatio
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/TransactionException.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/api/ExceptionContractTest.java`
 
-- [ ] **Step 1: Write RED hierarchy and redaction tests**
+- [x] **Step 1: Write RED hierarchy and redaction tests**
 
 Verify every public LiteORM failure extends `LiteOrmException`, messages include statement IDs and phases, and messages do not contain bound parameter values, row values, passwords, URLs with credentials, or full configuration values.
 
-- [ ] **Step 2: Remove unused exception types and enum values**
+- [x] **Step 2: Remove unused exception types and enum values**
 
 Delete exception classes or transaction types with no production creation path unless a task in this plan introduces that path.
 
-- [ ] **Step 3: Replace row-bearing mapping exceptions**
+- [x] **Step 3: Replace row-bearing mapping exceptions**
 
 Store target type, Mapper statement ID, column label/index, and cause. Do not retain or print complete row arrays.
 
-- [ ] **Step 4: Preserve SQL text only through explicit diagnostics policy**
+- [x] **Step 4: Preserve SQL text only through explicit diagnostics policy**
 
 Default production exception messages use statement ID and phase. Expose SQL text only through an explicit opt-in diagnostic object, not the default message.
 
-- [ ] **Step 5: Run API and core tests; commit**
+- [x] **Step 5: Run API and core tests; commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `refactor: harden liteorm exception contracts`
+
+Implementation status: Completed and verified on 2026-08-16 with 160 core tests and the full Maven reactor. Runtime failures now share the LiteORM hierarchy and explicit execution phases; default messages retain statement-level context without SQL, parameters, row arrays, or configuration values. Raw SQL remains available only through `SqlExecutionException.Diagnostics`.
 
 ### Task 13: Remove Obsolete Public and Build Assets
 

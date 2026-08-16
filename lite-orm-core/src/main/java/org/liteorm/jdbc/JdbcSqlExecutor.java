@@ -6,6 +6,7 @@ import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.CursorCallback;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
@@ -56,6 +57,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         ResultSet resultSet = null;
         SqlResult result = null;
         JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
+        ExecutionPhase phase = ExecutionPhase.PREPARATION;
         Throwable primaryFailure = null;
 
         try {
@@ -68,19 +70,27 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             applyOptions(statement, plan.getStatementOptions());
             switch (plan.getStatementType()) {
                 case SELECT -> {
+                    phase = ExecutionPhase.BINDING;
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    phase = ExecutionPhase.EXECUTION;
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     resultSet = statement.executeQuery();
                     executionState = JdbcExecutionState.EXECUTED;
+                    phase = plan.getRowMapper() == null
+                        ? ExecutionPhase.RESULT_READING : ExecutionPhase.MAPPING;
                     QueryRows queryRows = readRows(resultSet, plan.getRowMapper());
                     result = SqlResult.forQuery(queryRows.columns(), queryRows.rows());
                 }
                 case INSERT, UPDATE, DELETE -> {
+                    phase = ExecutionPhase.BINDING;
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    phase = ExecutionPhase.EXECUTION;
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     int updateCount = statement.executeUpdate();
                     executionState = JdbcExecutionState.EXECUTED;
                     if (plan.returnsGeneratedKey()) {
+                        phase = plan.getRowMapper() == null
+                            ? ExecutionPhase.RESULT_READING : ExecutionPhase.MAPPING;
                         resultSet = statement.getGeneratedKeys();
                         result = SqlResult.forGeneratedKey(
                             updateCount, readGeneratedKey(resultSet, plan.getRowMapper()));
@@ -90,7 +100,9 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                 }
                 case BATCH -> {
                     BatchExecutionPlan batchPlan = (BatchExecutionPlan) plan;
+                    phase = ExecutionPhase.BINDING;
                     addBatch(statement, batchPlan);
+                    phase = ExecutionPhase.EXECUTION;
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     int[] updateCounts = batchPlan.getBatchParameters().isEmpty()
                         ? new int[0]
@@ -111,14 +123,15 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             if (failure instanceof Error error) {
                 throw error;
             }
-            throw new SqlExecutionException(plan, executionState, failure);
+            throw new SqlExecutionException(plan, phase, executionState, failure);
         } finally {
             Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
             if (cleanupFailure != null) {
                 if (primaryFailure != null) {
                     appendFlattened(primaryFailure, cleanupFailure);
                 } else {
-                    throw new SqlExecutionException(plan, executionState, cleanupFailure);
+                    throw new SqlExecutionException(
+                        plan, ExecutionPhase.CLEANUP, executionState, cleanupFailure);
                 }
             }
         }
@@ -134,6 +147,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         ResultSet resultSet = null;
         JdbcRowCursor<T> cursor = null;
         JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
+        ExecutionPhase phase = ExecutionPhase.PREPARATION;
         Throwable primaryFailure = null;
 
         try {
@@ -144,10 +158,13 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                 connectionHandle.connection(), "connectionHandle returned null connection");
             statement = prepare(connection, plan);
             applyOptions(statement, plan.getStatementOptions());
+            phase = ExecutionPhase.BINDING;
             bind(statement, plan.getParameters(), plan.getParameterBinders());
+            phase = ExecutionPhase.EXECUTION;
             executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
             resultSet = statement.executeQuery();
             executionState = JdbcExecutionState.EXECUTED;
+            phase = ExecutionPhase.MAPPING;
             cursor = new JdbcRowCursor<>(resultSet, rowMapper(plan));
             R callbackResult = callback.consume(cursor);
             invokeSuccess(entered, ExecutionOutcome.success(
@@ -163,12 +180,12 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             if (failure instanceof CursorReadException cursorFailure) {
                 primaryFailure = cursorFailure.getCause();
-                throw new SqlExecutionException(plan, executionState, cursorFailure.getCause());
+                throw new SqlExecutionException(plan, phase, executionState, cursorFailure.getCause());
             }
             if (failure instanceof RuntimeException runtimeFailure) {
                 throw runtimeFailure;
             }
-            throw new SqlExecutionException(plan, executionState, failure);
+            throw new SqlExecutionException(plan, phase, executionState, failure);
         } finally {
             if (cursor != null) {
                 cursor.deactivate();
@@ -178,7 +195,8 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                 if (primaryFailure != null) {
                     appendFlattened(primaryFailure, cleanupFailure);
                 } else {
-                    throw new SqlExecutionException(plan, executionState, cleanupFailure);
+                    throw new SqlExecutionException(
+                        plan, ExecutionPhase.CLEANUP, executionState, cleanupFailure);
                 }
             }
         }

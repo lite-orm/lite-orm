@@ -28,17 +28,25 @@ public class TransactionException extends LiteOrmException {
     private final Type type;
     
     public TransactionException(Type type, String message) {
-        super(message);
+        super(buildMessage(type, message));
         this.type = type;
     }
     
     public TransactionException(Type type, String message, Throwable cause) {
-        super(message, cause);
+        super(buildMessage(type, message), cause);
         this.type = type;
     }
     
     public Type getType() {
         return type;
+    }
+
+    public ExecutionPhase getPhase() {
+        return ExecutionPhase.TRANSACTION;
+    }
+
+    private static String buildMessage(Type type, String message) {
+        return message + " [phase=" + ExecutionPhase.TRANSACTION + ", type=" + type + "]";
     }
     
     /**

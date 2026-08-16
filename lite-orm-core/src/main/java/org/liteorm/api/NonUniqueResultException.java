@@ -3,13 +3,14 @@ package org.liteorm.api;
 /**
  * Thrown when a Mapper method declared as a single result receives multiple rows.
  */
-public final class NonUniqueResultException extends RuntimeException {
+public final class NonUniqueResultException extends LiteOrmException {
 
     private final String statementId;
     private final int rowCount;
 
     public NonUniqueResultException(String statementId, int rowCount) {
-        super("Expected at most one row for " + statementId + " but found " + rowCount);
+        super("Expected at most one row [statementId=" + statementId
+            + ", phase=" + ExecutionPhase.MAPPING + ", rowCount=" + rowCount + "]");
         this.statementId = statementId;
         this.rowCount = rowCount;
     }
@@ -20,5 +21,9 @@ public final class NonUniqueResultException extends RuntimeException {
 
     public int getRowCount() {
         return rowCount;
+    }
+
+    public ExecutionPhase getPhase() {
+        return ExecutionPhase.MAPPING;
     }
 }

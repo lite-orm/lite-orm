@@ -6,6 +6,7 @@ import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
@@ -335,6 +336,7 @@ class JdbcSqlExecutorTest {
             new JdbcSqlExecutor(() -> null, List.of(first, failing)).execute(selectPlan(null)));
 
         assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
+        assertEquals(ExecutionPhase.PREPARATION, failure.getPhase());
         assertEquals(List.of("first.before", "failing.before", "first.failure"), events);
     }
 
@@ -352,7 +354,26 @@ class JdbcSqlExecutorTest {
             new JdbcSqlExecutor(transactions, List.of(first, second)).execute(selectPlan(null)));
 
         assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
+        assertEquals(ExecutionPhase.PREPARATION, failure.getPhase());
         assertEquals(List.of("first.before", "second.before", "second.failure", "first.failure"), events);
+    }
+
+    @Test
+    void reportsBindingPhaseWhenParameterBindingFails() {
+        SQLException bindFailure = new SQLException("bind failed");
+        PreparedStatement statement = proxy(PreparedStatement.class, (method, args) -> switch (method) {
+            case "setObject" -> throw bindFailure;
+            case "close" -> null;
+            default -> null;
+        });
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(new ArrayList<>(), statement)
+                .execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
+
+        assertSame(bindFailure, failure.getCause());
+        assertEquals(ExecutionPhase.BINDING, failure.getPhase());
+        assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
     }
 
     @Test
@@ -369,6 +390,7 @@ class JdbcSqlExecutorTest {
                 .execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
 
         assertSame(executeFailure, failure.getCause());
+        assertEquals(ExecutionPhase.EXECUTION, failure.getPhase());
         assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failure.getExecutionState());
     }
 
@@ -382,6 +404,7 @@ class JdbcSqlExecutorTest {
                 .execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
 
         assertSame(closeFailure, failure.getCause());
+        assertEquals(ExecutionPhase.CLEANUP, failure.getPhase());
         assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
     }
 
@@ -408,6 +431,7 @@ class JdbcSqlExecutorTest {
             new JdbcSqlExecutor(transactions, List.of(interceptor)).execute(selectPlan(null)));
 
         assertSame(executionFailure, failure.getCause());
+        assertEquals(ExecutionPhase.RESULT_READING, failure.getPhase());
         assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
         assertArrayEquals(
             new Throwable[]{resultSetCloseFailure, statementCloseFailure, transactionCloseFailure},

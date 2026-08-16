@@ -182,7 +182,8 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             : primitive
                 ? "throw new MappingException(" + javaString(
                     "No row returned for " + methodModel.statementId() + " required primitive " + returnType)
-                    + ", " + returnType + ".class, null);"
+                    + ", " + javaString(methodModel.statementId()) + ", " + returnType
+                    + ".class, null, null, null);"
                 : "return null;";
         String mappedValue = resultRowExpression(methodModel.resultMappingCode());
         String mappedReturn = optional
