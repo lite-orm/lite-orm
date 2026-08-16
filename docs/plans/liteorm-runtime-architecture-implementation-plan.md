@@ -647,7 +647,7 @@ registration mode.
 **Priority:** Start only after Module R6.5 fixes the public Spring Mapper registration contract.
 
 **Files:**
-- Add external fixture under: `lite-orm-core/src/it/external-maven-processor`
+- Add the independent external fixture under: `lite-orm-examples/external-maven-processor` and keep it outside the root Maven reactor.
 - Review/retain or delete: `lite-orm-core/src/main/resources/templates/mapper-impl.ftl`
 - Verify absent: `lite-orm-core/src/main/resources/META-INF/services/javax.annotation.processing.Processor.disabled`
 - Modify: `lite-orm-core/pom.xml`
