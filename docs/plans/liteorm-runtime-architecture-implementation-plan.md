@@ -739,8 +739,8 @@ Completion notes:
 - [x] Review public API size, package naming, exception taxonomy, concurrency guarantees, test readability, and generated-source readability.
 - [x] Record remaining optimization work separately; do not mix benchmarks or caches into correctness changes.
 - [x] Run `mvn clean test` and all external examples.
-- [ ] Commit with `docs: complete runtime architecture review`.
-- [ ] Push immediately.
+- [x] Commit with `docs: complete runtime architecture review`.
+- [x] Push immediately.
 
 Completion notes:
 - Accepted the compile-time-to-JDBC dependency direction and the explicit fixed lifecycle; rejected responsibility-chain treatment of JDBC ownership phases.
@@ -788,4 +788,4 @@ Completion notes:
 - [x] Runtime and compiler singletons are concurrency-safe.
 - [ ] Obsolete APIs, tests, templates, service placeholders, and docs are removed.
 - [x] `mvn clean test` and external Mapper examples pass from a clean checkout.
-- [ ] Every completed module has an English commit and has been pushed.
+- [x] Every completed module has an English commit and has been pushed.
