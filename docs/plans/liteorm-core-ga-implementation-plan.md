@@ -724,27 +724,29 @@ Implementation status: Completed and verified on 2026-08-16. Existing phase-spec
 - Create: `docs/core-ga-contract.md`
 - Modify: `docs/plans/liteorm-core-ga-implementation-plan.md`
 
-- [ ] **Step 1: Document supported Mapper contracts**
+- [x] **Step 1: Document supported Mapper contracts**
 
 List supported SQL sources, parameter shapes, return shapes, mapping rules, generated-key limits, cursor lifecycle, statement options, and compile-time rejection behavior.
 
-- [ ] **Step 2: Document transaction semantics**
+- [x] **Step 2: Document transaction semantics**
 
 Describe root and joined callbacks, rollback-only behavior, transaction options, DataSource domain boundaries, and unsupported savepoint/distributed transaction behavior.
 
-- [ ] **Step 3: Document operational guarantees**
+- [x] **Step 3: Document operational guarantees**
 
 Describe thread safety, resource ownership, failure certainty, redaction, database compatibility matrix, and responsibilities intentionally left outside core.
 
-- [ ] **Step 4: Run documentation example tests and reactor**
+- [x] **Step 4: Run documentation example tests and reactor**
 
 Run: `mvn clean test`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Commit: `docs: define liteorm core ga contract`
+
+Implementation status: Completed and verified on 2026-08-16. `docs/core-ga-contract.md` now defines the supported Mapper inputs and returns, mapping and generated-key limits, callback-scoped cursor lifecycle, statement-option and true-pagination boundaries, compile-time rejection rules, JDBC resource ownership, failure certainty and redaction, standalone transaction semantics, one-to-one Mapper/DataSource domains, concurrency requirements, production database compatibility, and explicit core non-goals. Both READMEs and the final architecture review point to the contract and no longer describe completed hardening work as pending. `mvn clean test` passed the full reactor: 158 core tests, 17 Spring Boot Starter tests, and 2 example tests.
 
 ### Task 17: Measure Before Optimizing
 

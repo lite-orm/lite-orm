@@ -6,6 +6,8 @@
 
 这个项目的核心资产不是运行时代理，而是编译期模型、动态 SQL AST、代码生成器和一条尽量薄的运行时 JDBC 执行链。
 
+首个 GA 版本明确支持和明确不支持的边界见 [Core GA 契约](docs/core-ga-contract.md)。
+
 ## 核心定位
 
 ### 我们要做什么
@@ -58,11 +60,11 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - `XmlBasedSqlParser` 和 `AnnotationBasedSqlParser` 解析 SQL 来源。
   - `AstNode` 表示动态 SQL 结构。
   - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
-  - 已保留不可变执行计划、`SqlExecutor`、事务和观察契约；旧 JDBC 运行时已删除并等待按新角色重新实现。
+  - 提供不可变执行计划、固定 `JdbcSqlExecutor` 生命周期、执行观察、Standalone 装配和最小本地事务。
 - `lite-orm-spring-boot-starter`
   - 提供 Spring Boot 自动配置入口。
   - 扫描并注册编译期生成的 Mapper 实现。
-  - 当前仅保留生成 Mapper 注册入口；默认 JDBC 与 Spring 事务装配将在新地基完成后实现。
+  - 按显式 Mapper 包与 DataSource 绑定注册生成类，并通过 Spring JDBC 参与宿主事务。
 
 编译期与运行期闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；core 提供固定 JDBC 执行器，Spring 通过事务适配器参与连接生命周期。
 
@@ -276,7 +278,7 @@ Provider Mapper 方法支持零个或一个参数；多个输入应封装为 rec
 
 可注册 `ExecutionInterceptor`，在受控的 JDBC 执行边界实现日志、指标、审计、授权或路由观察。拦截器只能读取 statement 标识、最终 SQL、有序参数副本、语句/来源类型、耗时、结果数量、失败信息和只读路由元数据，不能替换生成的 SQL、参数 binder 或 row mapper。
 
-`beforeExecution` 按配置顺序执行，`afterSuccess` 和 `afterFailure` 按相反顺序回退。Spring Boot 按 Spring ordering 收集拦截器 bean。回调失败不会阻止 JDBC 资源释放；失败回调抛出的异常会作为 suppressed exception 附加到原始执行异常。
+`beforeExecution` 按配置顺序执行，`afterSuccess` 和 `afterFailure` 按相反顺序回退。Spring Boot 按 Spring ordering 收集拦截器 bean。终态回调失败只通过 JDK logger 记录，不改变 SQL 成功结果或原始失败，也不会阻止后续观察者和 JDBC 资源释放。
 
 ## MyBatis 兼容边界
 
@@ -355,13 +357,14 @@ public interface UserMapper {
 
 ## 当前文档与后续路线
 
-当前唯一有效的实施计划是：
+当前 GA 边界和实施计划是：
 
-- [LiteORM Runtime Architecture Implementation Plan](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
+- [Core GA 契约](docs/core-ga-contract.md)
+- [LiteORM Core GA Implementation Plan](docs/plans/liteorm-core-ga-implementation-plan.md)
 - [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)
 - [MyBatis 迁移指南](docs/migration-guide.md)
 - [扩展契约](docs/extensions.md)
 
-当前固定 JDBC 生命周期、Standalone/Spring 事务适配、显式多数据源装配、外部 Maven 编译夹具和生成源码诊断均已实现。下一阶段是完成最终架构评审，再以可复现 benchmark 作为任何缓存或性能优化的准入条件。
+当前固定 JDBC 生命周期、Standalone/Spring 事务适配、显式多数据源装配、外部 Maven 编译夹具、生成源码诊断、真实数据库兼容和失败/并发契约均已实现。下一阶段只允许先建立可复现 benchmark，再讨论缓存或热路径优化。
 
 判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。

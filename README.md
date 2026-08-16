@@ -4,6 +4,8 @@
 
 It is not a feature-for-feature MyBatis clone. The main goal is to move SQL normalization, supported dynamic expressions, parameter order, binder selection, and result mapping into compilation so the runtime path remains explicit and debuggable.
 
+The supported first-GA boundary is defined in [Core GA contract](docs/core-ga-contract.md).
+
 ## Modules
 
 - `lite-orm-core`: annotations, annotation processor, SQL/XML compiler, generated Mapper source, execution contracts, standalone JDBC assembly, and local transactions.
@@ -133,9 +135,10 @@ LiteORM intentionally does not promise arbitrary OGNL, complex `resultMap` graph
 See:
 
 - [Chinese README](README_cn.md)
+- [Core GA contract](docs/core-ga-contract.md)
 - [Extension contracts](docs/extensions.md)
 - [Migration guide](docs/migration-guide.md)
 - [MyBatis compatibility matrix](docs/mybatis-compatibility.md)
 - [Architecture review](docs/architecture/liteorm-architecture-review.md)
-- [Runtime implementation plan](docs/plans/liteorm-runtime-architecture-implementation-plan.md)
+- [Core GA implementation plan](docs/plans/liteorm-core-ga-implementation-plan.md)
 - [Executable basic Mapper example](lite-orm-examples/basic-mapper/README.md)

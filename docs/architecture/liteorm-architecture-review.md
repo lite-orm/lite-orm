@@ -27,7 +27,7 @@ JdbcSqlExecutor -> ConnectionHandleFactory -> ConnectionHandle -> JDBC
 
 The architecture no longer depends on the deleted `SqlEngine`, fixed-phase processor chain, mutable execution context, `ConnectionProvider`, `TransactionCoordinator`, global configuration singleton, runtime Mapper proxy, runtime XML parser, or runtime expression engine.
 
-The principal design is accepted. Remaining findings are API-hardening and test-cleanup work, not reasons to reintroduce the previous abstractions.
+The principal design and Core GA contract are accepted. Correctness, API-hardening, production-database, and concurrency gates are complete; performance work remains gated on reproducible measurement.
 
 ## End-To-End Review
 
@@ -48,9 +48,9 @@ Review result: **accepted**. Input ownership is explicit and unsupported behavio
 
 `CompilePipeline` validates signatures, resolves SQL sources, builds the dynamic SQL AST, determines ordered parameters and adapters, and produces `MapperCompilationModel`.
 
-The compiler package is implementation code even though several types are currently public because processor and runtime classes share one Maven artifact. Application code should not treat `CompilePipeline`, parser implementations, AST nodes, compilation models, or code generators as supported runtime extension APIs.
+The compiler package is implementation code. `LiteOrmProcessor` is the only public compiler type; `CompilePipeline`, parser implementations, AST nodes, compilation models, and code generators are package-private and are not application extension APIs.
 
-Review result: **accepted with packaging follow-up**. Splitting processor implementation into a dedicated artifact may reduce the apparent public surface, but it is not required for correctness.
+Review result: **accepted**. A future processor artifact split may improve dependency packaging, but it is not required for API correctness.
 
 ### Source Generation
 
@@ -135,7 +135,7 @@ Accepted boundaries:
 - generated Mapper: statement construction and typed return mapping;
 - `JdbcSqlExecutor`: fixed physical JDBC lifecycle;
 - `ConnectionHandleFactory`: execution-scoped connection participation strategy;
-- `Transaction`: one handle's ownership and participation semantics;
+- `ConnectionHandle`: one execution's connection participation and release semantics;
 - `TransactionalExecutor`: explicit transaction boundary;
 - registrar: Spring bean-definition assembly.
 
@@ -167,7 +167,7 @@ Strong small interfaces:
 - `TransactionalExecutor` has one callback method;
 - provider, binder, row mapper, and domain guard are focused contracts.
 
-Follow-up: `Transaction` completion methods are unused by `JdbcSqlExecutor` and create the semantic variation described above. Also, `JdbcAssembly.Builder.domainGuard(...)` accepts concrete `SimpleTransactionDomainGuard`, while public `TransactionDomainGuard` exposes only verification and cannot provide the binding lifecycle required by the factory. Either keep the guard entirely internal or define a complete standalone-domain scope contract before advertising customization.
+`ConnectionHandle` intentionally exposes no commit or rollback methods. `JdbcAssembly.Builder.domainGuard(...)` is a standalone-assembly customization using `SimpleTransactionDomainGuard`; it is not advertised as a host transaction-manager SPI.
 
 ### Dependency Inversion Principle
 
@@ -263,13 +263,9 @@ Accepted categories:
 - `TransactionException` for begin/commit/rollback/cleanup/domain failures;
 - compile diagnostics for unsupported Mapper behavior.
 
-Follow-up findings:
+Plan-construction value objects use `IllegalArgumentException` for direct programmer contract violations. Framework runtime failures use the LiteORM hierarchy. Local transaction failures describe only implemented begin, commit, rollback, rollback-only, cleanup, and DataSource-domain behavior; statement timeout and database deadlock remain JDBC execution failures.
 
-- executor plan validation still uses `IllegalArgumentException` for some invalid plan shapes.
-- Local transaction failures now describe only implemented begin, commit, rollback, rollback-only, cleanup, and DataSource-domain behavior. Statement timeout and database deadlock failures remain JDBC execution failures rather than standalone transaction-manager features.
-- `ConfigurationException` can include configuration values, `MappingException` can include full row data, and `SqlExecutionException` includes SQL text. A security policy should define redaction before these exceptions are used with secrets or sensitive row values.
-
-These are API-hardening tasks, not runtime lifecycle defects.
+Default failure messages redact SQL text, parameters, row arrays, and configuration values. `SqlExecutionException.Diagnostics` exposes SQL only through an explicit diagnostic accessor.
 
 ## Concurrency And Immutability Review
 
@@ -281,8 +277,7 @@ These are API-hardening tasks, not runtime lifecycle defects.
 - the XML compiler cache is an instance-scoped `ConcurrentHashMap`, not a global mutable cache.
 - `ExecutionPlan` clones parameter and binder arrays; `BatchExecutionPlan` clones row arrays.
 - `BoundSql` copies the parameter list.
-
-Follow-up: `SqlResult.forQuery` stores and returns the query-result list and row arrays directly, so its current immutability is conventional rather than defensive. Generated Mappers consume it immediately, but a public contract claiming immutability should either copy results or document ownership clearly.
+- `SqlResult` defensively copies query rows and batch update counts on input and output.
 
 Extension instances must be stateless, thread-safe, or externally synchronized. LiteORM does not clone provider, binder, row-mapper, or interceptor instances per call.
 
@@ -301,7 +296,7 @@ Strong suites:
 - external Maven processor fixture;
 - executable H2 standalone example.
 
-Follow-up: `GeneratedCodeTest` and `EdgeCaseTest` still contain legacy console-driven demonstrations with limited assertions. Their useful contracts should move into focused tests, and narrative-only methods should be removed rather than counted as coverage.
+Legacy narrative-only edge tests were removed, and generated-source demonstrations now contain executable assertions.
 
 Proxy-based JDBC characterization tests are verbose but valuable because they assert physical ordering and suppression semantics without relying on a database driver's incidental behavior.
 
@@ -320,18 +315,18 @@ Accepted properties:
 
 XML resources cannot be attached to javac as language-model elements. XML failures therefore navigate to the corresponding Mapper method while retaining statement/tag context in the diagnostic message.
 
-## Remaining Work Before Optimization
+## Correctness Gate Before Optimization
 
-Keep correctness and API-hardening changes separate from performance work:
+The pre-optimization correctness gate is complete:
 
-1. add transaction options and rollback-only semantics;
-2. remove or internalize unused/implementation public types; **completed for compiler helpers**;
-3. normalize exception inheritance and define redaction rules;
-4. clarify or harden `SqlResult` query-result ownership;
-5. replace narrative print tests with focused assertions; **completed**;
-6. add bounded queries, mapping contracts, and production database verification before optimization.
+1. minimal local transaction options and rollback-only semantics are characterized;
+2. compiler implementation helpers are internalized and the public API surface is executable-tested;
+3. runtime exceptions share the LiteORM hierarchy and default messages follow redaction rules;
+4. `SqlResult` query rows and batch counts are defensively copied;
+5. narrative print tests were removed or replaced with focused assertions;
+6. PostgreSQL/MySQL compatibility and bounded multi-DataSource concurrency are verified.
 
-Do not add caches or hot-path complexity as part of those changes.
+Do not add caches or hot-path complexity without the benchmark gate below.
 
 ## Optimization Gate
 
@@ -362,4 +357,4 @@ The architecture is understandable from component names and dependency direction
 - interceptors own observation;
 - applications own distributed transactions and routing infrastructure.
 
-Proceed to optimization only after the recorded API-hardening tasks are either completed or explicitly deferred with compatibility rationale.
+Proceed to optimization only through the reproducible benchmark gate. The published support boundary is `docs/core-ga-contract.md`.
