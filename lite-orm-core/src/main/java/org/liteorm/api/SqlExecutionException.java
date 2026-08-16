@@ -13,17 +13,21 @@ public class SqlExecutionException extends LiteOrmException {
     private final String statementId;
     private final ExecutionPlan.SqlSource sourceType;
     private final String sql;
+    private final JdbcExecutionState executionState;
 
-    public SqlExecutionException(ExecutionPlan plan, Throwable cause) {
-        super(buildMessage(plan), cause);
+    public SqlExecutionException(
+            ExecutionPlan plan, JdbcExecutionState executionState, Throwable cause) {
+        super(buildMessage(plan, executionState), cause);
         this.statementId = plan.getStatementId();
         this.sourceType = plan.getSourceType();
         this.sql = plan.getSql();
+        this.executionState = executionState;
     }
 
-    private static String buildMessage(ExecutionPlan plan) {
+    private static String buildMessage(ExecutionPlan plan, JdbcExecutionState executionState) {
         return "SQL execution failed [statementId=" + plan.getStatementId()
-            + ", source=" + plan.getSourceType() + "]\nSQL: " + plan.getSql();
+            + ", source=" + plan.getSourceType()
+            + ", executionState=" + executionState + "]\nSQL: " + plan.getSql();
     }
 
     public String getStatementId() {
@@ -36,5 +40,9 @@ public class SqlExecutionException extends LiteOrmException {
 
     public String getSql() {
         return sql;
+    }
+
+    public JdbcExecutionState getExecutionState() {
+        return executionState;
     }
 }

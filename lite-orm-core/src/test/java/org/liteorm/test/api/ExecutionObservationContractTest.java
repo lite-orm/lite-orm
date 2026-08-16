@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.SqlExecutionException;
 
 import java.lang.reflect.Modifier;
@@ -37,15 +38,19 @@ class ExecutionObservationContractTest {
         ExecutionPlan plan = plan(new Object[0]);
         IllegalStateException failure = new IllegalStateException("failed");
 
-        ExecutionOutcome success = ExecutionOutcome.success(plan, 12L, 3, 0);
-        ExecutionOutcome failed = ExecutionOutcome.failure(plan, 15L, 0, 0, failure);
+        ExecutionOutcome success = ExecutionOutcome.success(
+            plan, JdbcExecutionState.EXECUTED, 12L, 3, 0);
+        ExecutionOutcome failed = ExecutionOutcome.failure(
+            plan, JdbcExecutionState.OUTCOME_UNKNOWN, 15L, 0, 0, failure);
 
         assertSame(plan, success.plan());
         assertEquals(3, success.affectedRows());
         assertEquals(0, success.resultCount());
         assertEquals(12L, success.durationNanos());
+        assertEquals(JdbcExecutionState.EXECUTED, success.executionState());
         assertFalse(success.failed());
         assertSame(failure, failed.failure());
+        assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failed.executionState());
         assertTrue(failed.failed());
         assertTrue(Arrays.stream(ExecutionOutcome.class.getDeclaredFields())
             .allMatch(field -> Modifier.isFinal(field.getModifiers())));
@@ -67,11 +72,13 @@ class ExecutionObservationContractTest {
     void sqlFailureMetadataDoesNotExposeParameterValues() {
         ExecutionPlan plan = plan(new Object[]{"sensitive-value"});
 
-        SqlExecutionException failure = new SqlExecutionException(plan, new IllegalStateException("failed"));
+        SqlExecutionException failure = new SqlExecutionException(
+            plan, JdbcExecutionState.NOT_EXECUTED, new IllegalStateException("failed"));
 
         assertEquals("test.Mapper.find", failure.getStatementId());
         assertEquals(ExecutionPlan.SqlSource.XML, failure.getSourceType());
         assertEquals("SELECT name FROM users WHERE id = ?", failure.getSql());
+        assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
         assertFalse(failure.getMessage().contains("sensitive-value"));
     }
 

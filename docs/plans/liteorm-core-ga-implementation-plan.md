@@ -224,73 +224,67 @@ Implementation status: Completed on 2026-08-16. Core retains only minimal local 
 
 ## Phase G2: Execution Certainty and Observer Isolation
 
-### Task 3: Define Explicit Execution Completion States
+### Task 3: Define JDBC Execution Certainty
 
 **Files:**
+- Create: `lite-orm-core/src/main/java/org/liteorm/api/JdbcExecutionState.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/ExecutionOutcome.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutionException.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/api/ExecutionObservationContractTest.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
-- [ ] **Step 1: Write RED lifecycle-phase tests**
+- [x] **Step 1: Write RED JDBC-phase tests**
 
-Cover failures before execution, during execution, after JDBC execution but before known completion, after successful result extraction, and during cleanup.
+Cover connection, prepare, and bind failures before execution; exceptions thrown by `executeQuery`, `executeUpdate`, or `executeBatch`; result extraction failures after execute returns; and cleanup failures after execute returns.
 
-- [ ] **Step 2: Add completion certainty**
+- [x] **Step 2: Add executor-scoped certainty**
 
 ```java
-public enum Completion {
+public enum JdbcExecutionState {
     NOT_EXECUTED,
-    EXECUTED,
-    COMMITTED,
-    ROLLED_BACK,
-    UNKNOWN
+    OUTCOME_UNKNOWN,
+    EXECUTED
 }
 ```
 
-Attach completion to both `ExecutionOutcome` and `SqlExecutionException` so callers can make safe retry decisions.
+Attach the state to both `ExecutionOutcome` and `SqlExecutionException`. `NOT_EXECUTED` means no JDBC execute method was invoked; `OUTCOME_UNKNOWN` means invocation began but did not return normally; `EXECUTED` means the JDBC execute method returned normally even if mapping, observation, or cleanup later failed.
 
-- [ ] **Step 3: Track JDBC lifecycle transitions explicitly**
+Do not add `COMMITTED` or `ROLLED_BACK`: `JdbcSqlExecutor` does not own final transaction completion when participating in Spring or another host transaction manager.
 
-Update completion only after the corresponding JDBC operation is known to have succeeded. Never describe cleanup failure as proof that SQL was not executed.
+- [x] **Step 3: Track JDBC lifecycle transitions explicitly**
 
-- [ ] **Step 4: Run focused tests and core tests**
+Set `OUTCOME_UNKNOWN` immediately before invoking the JDBC execute method and `EXECUTED` immediately after it returns. Never describe mapping or cleanup failure as proof that SQL was not executed.
+
+- [x] **Step 4: Run focused tests and core tests**
 
 Run: `mvn -pl lite-orm-core -Dtest=ExecutionObservationContractTest,JdbcSqlExecutorTest test`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Commit: `feat: report jdbc completion certainty`
+
+Implementation status: Completed on 2026-08-16. The state reports only JDBC execution certainty and deliberately does not claim transaction commit or rollback.
 
 ### Task 4: Isolate Terminal Interceptor Failures
 
 **Files:**
-- Create: `lite-orm-core/src/main/java/org/liteorm/api/InterceptorFailureHandler.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/JdbcAssembly.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
 - [ ] **Step 1: Write RED tests for terminal callback isolation**
 
-Verify every entered interceptor receives exactly one terminal callback, `afterSuccess` failures do not turn successful writes into SQL failures, remaining callbacks still run, and terminal observer failures are sent to a configured handler.
+Verify every entered interceptor receives exactly one terminal callback, `afterSuccess` failures do not turn successful writes into SQL failures, remaining callbacks still run, and terminal observer failures are logged without parameter values.
 
-- [ ] **Step 2: Add the handler role**
+- [ ] **Step 2: Keep terminal observation non-configurable**
 
-```java
-@FunctionalInterface
-public interface InterceptorFailureHandler {
-    void onFailure(ExecutionInterceptor interceptor, ExecutionOutcome outcome, Throwable failure);
-}
-```
-
-Provide a default handler that logs failures without throwing.
+Use the executor's internal SLF4J logger. Do not add another public SPI merely to observe failures from the existing observation SPI.
 
 - [ ] **Step 3: Make terminal notification non-throwing**
 
-Catch every `afterSuccess` and `afterFailure` callback failure independently, continue reverse-order notification, and report it to the handler.
+Catch every `afterSuccess` and `afterFailure` callback failure independently, continue reverse-order notification, and log interceptor type, statement ID, JDBC execution state, and callback failure without SQL parameters.
 
 - [ ] **Step 4: Keep `beforeExecution` veto semantics explicit**
 

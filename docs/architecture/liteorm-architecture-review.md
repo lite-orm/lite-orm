@@ -201,6 +201,8 @@ The fixed sequence inside `JdbcSqlExecutor` is template-like, but it is intentio
 
 Justified for before/after observation. Logging, slow-query reporting, audit, metrics, tracing, and authorization can observe immutable plan/outcome data without replacing fixed phases.
 
+The executor reports only JDBC certainty (`NOT_EXECUTED`, `OUTCOME_UNKNOWN`, or `EXECUTED`). It does not claim commit or rollback because final transaction completion may belong to Spring or another host manager.
+
 ### Adapter
 
 Justified for `SpringConnectionHandleFactory` and `SpringConnectionHandle`, which adapt Spring JDBC connection participation to the core connection contracts.

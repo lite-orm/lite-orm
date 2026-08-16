@@ -8,6 +8,7 @@ import java.util.Objects;
 public final class ExecutionOutcome {
 
     private final ExecutionPlan plan;
+    private final JdbcExecutionState executionState;
     private final long durationNanos;
     private final int affectedRows;
     private final int resultCount;
@@ -15,11 +16,13 @@ public final class ExecutionOutcome {
 
     private ExecutionOutcome(
             ExecutionPlan plan,
+            JdbcExecutionState executionState,
             long durationNanos,
             int affectedRows,
             int resultCount,
             Throwable failure) {
         this.plan = Objects.requireNonNull(plan, "plan");
+        this.executionState = Objects.requireNonNull(executionState, "executionState");
         if (durationNanos < 0) {
             throw new IllegalArgumentException("durationNanos must not be negative");
         }
@@ -30,18 +33,24 @@ public final class ExecutionOutcome {
     }
 
     public static ExecutionOutcome success(
-            ExecutionPlan plan, long durationNanos, int affectedRows, int resultCount) {
-        return new ExecutionOutcome(plan, durationNanos, affectedRows, resultCount, null);
+            ExecutionPlan plan,
+            JdbcExecutionState executionState,
+            long durationNanos,
+            int affectedRows,
+            int resultCount) {
+        return new ExecutionOutcome(plan, executionState, durationNanos, affectedRows, resultCount, null);
     }
 
     public static ExecutionOutcome failure(
             ExecutionPlan plan,
+            JdbcExecutionState executionState,
             long durationNanos,
             int affectedRows,
             int resultCount,
             Throwable failure) {
         return new ExecutionOutcome(
             plan,
+            executionState,
             durationNanos,
             affectedRows,
             resultCount,
@@ -51,6 +60,10 @@ public final class ExecutionOutcome {
 
     public ExecutionPlan plan() {
         return plan;
+    }
+
+    public JdbcExecutionState executionState() {
+        return executionState;
     }
 
     public long durationNanos() {

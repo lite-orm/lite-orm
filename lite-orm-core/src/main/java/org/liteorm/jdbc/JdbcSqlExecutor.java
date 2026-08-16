@@ -6,6 +6,7 @@ import org.liteorm.api.ConnectionHandleFactory;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.RowMapper;
 import org.liteorm.api.SqlExecutionException;
@@ -48,6 +49,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         PreparedStatement statement = null;
         ResultSet resultSet = null;
         SqlResult result = null;
+        JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
         Throwable primaryFailure = null;
 
         try {
@@ -60,12 +62,16 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             switch (plan.getStatementType()) {
                 case SELECT -> {
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     resultSet = statement.executeQuery();
+                    executionState = JdbcExecutionState.EXECUTED;
                     result = SqlResult.forQuery(readRows(resultSet, plan.getRowMapper()));
                 }
                 case INSERT, UPDATE, DELETE -> {
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     int updateCount = statement.executeUpdate();
+                    executionState = JdbcExecutionState.EXECUTED;
                     if (plan.returnsGeneratedKey()) {
                         resultSet = statement.getGeneratedKeys();
                         result = SqlResult.forGeneratedKey(updateCount, readGeneratedKey(resultSet));
@@ -73,28 +79,37 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                         result = SqlResult.forUpdate(updateCount);
                     }
                 }
-                case BATCH -> result = executeBatch(statement, (BatchExecutionPlan) plan);
+                case BATCH -> {
+                    BatchExecutionPlan batchPlan = (BatchExecutionPlan) plan;
+                    addBatch(statement, batchPlan);
+                    executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
+                    int[] updateCounts = batchPlan.getBatchParameters().isEmpty()
+                        ? new int[0]
+                        : statement.executeBatch();
+                    executionState = JdbcExecutionState.EXECUTED;
+                    result = SqlResult.forBatch(updateCounts);
+                }
             }
             ExecutionOutcome outcome = ExecutionOutcome.success(
-                plan, elapsed(startedAt), affectedRows(result), resultCount(result));
+                plan, executionState, elapsed(startedAt), affectedRows(result), resultCount(result));
             invokeSuccess(entered, outcome);
             return result;
         } catch (Throwable failure) {
             primaryFailure = failure;
             ExecutionOutcome outcome = ExecutionOutcome.failure(
-                plan, elapsed(startedAt), affectedRows(result), resultCount(result), failure);
+                plan, executionState, elapsed(startedAt), affectedRows(result), resultCount(result), failure);
             invokeFailure(entered, outcome, failure);
             if (failure instanceof Error error) {
                 throw error;
             }
-            throw new SqlExecutionException(plan, failure);
+            throw new SqlExecutionException(plan, executionState, failure);
         } finally {
             Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
             if (cleanupFailure != null) {
                 if (primaryFailure != null) {
                     appendFlattened(primaryFailure, cleanupFailure);
                 } else {
-                    throw new SqlExecutionException(plan, cleanupFailure);
+                    throw new SqlExecutionException(plan, executionState, cleanupFailure);
                 }
             }
         }
@@ -156,14 +171,12 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return generatedKey;
     }
 
-    private SqlResult executeBatch(PreparedStatement statement, BatchExecutionPlan plan) throws SQLException {
+    private void addBatch(PreparedStatement statement, BatchExecutionPlan plan) throws SQLException {
         List<Object[]> batchParameters = plan.getBatchParameters();
         for (Object[] parameters : batchParameters) {
             bind(statement, parameters, plan.getParameterBinders());
             statement.addBatch();
         }
-        int[] updateCounts = batchParameters.isEmpty() ? new int[0] : statement.executeBatch();
-        return SqlResult.forBatch(updateCounts);
     }
 
     private void bind(

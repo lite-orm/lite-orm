@@ -7,6 +7,7 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.interceptor.AuditExecutionInterceptor;
 import org.liteorm.interceptor.LoggingExecutionInterceptor;
 import org.liteorm.interceptor.SlowQueryExecutionInterceptor;
@@ -29,9 +30,11 @@ class ExecutionInterceptorImplementationsTest {
         ExecutionPlan plan = plan();
 
         interceptor.beforeExecution(plan);
-        interceptor.afterSuccess(ExecutionOutcome.success(plan, 12_000_000L, 2, 0));
+        interceptor.afterSuccess(ExecutionOutcome.success(
+            plan, JdbcExecutionState.EXECUTED, 12_000_000L, 2, 0));
         interceptor.afterFailure(ExecutionOutcome.failure(
-            plan, 15_000_000L, 0, 0, new IllegalStateException("failed")));
+            plan, JdbcExecutionState.OUTCOME_UNKNOWN,
+            15_000_000L, 0, 0, new IllegalStateException("failed")));
 
         assertEquals(List.of(Level.DEBUG, Level.DEBUG, Level.ERROR),
             events.list.stream().map(ILoggingEvent::getLevel).toList());
@@ -47,8 +50,10 @@ class ExecutionInterceptorImplementationsTest {
             logger("slow"), Duration.ofMillis(10));
         ExecutionPlan plan = plan();
 
-        interceptor.afterSuccess(ExecutionOutcome.success(plan, 9_999_999L, 0, 1));
-        interceptor.afterSuccess(ExecutionOutcome.success(plan, 10_000_000L, 0, 1));
+        interceptor.afterSuccess(ExecutionOutcome.success(
+            plan, JdbcExecutionState.EXECUTED, 9_999_999L, 0, 1));
+        interceptor.afterSuccess(ExecutionOutcome.success(
+            plan, JdbcExecutionState.EXECUTED, 10_000_000L, 0, 1));
 
         assertEquals(1, events.list.size());
         assertEquals(Level.WARN, events.list.getFirst().getLevel());
@@ -60,9 +65,11 @@ class ExecutionInterceptorImplementationsTest {
         List<ExecutionOutcome> events = new ArrayList<>();
         AuditExecutionInterceptor interceptor = new AuditExecutionInterceptor(events::add);
         ExecutionPlan plan = plan();
-        ExecutionOutcome success = ExecutionOutcome.success(plan, 5L, 0, 1);
+        ExecutionOutcome success = ExecutionOutcome.success(
+            plan, JdbcExecutionState.EXECUTED, 5L, 0, 1);
         ExecutionOutcome failure = ExecutionOutcome.failure(
-            plan, 7L, 0, 0, new IllegalStateException("failed"));
+            plan, JdbcExecutionState.NOT_EXECUTED,
+            7L, 0, 0, new IllegalStateException("failed"));
 
         interceptor.afterSuccess(success);
         interceptor.afterFailure(failure);
