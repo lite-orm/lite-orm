@@ -15,6 +15,7 @@ public class ExecutionPlan {
     private final boolean returnsGeneratedKey;
     private final ParameterBinder<?>[] parameterBinders;
     private final RowMapper<?> rowMapper;
+    private final StatementOptions statementOptions;
 
     public ExecutionPlan(
             String statementId,
@@ -34,6 +35,20 @@ public class ExecutionPlan {
             boolean returnsGeneratedKey,
             ParameterBinder<?>[] parameterBinders,
             RowMapper<?> rowMapper) {
+        this(statementId, sql, parameters, statementType, sourceType,
+            returnsGeneratedKey, parameterBinders, rowMapper, StatementOptions.defaults());
+    }
+
+    public ExecutionPlan(
+            String statementId,
+            String sql,
+            Object[] parameters,
+            StatementType statementType,
+            SqlSource sourceType,
+            boolean returnsGeneratedKey,
+            ParameterBinder<?>[] parameterBinders,
+            RowMapper<?> rowMapper,
+            StatementOptions statementOptions) {
         this.statementId = Objects.requireNonNull(statementId, "statementId");
         this.sql = Objects.requireNonNull(sql, "sql");
         this.parameters = parameters == null ? new Object[0] : parameters.clone();
@@ -42,6 +57,7 @@ public class ExecutionPlan {
         this.returnsGeneratedKey = returnsGeneratedKey;
         this.parameterBinders = parameterBinders == null ? null : parameterBinders.clone();
         this.rowMapper = rowMapper;
+        this.statementOptions = statementOptions == null ? StatementOptions.defaults() : statementOptions;
     }
 
     public String getStatementId() {
@@ -74,6 +90,10 @@ public class ExecutionPlan {
 
     public RowMapper<?> getRowMapper() {
         return rowMapper;
+    }
+
+    public StatementOptions getStatementOptions() {
+        return statementOptions;
     }
 
     public enum StatementType {

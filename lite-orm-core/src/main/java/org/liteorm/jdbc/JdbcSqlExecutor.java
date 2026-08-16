@@ -12,6 +12,7 @@ import org.liteorm.api.RowMapper;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
+import org.liteorm.api.StatementOptions;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -61,6 +62,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             Connection connection = Objects.requireNonNull(
                 connectionHandle.connection(), "connectionHandle returned null connection");
             statement = prepare(connection, plan);
+            applyOptions(statement, plan.getStatementOptions());
             switch (plan.getStatementType()) {
                 case SELECT -> {
                     bind(statement, plan.getParameters(), plan.getParameterBinders());
@@ -177,6 +179,18 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return plan.returnsGeneratedKey()
             ? connection.prepareStatement(plan.getSql(), Statement.RETURN_GENERATED_KEYS)
             : connection.prepareStatement(plan.getSql());
+    }
+
+    private void applyOptions(PreparedStatement statement, StatementOptions options) throws SQLException {
+        if (options.timeoutSeconds() != null) {
+            statement.setQueryTimeout(options.timeoutSeconds());
+        }
+        if (options.fetchSize() != null) {
+            statement.setFetchSize(options.fetchSize());
+        }
+        if (options.maxRows() != null) {
+            statement.setMaxRows(options.maxRows());
+        }
     }
 
     private Object readGeneratedKey(ResultSet generatedKeys) throws SQLException {

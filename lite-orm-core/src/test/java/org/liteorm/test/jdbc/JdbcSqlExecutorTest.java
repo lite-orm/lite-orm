@@ -9,6 +9,7 @@ import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
+import org.liteorm.api.StatementOptions;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.jdbc.JdbcSqlExecutor;
@@ -31,6 +32,48 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JdbcSqlExecutorTest {
+
+    @Test
+    void appliesConfiguredStatementOptionsBeforeBindingAndExecution() {
+        List<String> events = new ArrayList<>();
+        ResultSet rows = rows(events, List.<Object[]>of(new Object[]{1L, "Alice"}));
+        PreparedStatement statement = statement(events, rows, 0, null, null);
+        ExecutionPlan plan = new ExecutionPlan(
+            "test.Mapper.find", "SELECT id, name FROM users WHERE id = ?",
+            new Object[]{7L}, ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.XML,
+            false, null, null, new StatementOptions(3, 100, 25));
+
+        executor(events, statement).execute(plan);
+
+        assertEquals(List.of(
+            "setQueryTimeout:3", "setFetchSize:100", "setMaxRows:25",
+            "setObject:1:7", "executeQuery"
+        ), events.subList(3, 8));
+    }
+
+    @Test
+    void defaultStatementOptionsDoNotCallJdbcSetters() {
+        List<String> events = new ArrayList<>();
+        ResultSet rows = rows(events, List.<Object[]>of(new Object[]{1L, "Alice"}));
+        PreparedStatement statement = statement(events, rows, 0, null, null);
+
+        executor(events, statement).execute(selectPlan(null));
+
+        assertFalse(events.stream().anyMatch(event -> event.startsWith("setQueryTimeout:")));
+        assertFalse(events.stream().anyMatch(event -> event.startsWith("setFetchSize:")));
+        assertFalse(events.stream().anyMatch(event -> event.startsWith("setMaxRows:")));
+    }
+
+    @Test
+    void rejectsInvalidStatementOptions() {
+        assertThrows(IllegalArgumentException.class, () -> new StatementOptions(0, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new StatementOptions(-1, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new StatementOptions(null, 0, null));
+        assertThrows(IllegalArgumentException.class, () -> new StatementOptions(null, -1, null));
+        assertThrows(IllegalArgumentException.class, () -> new StatementOptions(null, null, -1));
+
+        assertEquals(new StatementOptions(1, 1, 0), new StatementOptions(1, 1, 0));
+    }
 
     @Test
     void validatesBeforeOpeningTransaction() {
@@ -351,6 +394,9 @@ class JdbcSqlExecutorTest {
             int[] batchCounts,
             SQLException closeFailure) {
         return proxy(PreparedStatement.class, (method, args) -> switch (method) {
+            case "setQueryTimeout" -> { events.add("setQueryTimeout:" + args[0]); yield null; }
+            case "setFetchSize" -> { events.add("setFetchSize:" + args[0]); yield null; }
+            case "setMaxRows" -> { events.add("setMaxRows:" + args[0]); yield null; }
             case "setObject" -> { events.add("setObject:" + args[0] + ":" + args[1]); yield null; }
             case "setNull" -> { events.add("setNull:" + args[0] + ":" + args[1]); yield null; }
             case "executeQuery" -> { events.add("executeQuery"); yield rows; }

@@ -29,7 +29,7 @@
 - Fixed JDBC statement lifecycle, binding, execution, result extraction, generated keys, and batch behavior.
 - Statement-level timeout, fetch size, maximum rows, cancellation hooks, and scope-bound large-result consumption.
 - Common scalar, Record, JavaBean, optional, list, and update-count result contracts.
-- Minimal standalone local transactions: one DataSource, one connection, commit on success, rollback on failure, nested callbacks join the root, and rollback-only prevents accidental commit.
+- Minimal standalone local transactions: one DataSource, one connection, commit on success, rollback on failure, nested callbacks join the root, and rollback-only prevents accidental commit. This intentionally follows the same narrow role as a MyBatis-style internal JDBC transaction implementation rather than duplicating a host transaction manager.
 - Failure certainty, exception taxonomy, redaction, resource ownership, thread safety, and production-driver compatibility.
 
 ### Core extension SPIs
@@ -313,11 +313,11 @@ Implementation status: Completed on 2026-08-16. Interceptors remain optional obs
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 
-- [ ] **Step 1: Write RED validation and JDBC application tests**
+- [x] **Step 1: Write RED validation and JDBC application tests**
 
 Cover positive query timeout, positive fetch size, non-negative max rows, defaults that make no setter calls, and application before statement execution.
 
-- [ ] **Step 2: Add immutable options**
+- [x] **Step 2: Add immutable options**
 
 ```java
 public record StatementOptions(Integer timeoutSeconds, Integer fetchSize, Integer maxRows) {
@@ -327,21 +327,23 @@ public record StatementOptions(Integer timeoutSeconds, Integer fetchSize, Intege
 }
 ```
 
-- [ ] **Step 3: Store options on execution plans**
+- [x] **Step 3: Store options on execution plans**
 
-All constructors defensively normalize `null` to defaults. Generated code initially emits defaults until annotation/XML configuration is added in Task 7.
+All constructors defensively normalize `null` to defaults. Existing generated code uses the default constructor path until annotation/XML configuration is added in Task 6.
 
-- [ ] **Step 4: Apply options to `PreparedStatement`**
+- [x] **Step 4: Apply options to `PreparedStatement`**
 
 Call `setQueryTimeout`, `setFetchSize`, and `setMaxRows` only for configured values.
 
-- [ ] **Step 5: Run core tests and commit**
+- [x] **Step 5: Run core tests and commit**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
 Commit: `feat: add jdbc statement controls`
+
+Implementation status: Completed and verified on 2026-08-16 with focused executor/plan tests, all 136 core tests, and the full Maven reactor.
 
 ### Task 6: Expose Statement Options in Mapper Declarations
 
