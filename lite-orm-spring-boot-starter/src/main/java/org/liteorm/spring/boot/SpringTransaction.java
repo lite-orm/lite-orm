@@ -3,6 +3,7 @@ package org.liteorm.spring.boot;
 import org.liteorm.api.Transaction;
 import org.liteorm.api.TransactionException;
 import org.springframework.jdbc.datasource.DataSourceUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -30,6 +31,7 @@ public final class SpringTransaction implements Transaction {
             );
         }
         if (connection == null) {
+            verifyTransactionDataSource();
             connection = DataSourceUtils.getConnection(dataSource);
         }
         return connection;
@@ -51,6 +53,16 @@ public final class SpringTransaction implements Transaction {
         closed = true;
         if (connection != null) {
             DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    private void verifyTransactionDataSource() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && !TransactionSynchronizationManager.hasResource(dataSource)) {
+            throw new TransactionException(
+                TransactionException.Type.DOMAIN_MISMATCH,
+                "Active Spring transaction is not bound to the configured LiteORM DataSource"
+            );
         }
     }
 }

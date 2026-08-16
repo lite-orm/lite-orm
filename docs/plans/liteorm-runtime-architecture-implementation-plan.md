@@ -558,6 +558,23 @@ Mapper package -> named DataSource -> SpringTransactionFactory -> JdbcSqlExecuto
 **Completion criteria:** First-stage multi-DataSource support has one clear ownership model: LiteORM
 binds Mapper packages, while the configured `DataSource` owns any dynamic routing.
 
+### Module R6.4: Enforce Spring Transaction/DataSource Alignment
+
+**Files:**
+- Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/SpringTransaction.java`
+- Modify: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/SpringTransactionTest.java`
+
+- [x] Add a RED test that an active transaction for DataSource A cannot acquire DataSource B.
+- [x] Reject the mismatch before DataSource B opens a connection or executes SQL.
+- [x] Keep non-transactional calls and matching Spring transaction participation unchanged.
+- [x] Keep routing DataSources valid when the transaction manager and Mapper binding use the same routing DataSource bean.
+- [x] Run focused Spring transaction tests and `mvn clean test`.
+- [x] Commit with `fix: enforce spring datasource transaction alignment`.
+- [ ] Push immediately.
+
+**Completion criteria:** A Mapper cannot silently escape an active single-DataSource Spring
+transaction and auto-commit work through another configured DataSource.
+
 ### Deferred: LiteORM-Owned Dynamic Routing
 
 - [x] Do not add LiteORM SQL-type, read/write, tenant, or shard routing during the first stage.

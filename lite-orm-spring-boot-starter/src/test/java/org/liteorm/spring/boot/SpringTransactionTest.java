@@ -2,6 +2,7 @@ package org.liteorm.spring.boot;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.Transaction;
+import org.liteorm.api.TransactionException;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -16,6 +17,7 @@ import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SpringTransactionTest {
 
@@ -74,6 +76,26 @@ class SpringTransactionTest {
         assertEquals(0, dataSource.commitCount.get());
         assertEquals(0, dataSource.rollbackCount.get());
         assertEquals(1, dataSource.closeCount.get());
+    }
+
+    @Test
+    void rejectsDataSourceThatIsNotBoundToTheActiveSpringTransaction() {
+        TrackingDataSource transactionDataSource = new TrackingDataSource();
+        TrackingDataSource otherDataSource = new TrackingDataSource();
+        SpringTransactionFactory otherFactory = new SpringTransactionFactory(otherDataSource);
+        TransactionTemplate transactions = new TransactionTemplate(
+            new DataSourceTransactionManager(transactionDataSource));
+
+        transactions.executeWithoutResult(status -> {
+            TransactionException failure = assertThrows(TransactionException.class, () -> {
+                try (Transaction transaction = otherFactory.openTransaction()) {
+                    transaction.getConnection();
+                }
+            });
+
+            assertEquals(TransactionException.Type.DOMAIN_MISMATCH, failure.getType());
+            assertEquals(0, otherDataSource.connectionCount.get());
+        });
     }
 
     private static final class TrackingDataSource implements DataSource {

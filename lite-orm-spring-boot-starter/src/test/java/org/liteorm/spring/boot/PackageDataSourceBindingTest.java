@@ -2,6 +2,8 @@ package org.liteorm.spring.boot;
 
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
+import org.liteorm.api.SqlExecutionException;
+import org.liteorm.api.TransactionException;
 import org.liteorm.spring.boot.fixture.SpringUserMapper;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,6 +22,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PackageDataSourceBindingTest {
@@ -70,6 +73,27 @@ class PackageDataSourceBindingTest {
 
                 assertNull(users.findById(2L));
                 assertEquals("orders-commit", orders.findById(2L).name());
+            });
+    }
+
+    @Test
+    void rejectsMapperBoundToAnotherDataSourceInsideActiveTransaction() {
+        contextRunner
+            .withPropertyValues(bindings(
+                "org.liteorm.spring.boot.fixture", "usersDataSource", "users",
+                "org.liteorm.spring.boot.fixture", "ordersDataSource", "orders"))
+            .run(context -> {
+                SpringUserMapper orders = context.getBean("ordersSpringUserMapper", SpringUserMapper.class);
+                TransactionTemplate usersTransactions = new TransactionTemplate(
+                    context.getBean("usersTransactionManager", PlatformTransactionManager.class));
+
+                SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+                    usersTransactions.executeWithoutResult(status ->
+                        orders.insert(3L, "must-not-auto-commit")));
+
+                TransactionException cause = (TransactionException) failure.getCause();
+                assertEquals(TransactionException.Type.DOMAIN_MISMATCH, cause.getType());
+                assertNull(orders.findById(3L));
             });
     }
 
