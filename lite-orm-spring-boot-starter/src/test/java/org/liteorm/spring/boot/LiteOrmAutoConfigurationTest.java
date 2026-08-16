@@ -1,0 +1,180 @@
+package org.liteorm.spring.boot;
+
+import org.h2.jdbcx.JdbcDataSource;
+import org.junit.jupiter.api.Test;
+import org.liteorm.api.ExecutionInterceptor;
+import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.SqlExecutor;
+import org.liteorm.jdbc.JdbcSqlExecutor;
+import org.liteorm.spring.boot.fixture.SpringUser;
+import org.liteorm.spring.boot.fixture.SpringUserMapper;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import javax.sql.DataSource;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
+class LiteOrmAutoConfigurationTest {
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(LiteOrmAutoConfiguration.class))
+        .withUserConfiguration(TestConfiguration.class)
+        .withPropertyValues(
+            "lite-orm.mapper-bindings[0].package-name=org.liteorm.spring.boot.fixture",
+            "lite-orm.mapper-bindings[0].data-source=dataSource"
+        );
+
+    @Test
+    void assemblesGeneratedMapperWithOrderedJdbcExecutorInterceptors() {
+        contextRunner.run(context -> {
+            SqlExecutor executor = context.getBean(SqlExecutor.class);
+            SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
+            EventLog events = context.getBean(EventLog.class);
+
+            assertInstanceOf(JdbcSqlExecutor.class, executor);
+            assertSame(mapper, context.getBean("springUserMapper"));
+            assertEquals(1, mapper.insert(1L, "Alice"));
+            assertEquals(new SpringUser(1L, "Alice"), mapper.findById(1L));
+            assertEquals(List.of(
+                "first.before", "second.before", "second.success", "first.success",
+                "first.before", "second.before", "second.success", "first.success"
+            ), events.values());
+        });
+    }
+
+    @Test
+    void generatedMapperJoinsSpringTransactionRollback() {
+        contextRunner.run(context -> {
+            SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
+            TransactionTemplate transactions = new TransactionTemplate(
+                context.getBean(PlatformTransactionManager.class));
+
+            transactions.executeWithoutResult(status -> {
+                mapper.insert(2L, "Rollback");
+                status.setRollbackOnly();
+            });
+
+            assertNull(mapper.findById(2L));
+        });
+    }
+
+    @Test
+    void singletonMapperAndExecutorSupportConcurrentCalls() {
+        contextRunner.run(context -> {
+            SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
+            List<Callable<SpringUser>> calls = new ArrayList<>();
+            for (long id = 10; id < 26; id++) {
+                long userId = id;
+                calls.add(() -> {
+                    mapper.insert(userId, "user-" + userId);
+                    return mapper.findById(userId);
+                });
+            }
+
+            try (var executor = Executors.newFixedThreadPool(8)) {
+                List<SpringUser> users = executor.invokeAll(calls).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception failure) {
+                            throw new AssertionError(failure);
+                        }
+                    })
+                    .toList();
+
+                assertEquals(16, users.size());
+                for (SpringUser user : users) {
+                    assertEquals("user-" + user.id(), user.name());
+                }
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(failure);
+            }
+        });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class TestConfiguration {
+
+        @Bean
+        DataSource dataSource() throws SQLException {
+            JdbcDataSource dataSource = new JdbcDataSource();
+            dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
+            try (var connection = dataSource.getConnection();
+                 var statement = connection.createStatement()) {
+                statement.execute("CREATE TABLE spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
+            }
+            return dataSource;
+        }
+
+        @Bean
+        PlatformTransactionManager transactionManager(DataSource dataSource) {
+            return new DataSourceTransactionManager(dataSource);
+        }
+
+        @Bean
+        EventLog eventLog() {
+            return new EventLog();
+        }
+
+        @Bean
+        ExecutionInterceptor firstInterceptor(EventLog events) {
+            return new OrderedInterceptor("first", 10, events);
+        }
+
+        @Bean
+        ExecutionInterceptor secondInterceptor(EventLog events) {
+            return new OrderedInterceptor("second", 20, events);
+        }
+    }
+
+    static final class EventLog {
+
+        private final List<String> events = Collections.synchronizedList(new ArrayList<>());
+
+        void add(String event) {
+            events.add(event);
+        }
+
+        List<String> values() {
+            return List.copyOf(events);
+        }
+    }
+
+    private record OrderedInterceptor(String name, int order, EventLog events)
+            implements ExecutionInterceptor, Ordered {
+
+        @Override
+        public int getOrder() {
+            return order;
+        }
+
+        @Override
+        public void beforeExecution(ExecutionPlan plan) {
+            events.add(name + ".before");
+        }
+
+        @Override
+        public void afterSuccess(ExecutionOutcome outcome) {
+            events.add(name + ".success");
+        }
+    }
+}

@@ -1,0 +1,335 @@
+package org.liteorm.test.database;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.liteorm.JdbcAssembly;
+import org.liteorm.LiteOrm;
+import org.liteorm.annotation.Batch;
+import org.liteorm.annotation.Column;
+import org.liteorm.annotation.GeneratedKey;
+import org.liteorm.annotation.Insert;
+import org.liteorm.annotation.Mapper;
+import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Select;
+import org.liteorm.annotation.UseRowMapper;
+import org.liteorm.api.CursorCallback;
+import org.liteorm.api.ExecutionPhase;
+import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.JdbcExecutionState;
+import org.liteorm.api.RowMapper;
+import org.liteorm.api.SqlExecutionException;
+import org.liteorm.api.StatementOptions;
+import org.liteorm.api.TransactionException;
+
+import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+abstract class AbstractDatabaseCompatibilityTest {
+
+    private JdbcAssembly assembly;
+    private DatabaseCompatibilityMapper mapper;
+
+    protected abstract DataSource dataSource();
+
+    protected abstract String identityDefinition();
+
+    protected abstract String binaryDefinition();
+
+    protected abstract String sleepSql();
+
+    @BeforeEach
+    void resetDatabase() throws Exception {
+        executeSchema();
+        assembly = LiteOrm.jdbc(dataSource()).domain(databaseName()).build();
+        mapper = new DatabaseCompatibilityMapperImpl(assembly.sqlExecutor());
+    }
+
+    @Test
+    void mapsScalarRecordBeanDateTimeIdentifierAndBinaryValues() {
+        CompatibilityRecord expected = sample(null, "Alice");
+        long id = mapper.insert(
+            expected.name(), expected.active(), expected.businessDate(), expected.createdAt(),
+            expected.eventId(), expected.payload());
+
+        assertEquals(1L, id);
+        assertEquals(1L, mapper.count());
+        assertEquals("Alice", mapper.findName(id));
+        assertRecord(expected, mapper.findRecord(id), id);
+        assertBean(expected, mapper.findBean(id), id);
+    }
+
+    @Test
+    void executesDynamicSqlAndJdbcBatch() {
+        CompatibilityRecord first = sample(100L, "Alice");
+        CompatibilityRecord second = sample(101L, "Bob");
+
+        int[] updateCounts = mapper.insertBatch(List.of(first, second));
+
+        assertEquals(2, updateCounts.length);
+        for (int updateCount : updateCounts) {
+            assertTrue(updateCount == 1 || updateCount == Statement.SUCCESS_NO_INFO);
+        }
+        assertEquals(List.of("Alice"), mapper.searchNames("Ali%", true));
+        assertEquals(List.of("Alice", "Bob"), mapper.searchNames(null, true));
+    }
+
+    @Test
+    void commitsAndRollsBackGeneratedMapperWork() {
+        long committedId = assembly.transactionalExecutor().execute(() -> {
+            CompatibilityRecord value = sample(null, "Committed");
+            return mapper.insert(value.name(), value.active(), value.businessDate(), value.createdAt(),
+                value.eventId(), value.payload());
+        });
+        assertEquals("Committed", mapper.findName(committedId));
+
+        assertThrows(IllegalStateException.class, () ->
+            assembly.transactionalExecutor().execute(() -> {
+                CompatibilityRecord value = sample(null, "RolledBack");
+                mapper.insert(value.name(), value.active(), value.businessDate(), value.createdAt(),
+                    value.eventId(), value.payload());
+                throw new IllegalStateException("rollback");
+            }));
+
+        assertEquals(List.of("Committed"), mapper.searchNames(null, true));
+    }
+
+    @Test
+    void nestedFailureMarksRootTransactionRollbackOnly() {
+        TransactionException failure = assertThrows(TransactionException.class, () ->
+            assembly.transactionalExecutor().execute(() -> {
+                CompatibilityRecord outer = sample(null, "Outer");
+                mapper.insert(outer.name(), outer.active(), outer.businessDate(), outer.createdAt(),
+                    outer.eventId(), outer.payload());
+                try {
+                    assembly.transactionalExecutor().execute(() -> {
+                        CompatibilityRecord nested = sample(null, "Nested");
+                        mapper.insert(nested.name(), nested.active(), nested.businessDate(), nested.createdAt(),
+                            nested.eventId(), nested.payload());
+                        throw new IllegalArgumentException("nested failure");
+                    });
+                } catch (IllegalArgumentException ignored) {
+                }
+                return null;
+            }));
+
+        assertEquals(TransactionException.Type.ROLLBACK_ONLY, failure.getType());
+        assertEquals(0L, mapper.count());
+    }
+
+    @Test
+    void consumesRowsThroughScopeBoundCursor() {
+        CompatibilityRecord first = sample(200L, "Alice");
+        CompatibilityRecord second = sample(201L, "Bob");
+        mapper.insertBatch(List.of(first, second));
+
+        List<String> names = mapper.scan(200L, cursor -> {
+            List<String> result = new ArrayList<>();
+            while (cursor.next()) {
+                result.add(cursor.current().name());
+            }
+            return result;
+        });
+
+        assertEquals(List.of("Alice", "Bob"), names);
+    }
+
+    @Test
+    void enforcesJdbcQueryTimeout() {
+        ExecutionPlan timeoutPlan = new ExecutionPlan(
+            getClass().getName() + ".timeout",
+            sleepSql(),
+            new Object[0],
+            ExecutionPlan.StatementType.SELECT,
+            ExecutionPlan.SqlSource.GENERATED,
+            null,
+            null,
+            null,
+            new StatementOptions(1, null, null));
+
+        SqlExecutionException failure = assertThrows(
+            SqlExecutionException.class, () -> assembly.sqlExecutor().execute(timeoutPlan));
+
+        assertEquals(ExecutionPhase.EXECUTION, failure.getPhase());
+        assertEquals(JdbcExecutionState.OUTCOME_UNKNOWN, failure.getExecutionState());
+    }
+
+    private void executeSchema() throws SQLException, IOException {
+        String schema;
+        try (InputStream input = getClass().getResourceAsStream("/database/schema.sql")) {
+            if (input == null) {
+                throw new IllegalStateException("Missing database/schema.sql");
+            }
+            schema = new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                .replace("${identity}", identityDefinition())
+                .replace("${binary}", binaryDefinition());
+        }
+        try (var connection = dataSource().getConnection();
+             var statement = connection.createStatement()) {
+            for (String sql : schema.split(";")) {
+                if (!sql.isBlank()) {
+                    statement.execute(sql.trim());
+                }
+            }
+        }
+    }
+
+    private CompatibilityRecord sample(Long id, String name) {
+        return new CompatibilityRecord(
+            id,
+            name,
+            true,
+            LocalDate.of(2026, 8, 16),
+            LocalDateTime.of(2026, 8, 16, 12, 34, 56, 123_456_000),
+            UUID.nameUUIDFromBytes((databaseName() + name).getBytes(StandardCharsets.UTF_8)).toString(),
+            new byte[]{1, 2, 3, 4});
+    }
+
+    private void assertRecord(CompatibilityRecord expected, CompatibilityRecord actual, long id) {
+        assertEquals(id, actual.id());
+        assertEquals(expected.name(), actual.name());
+        assertEquals(expected.active(), actual.active());
+        assertEquals(expected.businessDate(), actual.businessDate());
+        assertEquals(expected.createdAt(), actual.createdAt());
+        assertEquals(expected.eventId(), actual.eventId());
+        assertArrayEquals(expected.payload(), actual.payload());
+    }
+
+    private void assertBean(CompatibilityRecord expected, CompatibilityBean actual, long id) {
+        assertEquals(id, actual.getId());
+        assertEquals(expected.name(), actual.getName());
+        assertEquals(expected.active(), actual.getActive());
+        assertEquals(expected.businessDate(), actual.getBusinessDate());
+        assertEquals(expected.createdAt(), actual.getCreatedAt());
+        assertEquals(expected.eventId(), actual.getEventId());
+        assertArrayEquals(expected.payload(), actual.getPayload());
+    }
+
+    private String databaseName() {
+        return getClass().getSimpleName();
+    }
+}
+
+@Mapper
+interface DatabaseCompatibilityMapper {
+
+    String COLUMNS = "id, name, active, business_date, created_at, event_id, payload";
+
+    @GeneratedKey("id")
+    @Insert("INSERT INTO compatibility_users (name, active, business_date, created_at, event_id, payload) "
+        + "VALUES (#{name}, #{active}, #{businessDate}, #{createdAt}, #{eventId}, #{payload})")
+    Long insert(
+        @Param("name") String name,
+        @Param("active") Boolean active,
+        @Param("businessDate") LocalDate businessDate,
+        @Param("createdAt") LocalDateTime createdAt,
+        @Param("eventId") String eventId,
+        @Param("payload") byte[] payload);
+
+    @Batch("INSERT INTO compatibility_users (id, name, active, business_date, created_at, event_id, payload) "
+        + "VALUES (#{item.id}, #{item.name}, #{item.active}, #{item.businessDate}, #{item.createdAt}, "
+        + "#{item.eventId}, #{item.payload})")
+    int[] insertBatch(List<CompatibilityRecord> values);
+
+    @Select("SELECT COUNT(*) FROM compatibility_users")
+    Long count();
+
+    @Select("SELECT name FROM compatibility_users WHERE id = #{id}")
+    String findName(@Param("id") long id);
+
+    @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id = #{id}")
+    CompatibilityRecord findRecord(@Param("id") long id);
+
+    @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id = #{id}")
+    CompatibilityBean findBean(@Param("id") long id);
+
+    @Select({
+        "<script>",
+        "SELECT name FROM compatibility_users",
+        "<where>",
+        "<if test=\"namePattern != null and namePattern != ''\">name LIKE #{namePattern}</if>",
+        "<if test=\"active != null\">AND active = #{active}</if>",
+        "</where>",
+        "ORDER BY id",
+        "</script>"
+    })
+    List<String> searchNames(@Param("namePattern") String namePattern, @Param("active") Boolean active);
+
+    @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id >= #{minimumId} ORDER BY id")
+    @UseRowMapper(CompatibilityRecordRowMapper.class)
+    List<String> scan(long minimumId, CursorCallback<CompatibilityRecord, List<String>> callback);
+}
+
+record CompatibilityRecord(
+    Long id,
+    String name,
+    Boolean active,
+    @Column("business_date") LocalDate businessDate,
+    @Column("created_at") LocalDateTime createdAt,
+    @Column("event_id") String eventId,
+    byte[] payload) {
+}
+
+final class CompatibilityBean {
+
+    private Long id;
+    private String name;
+    private Boolean active;
+    @Column("business_date")
+    private LocalDate businessDate;
+    @Column("created_at")
+    private LocalDateTime createdAt;
+    @Column("event_id")
+    private String eventId;
+    private byte[] payload;
+
+    public CompatibilityBean() {
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public Boolean getActive() { return active; }
+    public void setActive(Boolean active) { this.active = active; }
+    public LocalDate getBusinessDate() { return businessDate; }
+    public void setBusinessDate(LocalDate businessDate) { this.businessDate = businessDate; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getEventId() { return eventId; }
+    public void setEventId(String eventId) { this.eventId = eventId; }
+    public byte[] getPayload() { return payload; }
+    public void setPayload(byte[] payload) { this.payload = payload; }
+}
+
+final class CompatibilityRecordRowMapper implements RowMapper<CompatibilityRecord> {
+
+    public CompatibilityRecordRowMapper() {
+    }
+
+    @Override
+    public CompatibilityRecord map(ResultSet resultSet) throws SQLException {
+        return new CompatibilityRecord(
+            resultSet.getLong("id"),
+            resultSet.getString("name"),
+            resultSet.getBoolean("active"),
+            resultSet.getObject("business_date", LocalDate.class),
+            resultSet.getObject("created_at", LocalDateTime.class),
+            resultSet.getString("event_id"),
+            resultSet.getBytes("payload"));
+    }
+}

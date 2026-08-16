@@ -1,0 +1,5 @@
+<configuration>
+    <logger name="org.testcontainers" level="INFO"/>
+    <logger name="com.github.dockerjava" level="WARN"/>
+    <root level="WARN"/>
+</configuration>
