@@ -756,29 +756,31 @@ Implementation status: Completed and verified on 2026-08-16. `docs/core-ga-contr
 - Create benchmark sources under: `lite-orm-benchmarks/src/main/java/org/liteorm/benchmark`
 - Create: `docs/benchmarks/core-ga-baseline.md`
 
-- [ ] **Step 1: Add JMH only after Tasks 1-16 pass**
+- [x] **Step 1: Add JMH only after Tasks 1-16 pass**
 
 Do not introduce caches or hot-path changes while adding the benchmark harness.
 
-- [ ] **Step 2: Measure representative workloads**
+- [x] **Step 2: Measure representative workloads**
 
 Measure scalar query, Record mapping, JavaBean mapping, dynamic SQL, batch, generated keys, interceptor overhead, cursor consumption, and standalone transaction callbacks.
 
-- [ ] **Step 3: Compare direct JDBC and documented MyBatis baselines**
+- [x] **Step 3: Compare direct JDBC and documented MyBatis baselines**
 
 Use identical schema, SQL, driver, JVM flags, warmup, measurement iterations, and result consumption.
 
-- [ ] **Step 4: Profile allocations and CPU before proposing changes**
+- [x] **Step 4: Profile allocations and CPU before proposing changes**
 
 Record profiler evidence and reject optimizations without meaningful measured improvement.
 
-- [ ] **Step 5: Keep accepted caches immutable or instance-scoped**
+- [x] **Step 5: Keep accepted caches immutable or instance-scoped**
 
 Reject global mutable compiler or runtime caches.
 
-- [ ] **Step 6: Commit the baseline separately**
+- [x] **Step 6: Commit the baseline separately**
 
 Commit: `perf: establish core ga benchmark baseline`
+
+Implementation status: Completed and measured on 2026-08-16 with OpenJDK JMH 1.37, MyBatis 3.5.19, and H2 2.3.232 on Temurin 21.0.4. The independent benchmark module compares identical Direct JDBC, generated LiteORM Mapper, and MyBatis workloads for scalar, Record, JavaBean, dynamic SQL, cursor, batch, generated key, no-op interceptor, and local transaction paths. Two forks with three one-second warmups and five one-second measurements produced the recorded time and `gc.alloc.rate.norm` baseline; separate JFR runs captured representative CPU evidence. No core implementation or cache was changed.
 
 ---
 
@@ -799,6 +801,6 @@ Commit: `perf: establish core ga benchmark baseline`
 - [x] Every public failure extends `LiteOrmException` and default messages redact values.
 - [x] Obsolete APIs, dead templates, disabled services, and narrative tests are removed.
 - [x] PostgreSQL and MySQL compatibility suites pass.
-- [ ] JDBC failure-phase and concurrency characterization pass.
-- [ ] Core GA documentation matches tested behavior.
-- [ ] Optimization begins only after all correctness items are complete.
+- [x] JDBC failure-phase and concurrency characterization pass.
+- [x] Core GA documentation matches tested behavior.
+- [x] Optimization begins only after all correctness items are complete.

@@ -65,6 +65,8 @@ MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但�
   - 提供 Spring Boot 自动配置入口。
   - 扫描并注册编译期生成的 Mapper 实现。
   - 按显式 Mapper 包与 DataSource 绑定注册生成类，并通过 Spring JDBC 参与宿主事务。
+- `lite-orm-benchmarks`
+  - 使用 JMH 对比相同 H2 schema 和 SQL 下的 Direct JDBC、LiteORM 生成 Mapper 与 MyBatis；普通构建只编译和验证夹具，不自动运行耗时基准。
 
 编译期与运行期闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；core 提供固定 JDBC 执行器，Spring 通过事务适配器参与连接生命周期。
 
@@ -364,6 +366,7 @@ public interface UserMapper {
 - [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)
 - [MyBatis 迁移指南](docs/migration-guide.md)
 - [扩展契约](docs/extensions.md)
+- [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)
 
 当前固定 JDBC 生命周期、Standalone/Spring 事务适配、显式多数据源装配、外部 Maven 编译夹具、生成源码诊断、真实数据库兼容和失败/并发契约均已实现。下一阶段只允许先建立可复现 benchmark，再讨论缓存或热路径优化。
 

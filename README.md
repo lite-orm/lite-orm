@@ -11,6 +11,7 @@ The supported first-GA boundary is defined in [Core GA contract](docs/core-ga-co
 - `lite-orm-core`: annotations, annotation processor, SQL/XML compiler, generated Mapper source, execution contracts, standalone JDBC assembly, and local transactions.
 - `lite-orm-spring-boot-starter`: explicit Mapper-package registration, Spring-aware connection participation, and generated Mapper bean definitions.
 - `lite-orm-examples/basic-mapper`: executable annotation/XML, provider, binder, row-mapper, batch, generated-key, and standalone H2 fixtures.
+- `lite-orm-benchmarks`: JMH comparison of Direct JDBC, generated LiteORM Mappers, and MyBatis; compiled during normal builds but executed only by explicit benchmark commands.
 
 Run the full repository verification with:
 
@@ -142,3 +143,4 @@ See:
 - [Architecture review](docs/architecture/liteorm-architecture-review.md)
 - [Core GA implementation plan](docs/plans/liteorm-core-ga-implementation-plan.md)
 - [Executable basic Mapper example](lite-orm-examples/basic-mapper/README.md)
+- [Core GA benchmark baseline](docs/benchmarks/core-ga-baseline.md)
