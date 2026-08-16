@@ -27,7 +27,8 @@
 
 - Compile-time Mapper contracts and generated implementations.
 - Fixed JDBC statement lifecycle, binding, execution, result extraction, generated keys, and batch behavior.
-- Statement-level timeout, fetch size, maximum rows, cancellation hooks, and scope-bound large-result consumption.
+- Statement-level timeout, fetch size, maximum-row safety caps, cancellation hooks, and scope-bound large-result consumption.
+- SQL pagination through ordinary dynamic Mapper parameters rendered and bound into dialect-appropriate SQL such as `LIMIT`/`OFFSET`; core does not treat JDBC `maxRows` as pagination.
 - Common scalar, Record, JavaBean, optional, list, and update-count result contracts.
 - Minimal standalone local transactions: one DataSource, one connection, commit on success, rollback on failure, nested callbacks join the root, and rollback-only prevents accidental commit. This intentionally follows the same narrow role as a MyBatis-style internal JDBC transaction implementation rather than duplicating a host transaction manager.
 - Failure certainty, exception taxonomy, redaction, resource ownership, thread safety, and production-driver compatibility.
@@ -43,7 +44,8 @@
 ### Outside core
 
 - Transaction propagation modes, savepoints, declarative isolation/read-only policies, rollback rules, and production transaction orchestration belong to Spring or another host transaction manager.
-- Connection pooling, retries, migrations, distributed transactions, caches, tenant/shard/read-write routing, and pagination policy remain application infrastructure or optional integrations.
+- Connection pooling, retries, migrations, distributed transactions, caches, and tenant/shard/read-write routing remain application infrastructure or optional integrations.
+- Pagination DSLs, automatic dialect rewriting, page-count queries, and page-result policies remain optional compiler/integration features. Core only needs to preserve dynamic SQL parameters so the final SQL performs the actual pagination.
 
 ## Delivery Order
 
@@ -316,6 +318,8 @@ Implementation status: Completed on 2026-08-16. Interceptors remain optional obs
 - [x] **Step 1: Write RED validation and JDBC application tests**
 
 Cover positive query timeout, positive fetch size, non-negative max rows, defaults that make no setter calls, and application before statement execution.
+
+`maxRows` is only a JDBC result safety ceiling. It must not be documented or implemented as pagination; true pagination is expressed by dynamic parameters in the generated SQL.
 
 - [x] **Step 2: Add immutable options**
 
@@ -794,10 +798,11 @@ Commit: `perf: establish core ga benchmark baseline`
 - [ ] Generated Mappers depend only on `SqlExecutor` and explicit cursor contracts.
 - [ ] Executor-facing connection handles cannot commit or roll back application transactions.
 - [ ] Nested local transaction failures mark the root rollback-only.
-- [ ] Isolation, read-only, and timeout options have tested JDBC semantics.
+- [ ] Minimal local transaction commit, rollback, joined-callback, and rollback-only semantics remain tested without adding host transaction policies.
 - [ ] Execution failures report completion certainty suitable for retry decisions.
 - [ ] Terminal interceptor failures cannot convert successful writes into SQL failures.
-- [ ] Queries support timeout, fetch size, max rows, and scope-bound cursor consumption.
+- [ ] Queries support timeout, fetch size, maximum-row safety caps, and scope-bound cursor consumption.
+- [ ] Dynamic Mapper parameters can produce bound, dialect-appropriate pagination SQL without a separate core pagination abstraction.
 - [ ] Record and JavaBean mapping use validated column labels rather than declaration position.
 - [ ] `Optional<T>`, primitive no-row behavior, inheritance, and unsupported generic shapes are explicit.
 - [ ] Generated-key behavior is typed and unsupported composite/batch forms fail at compile time.
