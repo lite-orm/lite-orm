@@ -2,6 +2,9 @@ package org.liteorm.spring.boot;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * LiteORM配置属性
  * 
@@ -46,10 +49,7 @@ public class LiteOrmProperties {
      */
     private boolean auditAsync = true;
     
-    /**
-     * Mapper扫描包路径
-     */
-    private String[] mapperPackages = {};
+    private List<MapperBinding> mapperBindings = new ArrayList<>();
 
     // Getters and Setters
     public boolean isEnabled() {
@@ -108,12 +108,42 @@ public class LiteOrmProperties {
         this.auditAsync = auditAsync;
     }
 
-    public String[] getMapperPackages() {
-        return mapperPackages;
+    public List<MapperBinding> getMapperBindings() {
+        return mapperBindings;
     }
 
-    public void setMapperPackages(String[] mapperPackages) {
-        this.mapperPackages = mapperPackages;
+    public void setMapperBindings(List<MapperBinding> mapperBindings) {
+        this.mapperBindings = mapperBindings;
+    }
+
+    public static class MapperBinding {
+
+        private String packageName;
+        private String dataSource;
+        private String beanNamePrefix = "";
+
+        public String getPackageName() {
+            return packageName;
+        }
+
+        public void setPackageName(String packageName) {
+            this.packageName = packageName;
+        }
+
+        public String getDataSource() {
+            return dataSource;
+        }
+
+        public void setDataSource(String dataSource) {
+            this.dataSource = dataSource;
+        }
+
+        public String getBeanNamePrefix() {
+            return beanNamePrefix;
+        }
+
+        public void setBeanNamePrefix(String beanNamePrefix) {
+            this.beanNamePrefix = beanNamePrefix;
+        }
     }
 }
-

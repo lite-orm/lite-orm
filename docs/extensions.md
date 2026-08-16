@@ -12,9 +12,30 @@ LiteORM keeps generated Mapper code as the default. Extensions are narrow, expli
 
 ## Concurrency Contract
 
-Generated Mapper implementations and the standard SQL engines are designed for concurrent reuse. Each Mapper call builds its own execution plan and execution context, while standalone transaction state and Spring transaction-bound connections remain isolated by thread.
+Generated Mapper implementations and `JdbcSqlExecutor` are designed for concurrent reuse. Each Mapper call builds its own immutable execution plan, while simple transaction state and Spring transaction-bound connections remain isolated by thread.
 
-Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. A SQL engine also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. LiteORM does not clone extension instances per call and currently provides no stateful-adapter factory contract.
+Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. `JdbcSqlExecutor` also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. LiteORM does not clone extension instances per call and currently provides no stateful-adapter factory contract.
+
+## Spring Package-to-DataSource Binding
+
+Spring registration uses explicit package bindings rather than type-only selection:
+
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.user.mapper
+      data-source: usersDataSource
+    - package-name: com.example.order.mapper
+      data-source: ordersDataSource
+```
+
+- Every package rule names exactly one Spring `DataSource` bean.
+- The named bean may be a physical pool or a routing DataSource proxy.
+- Starter uses `SpringTransactionFactory` and core `JdbcAssembly` to create the executor.
+- Parent and child package rules cannot overlap.
+- The same package may be bound more than once only when distinct `bean-name-prefix` values produce distinct Mapper bean names.
+- Binding happens during application startup. Mapper invocation still calls its final executor field directly and performs no package or bean lookup.
+- Each Spring transaction boundary must use the `PlatformTransactionManager` associated with the same DataSource as the selected executor.
 
 ## SQL Provider
 
@@ -49,11 +70,11 @@ Use `@UseRowMapper` on a query method with a concrete `RowMapper<T>`.
 
 ## Execution Interceptor
 
-Register `ExecutionInterceptor` instances on `DefaultSqlEngine`, or expose them as ordered Spring beans with the starter.
+Register `ExecutionInterceptor` instances through `JdbcAssembly`, or expose them as ordered Spring beans with the starter.
 
 - `beforeExecution` runs in configured order.
 - `afterSuccess` and `afterFailure` run in reverse order for interceptors whose before callback was entered.
-- `ExecutionInvocation` exposes statement ID, final SQL, a defensive parameter copy, statement/source types, start time, duration, affected rows, result count, failure, and read-only routing metadata.
+- `ExecutionPlan` exposes immutable statement input and `ExecutionOutcome` exposes duration, affected rows, result count, and failure.
 - The MVP contract is observational. It does not allow arbitrary SQL replacement or reflective mutation of generated binding and mapping.
 - Failure callbacks cannot prevent resource cleanup. Their exceptions are suppressed onto the original execution failure.
 - Any interceptor callback adds runtime work; configure none when the direct path is preferred.

@@ -177,8 +177,8 @@ JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
 | 事务边界控制 | SPI：`TransactionalExecutor`；默认实现：`SimpleTransactionalExecutor` | 使用 `@Transactional`、`TransactionTemplate` 和 `PlatformTransactionManager` | **边界抽象属于 core；生产边界时机委托 Spring** |
 | 本地事务域保护 | `TransactionDomain`、`TransactionDomainGuard`、`SimpleTransactionDomainGuard` | 通过明确匹配的 executor、DataSource 和 transaction manager 保持同一约束；后续补充 Spring 多数据源启动校验 | **不直接一对一替换，但必须保持相同事务不变量** |
 | 单 DataSource 手工装配 | `LiteOrm.jdbc(...)`、`JdbcAssembly` | `LiteOrmAutoConfiguration` 创建同样的 executor 组件图 | **领域组件不变；创建和依赖注入委托 Spring** |
-| 多 DataSource 静态绑定 | `@UseDataSource`、`@ExecutorRef` 及编译期生成规则 | Starter 按 executor Bean 名完成构造器注入 | **选择规则属于 core 编译模型；Bean 解析委托 Spring** |
-| 多 DataSource 动态策略 | `DataSourceKeyProvider`、`DataSourceSelection`、`SqlExecutorRegistry` | Provider 或 registry 可以由 Spring 管理，但生成代码直接调用这些类型 | **路由契约属于 core；策略实例管理可委托 Spring** |
+| 多 DataSource 包绑定 | core 保持一个 Mapper 只依赖一个 `SqlExecutor` | Starter 根据 `mapper-bindings[].data-source` 装配并注入 executor | **包规则属于 Starter 装配；Mapper 热路径不感知 DataSource** |
+| 动态 DataSource 路由 | core 不提供重复路由系统 | 使用 `AbstractRoutingDataSource`、dynamic-datasource 或其他 DataSource 代理 | **路由属于 DataSource 基础设施，LiteORM 只消费最终 DataSource** |
 | 异常模型 | `LiteOrmException`、`SqlExecutionException`、`TransactionException` 等 | 原样向上层传播，保留 JDBC/Spring cause | **core 永久保留** |
 | DataSource 和连接池 | core 只消费 `javax.sql.DataSource` | 应用配置 DataSource，通常由 HikariCP 和 Spring Boot 管理 | **外部基础设施，LiteORM 不实现** |
 | 事务传播、隔离级别、超时、回滚规则 | core 简单实现只保证最小本地事务正确性 | 由 Spring `PlatformTransactionManager` 和 `@Transactional` 配置决定 | **生产高级事务策略委托 Spring** |
@@ -217,11 +217,27 @@ Starter 不创建运行时 Mapper 代理，而是注册编译期已经生成的 
 ```yaml
 lite-orm:
   enabled: true
-  mapper-packages:
-    - com.example.mapper
+  mapper-bindings:
+    - package-name: com.example.mapper
+      data-source: dataSource
 ```
 
-应用启动时，Starter 扫描配置包中的生成类并按 Mapper 接口类型注册 Spring Bean。目标运行时向生成类注入具名或默认的 `SqlExecutor`。启动扫描允许检查类和构造器，但 Mapper 调用、SQL 构造、参数绑定和结果映射仍然是普通 Java 直接调用，不在热路径使用反射。
+应用启动时，Starter 扫描配置包中的生成类，解析 `data-source` 指定的 Spring `DataSource` Bean，并通过 `SpringTransactionFactory` 与 core `JdbcAssembly` 创建 Mapper 所需的 `SqlExecutor`。该 Bean 可以是真实连接池，也可以是 `AbstractRoutingDataSource` 或 dynamic-datasource 提供的路由代理。Mapper 调用热路径不再查找 Spring Bean。
+
+同一个 Mapper 包需要针对两个 DataSource 创建两组实例时，配置不同的 `bean-name-prefix`：
+
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.shared.mapper
+      data-source: usersDataSource
+      bean-name-prefix: users
+    - package-name: com.example.shared.mapper
+      data-source: archiveDataSource
+      bean-name-prefix: archive
+```
+
+例如 `UserMapper` 会注册为 `usersUserMapper` 和 `archiveUserMapper`。父子包规则不能重叠，因为同一个生成类会同时匹配两条规则；DataSource Bean 缺失、绑定未命名或生成的 Mapper Bean 重名都会在启动期间失败。
 
 Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
 

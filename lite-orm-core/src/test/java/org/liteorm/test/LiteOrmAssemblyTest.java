@@ -10,6 +10,7 @@ import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TransactionException;
+import org.liteorm.api.TransactionFactory;
 import org.liteorm.transaction.SimpleTransactionDomainGuard;
 
 import javax.sql.DataSource;
@@ -115,6 +116,16 @@ class LiteOrmAssemblyTest {
             LiteOrm.jdbc(dataSource).interceptors(Arrays.asList(interceptor, null)));
         assertConfigurationFailure("duplicate", () ->
             LiteOrm.jdbc(dataSource).interceptors(List.of(interceptor, interceptor)));
+    }
+
+    @Test
+    void assemblesSqlExecutorFromHostTransactionFactory() {
+        TransactionFactory transactionFactory = () -> null;
+
+        assertInstanceOf(
+            org.liteorm.jdbc.JdbcSqlExecutor.class,
+            JdbcAssembly.sqlExecutor(transactionFactory, List.of())
+        );
     }
 
     private void assertConfigurationFailure(String messagePart, Runnable action) {

@@ -4,6 +4,7 @@ import org.liteorm.api.ConfigurationException;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.TransactionDomain;
+import org.liteorm.api.TransactionFactory;
 import org.liteorm.api.TransactionalExecutor;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 import org.liteorm.transaction.SimpleTransactionDomainGuard;
@@ -35,6 +36,12 @@ public final class JdbcAssembly {
 
     public TransactionalExecutor transactionalExecutor() {
         return transactionalExecutor;
+    }
+
+    public static SqlExecutor sqlExecutor(
+            TransactionFactory transactionFactory,
+            List<ExecutionInterceptor> interceptors) {
+        return new JdbcSqlExecutor(transactionFactory, interceptors);
     }
 
     public static final class Builder {
@@ -90,7 +97,7 @@ public final class JdbcAssembly {
             SimpleTransactionFactory transactionFactory = new SimpleTransactionFactory(
                 dataSource, domain, domainGuard);
             return new JdbcAssembly(
-                new JdbcSqlExecutor(transactionFactory, interceptors),
+                sqlExecutor(transactionFactory, interceptors),
                 new SimpleTransactionalExecutor(transactionFactory)
             );
         }

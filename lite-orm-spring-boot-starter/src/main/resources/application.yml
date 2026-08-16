@@ -19,7 +19,9 @@ lite-orm:
   # 审计是否异步（默认true）
   audit-async: true
   
-  # Mapper扫描包路径（可选）
-  mapper-packages:
-    - com.example.mapper
-
+  # Mapper 包必须显式绑定到一个 Spring DataSource Bean
+  mapper-bindings:
+    - package-name: com.example.mapper
+      data-source: dataSource
+      # 同一 Mapper 包绑定多次时，用前缀生成不同的 Mapper Bean 名
+      bean-name-prefix: ""

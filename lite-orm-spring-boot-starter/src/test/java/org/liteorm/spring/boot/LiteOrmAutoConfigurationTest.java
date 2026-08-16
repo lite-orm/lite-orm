@@ -37,7 +37,10 @@ class LiteOrmAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(LiteOrmAutoConfiguration.class))
         .withUserConfiguration(TestConfiguration.class)
-        .withPropertyValues("lite-orm.mapper-packages=org.liteorm.spring.boot.fixture");
+        .withPropertyValues(
+            "lite-orm.mapper-bindings[0].package-name=org.liteorm.spring.boot.fixture",
+            "lite-orm.mapper-bindings[0].data-source=dataSource"
+        );
 
     @Test
     void assemblesGeneratedMapperWithOrderedJdbcExecutorInterceptors() {

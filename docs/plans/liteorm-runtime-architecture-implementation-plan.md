@@ -34,7 +34,7 @@
 - Singleton Mapper implementations, executors, factories, and interceptors must be safe for concurrent calls.
 - LiteORM closes JDBC resources it opens but does not implement a connection pool; the configured `DataSource` owns physical connection creation and pooling.
 - Core does not provide distributed transactions or silently coordinate commits across DataSources.
-- Multi-DataSource support is mandatory at three levels: assembly/package binding, compile-time Mapper/method binding, and typed dynamic routing for read/write, tenant, and shard scenarios.
+- First-stage multi-DataSource support binds Mapper packages to named Spring DataSource beans; dynamic routing is delegated to the configured DataSource implementation.
 
 ## Target Runtime Model
 
@@ -99,47 +99,30 @@ public interface TransactionCallback<T> {
 
 ## Multiple DataSource Design
 
-- One `JdbcSqlExecutor` is permanently assembled with one `TransactionFactory`, and therefore one `DataSource` domain.
-- `ExecutionPlan` contains statement behavior, not deployment routing. It does not contain a DataSource name, tenant key, shard key, or mutable route metadata.
-- Multiple DataSources are configured by creating multiple named executor graphs:
+- A Mapper package is statically bound to one named Spring `DataSource` bean through
+  `lite-orm.mapper-bindings[].data-source`.
+- The configured value may identify a physical connection pool or an application-provided routing
+  `DataSource` such as `AbstractRoutingDataSource` or dynamic-datasource.
+- Starter resolves the DataSource bean and uses `SpringTransactionFactory` plus core
+  `JdbcAssembly` to create the Mapper-facing `SqlExecutor`.
+- LiteORM does not create another dynamic-routing system, inspect third-party `@DS` annotations,
+  infer master/slave roles, or maintain a routing `ThreadLocal`.
+- `ExecutionPlan` contains statement behavior only and remains free of DataSource and routing data.
 
 ```text
-ordersDataSource -> ordersTransactionFactory -> ordersSqlExecutor -> OrdersMapperImpl
-usersDataSource  -> usersTransactionFactory  -> usersSqlExecutor  -> UsersMapperImpl
+physical DataSource or routing DataSource
+        -> SpringTransactionFactory
+        -> core JdbcAssembly
+        -> SqlExecutor
+        -> generated MapperImpl
 ```
 
-- **Level 1 — assembly/package binding:** the same generated Mapper implementation may be instantiated more than once with different qualified `SqlExecutor` instances. Spring selects the executor through explicit package rules and bean names; core selects it through explicit construction.
-- **Level 2 — compile-time static binding:** LiteORM provides `@UseDataSource("users")` on Mapper types and methods. A method annotation overrides the Mapper annotation, which overrides the assembly default. The compiler emits one constructor dependency per distinct static executor and generates a direct field call; it does not inspect annotations on the SQL hot path.
-- Generated static bindings use LiteORM-owned constructor parameter metadata such as `@ExecutorRef("users")`. The Spring registrar reads that metadata only during startup and injects the matching named `SqlExecutor`; generated code has no Spring dependency.
-- A Mapper with only one default DataSource keeps the single `SqlExecutor` constructor established in R1. A Mapper referencing multiple static DataSources receives multiple `SqlExecutor` constructor parameters in deterministic key order.
-- **Level 3 — typed dynamic routing:** read/write separation, tenant routing, and sharding use `@UseDataSource(provider = TenantRouteProvider.class)`. The provider implementation and input type are validated at compilation time and invoked through an ordinary Java call from generated code.
-- Dynamic routing uses an immutable `SqlExecutorRegistry` and performs one key lookup after the provider returns. Static routes never pay this lookup cost.
-- Dynamic providers receive typed route input plus immutable statement metadata so read/write routing can inspect statement type without parsing SQL:
-
-```java
-public interface DataSourceKeyProvider<P> {
-    String select(DataSourceSelection<P> selection);
-}
-
-public record DataSourceSelection<P>(
-        String statementId,
-        ExecutionPlan.StatementType statementType,
-        P parameter) {
-}
-
-public interface SqlExecutorRegistry {
-    SqlExecutor require(String dataSourceKey);
-}
-```
-
-- A dynamic provider Mapper method accepts zero or one route input. Multiple values must be wrapped in a record so provider invocation remains strongly typed and statically generated.
-- `@UseDataSource` cannot declare both a fixed value and a provider. Blank keys, inaccessible providers, incompatible generic types, missing provider constructors, and unknown statically configured executor keys fail with actionable diagnostics.
-- The selected executor key is resolved exactly once per Mapper invocation and cannot change between parameter binding, execution, and result extraction.
-- An active local transaction is bound to one executor/DataSource key. Selecting another key fails before connection acquisition; LiteORM never silently opens an unrelated connection inside that transaction.
-- Read/write routing is transaction-aware: once a transaction is active on the writer key, reads in that transaction remain pinned to the same writer executor.
-- Spring validates configured DataSource resources at invocation/assembly boundaries. If a transaction is active for one configured DataSource and a Mapper selects another without an external multi-resource transaction coordinator, execution fails clearly instead of pretending both calls share one transaction.
-- Cross-DataSource work uses two explicit transaction boundaries. Atomic distributed commit requires an external transaction system and is not implemented by core.
-- User-defined routing policy may be packaged as a higher-level executor/registry decorator, but it must not mutate `ExecutionPlan`, move a stateful `Transaction` between executors, or make `JdbcSqlExecutor` aware of tenant/shard policy.
+- The same generated Mapper implementation may be bound to multiple DataSources with distinct Spring
+  Mapper bean-name prefixes.
+- Dynamic read/write, tenant, or shard selection belongs to the configured DataSource implementation.
+  LiteORM treats routing and physical DataSources identically.
+- Method-level fixed DataSource annotations are deferred until a concrete requirement remains after
+  package binding and external routing DataSource support.
 
 ## Error and Cleanup Contract
 
@@ -522,28 +505,31 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 
 **Completion criteria:** Multiple DataSources work through composition of independent executor graphs with no hidden global state.
 
-### Module R6.2: Add Assembly and Package-Level Static Binding
+### Module R6.2: Bind Mapper Packages to Spring DataSources
 
 **Files:**
 - Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/LiteOrmProperties.java`
 - Modify: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/GeneratedMapperBeanDefinitionRegistrar.java`
+- Add: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/SpringJdbcSqlExecutorFactoryBean.java`
 - Add: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/PackageDataSourceBindingTest.java`
 - Update: `docs/extensions.md`
 
-- [ ] Write RED Spring context tests with `usersDataSource/usersSqlExecutor` and `ordersDataSource/ordersSqlExecutor`.
-- [ ] Define explicit package-to-executor rules such as `com.example.user -> usersSqlExecutor`; do not select a primary DataSource silently when more than one executor exists.
-- [ ] Require an unambiguous executor bean name for every configured Mapper package.
-- [ ] Register single-DataSource Mapper beans with the configured qualified `SqlExecutor` constructor argument.
-- [ ] Verify the same Mapper interface can be registered under distinct explicit bean names when intentionally used against two DataSources.
-- [ ] Fail startup for missing executor names, duplicate Mapper bean names, overlapping ambiguous package rules, or multiple unqualified executors.
-- [ ] Verify each `@Transactional(transactionManager = "...")` boundary uses the matching DataSource executor.
-- [ ] Run multi-DataSource starter tests and `mvn clean test`.
-- [ ] Commit with `feat: support package datasource binding`.
-- [ ] Push immediately.
+- [x] Write RED Spring context tests with `userDataSource` and `storeDataSource` beans.
+- [x] Define each binding as `package-name + data-source + optional bean-name-prefix`; do not add `*-ref`, router, or executor fields.
+- [x] Resolve `data-source` strictly as a named Spring `DataSource` bean and fail startup when missing or incompatible.
+- [x] Use `SpringTransactionFactory` and core `JdbcAssembly` to create one reusable executor per referenced DataSource.
+- [x] Register Mapper beans with the assembled executor while keeping generated constructors unchanged.
+- [x] Verify one Mapper implementation can bind to two DataSources through distinct bean-name prefixes.
+- [x] Verify an `AbstractRoutingDataSource` is accepted exactly like a physical DataSource.
+- [x] Fail startup for duplicate Mapper bean names and overlapping package rules.
+- [x] Verify each `@Transactional(transactionManager = "...")` boundary uses the matching DataSource executor.
+- [x] Run multi-DataSource starter tests and `mvn clean test`.
+- [x] Commit with `feat: support package datasource binding`.
+- [x] Push immediately.
 
-**Completion criteria:** Ordinary multi-DataSource applications bind Mapper packages or instances explicitly with no runtime routing overhead.
+**Completion criteria:** Mapper packages bind to physical or routing Spring DataSources without LiteORM owning dynamic routing.
 
-### Module R6.3: Compile Mapper and Method Static DataSource Bindings
+### Module R6.3: Re-evaluate Method-Level Static DataSource Binding
 
 **Files:**
 - Create: `lite-orm-core/src/main/java/org/liteorm/annotation/UseDataSource.java`
@@ -555,7 +541,9 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/multidatasource/staticbinding`
 - Add: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/StaticDataSourceAnnotationBindingTest.java`
 
-- [ ] Write RED compiler tests for Mapper-level `@UseDataSource("users")` and method-level `@UseDataSource("archive")`.
+- [ ] Confirm a real requirement remains after package binding and external routing DataSource support.
+- [ ] Do not implement this module during first-stage package binding.
+- [ ] If retained, write RED compiler tests for Mapper-level and method-level fixed DataSource names.
 - [ ] Define precedence as method annotation, then Mapper annotation, then assembly/package default.
 - [ ] Reject blank keys, conflicting fixed/provider declarations, and invalid annotation placement during compilation.
 - [ ] Collect distinct fixed keys per Mapper and sort them deterministically for generated constructor parameters.
@@ -573,61 +561,11 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 
 **Completion criteria:** Static class/method DataSource selection becomes ordinary generated Java field dispatch with zero hot-path annotation inspection.
 
-### Module R6.4: Add Typed Dynamic DataSource Providers
+### Deferred: LiteORM-Owned Dynamic Routing
 
-**Files:**
-- Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceKeyProvider.java`
-- Create: `lite-orm-core/src/main/java/org/liteorm/api/DataSourceSelection.java`
-- Create: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutorRegistry.java`
-- Create: `lite-orm-core/src/main/java/org/liteorm/runtime/ImmutableSqlExecutorRegistry.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/annotation/UseDataSource.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/MapperCompilationModel.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
-- Add tests under: `lite-orm-core/src/test/java/org/liteorm/test/multidatasource/dynamicrouting`
-
-- [ ] Write RED compiler tests for `@UseDataSource(provider = TenantRouteProvider.class)` with zero and one Mapper argument.
-- [ ] Define `DataSourceSelection<P>` as immutable statement ID, statement type, and typed route argument.
-- [ ] Require multiple routing inputs to be wrapped in one record; reject multi-parameter provider methods with an actionable diagnostic.
-- [ ] Validate provider visibility, generic input compatibility, accessible no-arg constructor, and nonblank returned key.
-- [ ] Generate one final provider instance and one `SqlExecutorRegistry` dependency only for Mappers that use dynamic routing.
-- [ ] Generate a direct provider call followed by exactly one `registry.require(key)` lookup before execution.
-- [ ] Reject unknown keys through a dedicated configuration/routing exception that includes Mapper statement ID and selected key.
-- [ ] Keep `ExecutionPlan` free of DataSource keys, tenant values, shard values, and routing policy.
-- [ ] Add a read/write provider fixture that selects writer for INSERT/UPDATE/DELETE and reader for SELECT outside transactions.
-- [ ] Add tenant and shard fixtures that select executors from a typed record input.
-- [ ] Assert generated source contains no reflection, runtime annotation parsing, OGNL, SpEL, or SQL-text parsing for routing.
-- [ ] Verify the immutable registry is safe for concurrent singleton Mapper use.
-- [ ] Run focused provider, generator, concurrency, and core tests.
-- [ ] Commit with `feat: add typed datasource routing providers`.
-- [ ] Push immediately.
-
-**Completion criteria:** Dynamic read/write, tenant, and shard selection is an explicit typed escape hatch without restoring reflective Mapper dispatch.
-
-### Module R6.5: Enforce Transaction-Safe Routing
-
-**Files:**
-- Modify transaction scope types under: `lite-orm-core/src/main/java/org/liteorm/transaction`
-- Modify: `lite-orm-core/src/main/java/org/liteorm/runtime/ImmutableSqlExecutorRegistry.java`
-- Modify Spring transaction/routing types under: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot`
-- Add: `lite-orm-core/src/test/java/org/liteorm/test/multidatasource/MultiDataSourceTransactionRoutingTest.java`
-- Add: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/MultiDataSourceTransactionRoutingTest.java`
-
-- [ ] Write RED tests proving a local transaction opened for `users` rejects routing to `orders` before `ordersDataSource#getConnection()` is called.
-- [ ] Bind the active simple transaction to an immutable executor/DataSource key as well as the current thread.
-- [ ] Pin read/write routing to the writer executor for every call inside an active writer transaction.
-- [ ] Verify nested callbacks cannot switch DataSource keys and always release the original binding on commit, rollback, callback failure, and cleanup failure.
-- [ ] Verify two threads can hold transactions for different keys concurrently without observing each other's route or connection.
-- [ ] In Spring, inspect configured transaction-bound DataSource resources and reject selection of a different configured DataSource unless an explicitly supplied external multi-resource coordinator owns the boundary.
-- [ ] Verify `@Transactional(transactionManager = "usersTransactionManager")` uses `usersSqlExecutor` and rejects an `orders` method/provider route in the same boundary.
-- [ ] Verify separate explicit Spring transaction boundaries can independently commit work to two DataSources without claiming atomicity.
-- [ ] Preserve the original SQL/transaction failure and attach route validation or cleanup failures as suppressed exceptions where applicable.
-- [ ] Document that XA/JTA/Seata-style atomic coordination belongs to an external integration, not core.
-- [ ] Run focused transaction, concurrency, Spring, and full reactor tests.
-- [ ] Commit with `feat: enforce datasource transaction boundaries`.
-- [ ] Push immediately.
-
-**Completion criteria:** No static or dynamic route can silently escape the active transaction's DataSource domain.
+- [ ] Do not add LiteORM SQL-type, read/write, tenant, or shard routing during the first stage.
+- [ ] Accept physical and routing Spring DataSource implementations through the same `data-source` binding.
+- [ ] Revisit a core routing SPI only if DataSource-level routing cannot satisfy a demonstrated requirement.
 
 ---
 
@@ -765,9 +703,9 @@ Dynamic Mapper route -> DataSourceKeyProvider -> SqlExecutorRegistry -> named Sq
 - [ ] `Transaction` is the single connection/commit/rollback/close abstraction.
 - [ ] Standalone and Spring transaction implementations pass the same lifecycle characterization suite.
 - [ ] Multiple DataSources are isolated through explicit executor graphs and qualifiers.
-- [ ] Package/Mapper static binding, method-level static override, and typed dynamic routing providers are all implemented and documented.
-- [ ] Fixed `@UseDataSource` routes compile to direct executor field calls with no hot-path annotation reflection or registry lookup.
-- [ ] Dynamic read/write, tenant, and shard routes use typed providers, one registry lookup, and transaction-domain validation.
+- [ ] Mapper packages bind to named physical or routing Spring DataSource beans.
+- [ ] Method-level static DataSource binding is implemented only if a concrete requirement remains after first-stage integration.
+- [ ] Dynamic read/write, tenant, and shard routing remains owned by the configured DataSource implementation.
 - [ ] Cross-DataSource calls cannot silently escape an active local or Spring transaction boundary.
 - [ ] Fixed JDBC phases are not configurable processors.
 - [ ] Runtime and compiler singletons are concurrency-safe.
