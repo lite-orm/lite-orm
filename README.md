@@ -19,6 +19,23 @@ Run the full repository verification with:
 mvn clean test
 ```
 
+## Performance Baseline
+
+The Core GA JMH baseline compares generated LiteORM Mappers, MyBatis, and Direct JDBC with the same H2 DataSource, schema, SQL parameters, connection/session lifecycle, and consumed results. Lower `µs/op` is better. "LiteORM faster" is calculated as `(MyBatis - LiteORM) / MyBatis`.
+
+| Scenario | LiteORM µs/op | MyBatis µs/op | Direct JDBC µs/op | LiteORM faster than MyBatis |
+| --- | ---: | ---: | ---: | ---: |
+| Scalar query | 3.477 | 4.239 | 2.475 | 18.0% |
+| Record mapping | 3.916 | 5.803 | 2.940 | 32.5% |
+| JavaBean mapping | 3.946 | 5.924 | 2.803 | 33.4% |
+| Dynamic SQL, one row | 27.013 | 28.455 | 25.184 | 5.1% |
+| Cursor, ten rows | 3.362 | 8.969 | 3.226 | 62.5% |
+| Local transaction + scalar | 4.146 | 4.284 | 2.680 | 3.2% |
+| JDBC batch, 100 rows | 41.319 | 71.573 | 40.021 | 42.3% |
+| Generated key | 3.229 | 4.772 | 2.766 | 32.3% |
+
+In this controlled fixture LiteORM is 3.2%–62.5% faster than MyBatis across the measured scenarios, while Direct JDBC remains the lower-bound reference. These are framework-overhead measurements on H2, not PostgreSQL/MySQL production-latency claims. See the [full protocol, allocation results, and JFR observations](docs/benchmarks/core-ga-baseline.md).
+
 ## Compile-Time Model
 
 Supported first-stage inputs include:

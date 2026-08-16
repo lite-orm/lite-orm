@@ -101,6 +101,23 @@ import org.liteorm.annotation.Select;
 mvn clean test
 ```
 
+## 性能基线
+
+Core GA 使用 JMH 在相同 H2 DataSource、schema、SQL 参数、连接/Session 生命周期和结果消费方式下，对比 LiteORM 生成 Mapper、MyBatis 与 Direct JDBC。`µs/op` 越低越好；“LiteORM 比 MyBatis 快”按 `(MyBatis - LiteORM) / MyBatis` 计算。
+
+| 场景 | LiteORM µs/op | MyBatis µs/op | Direct JDBC µs/op | LiteORM 比 MyBatis 快 |
+| --- | ---: | ---: | ---: | ---: |
+| 标量查询 | 3.477 | 4.239 | 2.475 | 18.0% |
+| Record 映射 | 3.916 | 5.803 | 2.940 | 32.5% |
+| JavaBean 映射 | 3.946 | 5.924 | 2.803 | 33.4% |
+| 动态 SQL，返回一行 | 27.013 | 28.455 | 25.184 | 5.1% |
+| 游标消费十行 | 3.362 | 8.969 | 3.226 | 62.5% |
+| 本地事务加标量查询 | 4.146 | 4.284 | 2.680 | 3.2% |
+| JDBC Batch，一百行 | 41.319 | 71.573 | 40.021 | 42.3% |
+| 生成键 | 3.229 | 4.772 | 2.766 | 32.3% |
+
+在这个受控夹具中，LiteORM 在所有已测场景比 MyBatis 快 3.2%–62.5%，Direct JDBC 作为理论下界参考。该结果衡量的是 H2 上的框架开销，不代表 PostgreSQL/MySQL 的线上延迟；完整协议、分配量和 JFR 观察见 [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)。
+
 ## 架构总览
 
 ```text
