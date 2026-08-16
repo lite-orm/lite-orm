@@ -3,6 +3,7 @@ package org.liteorm.jdbc;
 import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.ConnectionHandleFactory;
+import org.liteorm.api.CursorCallback;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPlan;
@@ -10,6 +11,7 @@ import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.RowMapper;
 import org.liteorm.api.ResultColumn;
+import org.liteorm.api.RowCursor;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
@@ -122,6 +124,66 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         }
     }
 
+    @Override
+    public <T, R> R queryCursor(ExecutionPlan plan, CursorCallback<T, R> callback) {
+        validateCursor(plan, callback);
+        long startedAt = System.nanoTime();
+        List<ExecutionInterceptor> entered = new ArrayList<>(interceptors.size());
+        ConnectionHandle connectionHandle = null;
+        PreparedStatement statement = null;
+        ResultSet resultSet = null;
+        JdbcRowCursor<T> cursor = null;
+        JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
+        Throwable primaryFailure = null;
+
+        try {
+            invokeBefore(plan, entered);
+            connectionHandle = Objects.requireNonNull(
+                connectionHandleFactory.openHandle(), "connectionHandleFactory returned null");
+            Connection connection = Objects.requireNonNull(
+                connectionHandle.connection(), "connectionHandle returned null connection");
+            statement = prepare(connection, plan);
+            applyOptions(statement, plan.getStatementOptions());
+            bind(statement, plan.getParameters(), plan.getParameterBinders());
+            executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
+            resultSet = statement.executeQuery();
+            executionState = JdbcExecutionState.EXECUTED;
+            cursor = new JdbcRowCursor<>(resultSet, rowMapper(plan));
+            R callbackResult = callback.consume(cursor);
+            invokeSuccess(entered, ExecutionOutcome.success(
+                plan, executionState, elapsed(startedAt), 0, cursor.rowsRead()));
+            return callbackResult;
+        } catch (Throwable failure) {
+            primaryFailure = failure;
+            int rowsRead = cursor == null ? 0 : cursor.rowsRead();
+            invokeFailure(entered, ExecutionOutcome.failure(
+                plan, executionState, elapsed(startedAt), 0, rowsRead, failure));
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            if (failure instanceof CursorReadException cursorFailure) {
+                primaryFailure = cursorFailure.getCause();
+                throw new SqlExecutionException(plan, executionState, cursorFailure.getCause());
+            }
+            if (failure instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            throw new SqlExecutionException(plan, executionState, failure);
+        } finally {
+            if (cursor != null) {
+                cursor.deactivate();
+            }
+            Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
+            if (cleanupFailure != null) {
+                if (primaryFailure != null) {
+                    appendFlattened(primaryFailure, cleanupFailure);
+                } else {
+                    throw new SqlExecutionException(plan, executionState, cleanupFailure);
+                }
+            }
+        }
+    }
+
     private void validate(ExecutionPlan plan) {
         Objects.requireNonNull(plan, "plan");
         if (plan.getSql().isBlank()) {
@@ -135,6 +197,22 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                 && plan.getStatementType() != ExecutionPlan.StatementType.INSERT) {
             throw new IllegalArgumentException("Generated keys require an INSERT plan");
         }
+    }
+
+    private <T, R> void validateCursor(ExecutionPlan plan, CursorCallback<T, R> callback) {
+        validate(plan);
+        Objects.requireNonNull(callback, "callback");
+        if (plan.getStatementType() != ExecutionPlan.StatementType.SELECT) {
+            throw new IllegalArgumentException("Cursor queries require a SELECT plan");
+        }
+        if (plan.getRowMapper() == null) {
+            throw new IllegalArgumentException("Cursor queries require a RowMapper");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> RowMapper<T> rowMapper(ExecutionPlan plan) {
+        return (RowMapper<T>) plan.getRowMapper();
     }
 
     private void invokeBefore(ExecutionPlan plan, List<ExecutionInterceptor> entered) {
@@ -274,6 +352,71 @@ public final class JdbcSqlExecutor implements SqlExecutor {
     }
 
     private record QueryRows(List<ResultColumn> columns, List<Object[]> rows) {
+    }
+
+    private static final class JdbcRowCursor<T> implements RowCursor<T> {
+
+        private final ResultSet resultSet;
+        private final RowMapper<T> rowMapper;
+        private boolean active = true;
+        private boolean positioned;
+        private T current;
+        private int rowsRead;
+
+        private JdbcRowCursor(ResultSet resultSet, RowMapper<T> rowMapper) {
+            this.resultSet = resultSet;
+            this.rowMapper = rowMapper;
+        }
+
+        @Override
+        public boolean next() {
+            requireActive();
+            try {
+                if (!resultSet.next()) {
+                    positioned = false;
+                    current = null;
+                    return false;
+                }
+                current = rowMapper.map(resultSet);
+                positioned = true;
+                rowsRead++;
+                return true;
+            } catch (SQLException exception) {
+                throw new CursorReadException(exception);
+            }
+        }
+
+        @Override
+        public T current() {
+            requireActive();
+            if (!positioned) {
+                throw new IllegalStateException("Cursor is not positioned on a row");
+            }
+            return current;
+        }
+
+        private int rowsRead() {
+            return rowsRead;
+        }
+
+        private void deactivate() {
+            active = false;
+            positioned = false;
+            current = null;
+        }
+
+        private void requireActive() {
+            if (!active) {
+                throw new IllegalStateException("Cursor is no longer active");
+            }
+        }
+    }
+
+    private static final class CursorReadException extends RuntimeException {
+
+        private CursorReadException(SQLException cause) {
+            super(cause);
+        }
     }
 
     private Throwable closeResources(

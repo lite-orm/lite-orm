@@ -83,6 +83,13 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
             .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
         code.append("        ExecutionPlan executionPlan = ").append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
+        if (methodModel.cursorCallbackParameterName() != null) {
+            code.append("        return sqlExecutor.queryCursor(executionPlan, ")
+                .append(methodModel.cursorCallbackParameterName()).append(");\n");
+            code.append("    }\n\n");
+            code.append(generateExecutionPlanFactory(methodModel));
+            return code.toString();
+        }
         code.append("        SqlResult executionResult = sqlExecutor.execute(executionPlan);\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
@@ -250,7 +257,7 @@ public class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
         code.append("    private ExecutionPlan ").append(methodModel.executionPlanFactoryName()).append("(")
-            .append(methodModel.parameterList()).append(") {\n");
+            .append(methodModel.executionPlanParameterList()).append(") {\n");
 
         if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
             SqlParameterParser.MethodParameter collection = methodModel.methodParameters().get(0);

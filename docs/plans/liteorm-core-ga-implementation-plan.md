@@ -366,15 +366,16 @@ Implementation status: Completed and verified on 2026-08-16 with focused executo
 - Modify: `lite-orm-core/src/main/java/org/liteorm/api/SqlExecutor.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/jdbc/JdbcSqlExecutor.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
+- Modify: `lite-orm-core/src/main/java/org/liteorm/compile/MapperCompilationModel.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/FreemarkerCodeGenerator.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcCursorExecutionTest.java`
 - Test: `lite-orm-core/src/test/java/org/liteorm/test/CursorCompilationTest.java`
 
-- [ ] **Step 1: Write RED cursor lifecycle tests**
+- [x] **Step 1: Write RED cursor lifecycle tests**
 
 Verify rows are read one at a time, callback return closes result set/statement/handle, callback failure still closes resources, cursor access after callback fails, and no `List<Object[]>` materialization occurs.
 
-- [ ] **Step 2: Define callback-scoped consumption**
+- [x] **Step 2: Define callback-scoped consumption**
 
 ```java
 @FunctionalInterface
@@ -390,7 +391,7 @@ public interface RowCursor<T> {
 
 Do not return `Stream<T>` because its lazy lifecycle can escape the executor boundary.
 
-- [ ] **Step 3: Add a dedicated executor method**
+- [x] **Step 3: Add a dedicated executor method**
 
 ```java
 <T, R> R queryCursor(ExecutionPlan plan, CursorCallback<T, R> callback);
@@ -398,19 +399,21 @@ Do not return `Stream<T>` because its lazy lifecycle can escape the executor bou
 
 Require SELECT plans and a typed `RowMapper<T>`.
 
-- [ ] **Step 4: Add generated Mapper support for callback cursor methods**
+- [x] **Step 4: Add generated Mapper support for callback cursor methods**
 
 Support only an explicit callback parameter shape. Reject raw cursor returns and unsupported generic shapes at compile time.
 
-- [ ] **Step 5: Run cursor, compiler, and core tests**
+- [x] **Step 5: Run cursor, compiler, and core tests**
 
 Run: `mvn -pl lite-orm-core test`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit: `feat: add scope-bound cursor queries`
+
+Implementation status: Completed and verified on 2026-08-16 with lazy one-row-at-a-time JDBC tests, callback/resource failure coverage, post-callback cursor invalidation, generated Mapper callback-shape diagnostics, all 155 core tests, and the full Maven reactor.
 
 ---
 

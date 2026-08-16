@@ -14,6 +14,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
+import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
@@ -206,11 +207,25 @@ public class CompilePipeline {
             validateDynamicExpressions(mapperInterface, method, sqlInfo.astNode());
             warnWhenXmlOverridesAnnotation(mapperInterface, method, sqlInfo);
         }
-        
+
+        ExecutionPlan.StatementType statementType = providerBinding == null
+            ? mapStatementType(sqlInfo.sqlType())
+            : providerBinding.statementType();
+        CursorMethod cursorMethod = analyzeCursorMethod(
+            mapperInterface, method, resolvedMethodType, statementType);
+
         // 2. 生成标准化参数模型和绑定顺序
+        List<VariableElement> executionParameters = new ArrayList<>();
+        List<TypeMirror> executionParameterTypes = new ArrayList<>();
+        for (int index = 0; index < method.getParameters().size(); index++) {
+            if (cursorMethod != null && cursorMethod.parameterIndex() == index) {
+                continue;
+            }
+            executionParameters.add(method.getParameters().get(index));
+            executionParameterTypes.add(resolvedMethodType.getParameterTypes().get(index));
+        }
         List<SqlParameterParser.MethodParameter> methodParameters =
-            parameterParser.describeMethodParameters(
-                method.getParameters(), resolvedMethodType.getParameterTypes());
+            parameterParser.describeMethodParameters(executionParameters, executionParameterTypes);
         SqlParameterParser.SqlParseResult parameterResult = new SqlParameterParser.SqlParseResult(
             sqlInfo == null ? "" : sqlInfo.sqlTemplate(), List.of());
         if (sqlInfo != null && !sqlInfo.isDynamic()) {
@@ -225,17 +240,16 @@ public class CompilePipeline {
         }
 
         AdapterBindings adapterBindings = analyzeAdapterBindings(
-            mapperInterface, method, resolvedMethodType, sqlInfo, providerBinding,
+            mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
             methodParameters, parameterResult.bindings());
 
         // 3. 构建方法信息
         String methodName = method.getSimpleName().toString();
         String returnType = resolvedMethodType.getReturnType().toString();
         String parameterList = buildParameterList(method, resolvedMethodType);
+        String executionPlanParameterList = buildParameterList(
+            method, resolvedMethodType, cursorMethod == null ? -1 : cursorMethod.parameterIndex());
         boolean generatedKey = method.getAnnotation(org.liteorm.annotation.GeneratedKey.class) != null;
-        ExecutionPlan.StatementType statementType = providerBinding == null
-            ? mapStatementType(sqlInfo.sqlType())
-            : providerBinding.statementType();
         validateWriteReturnType(mapperInterface, method, statementType, returnType, generatedKey);
         if (generatedKey) {
             validateGeneratedKeyMethod(
@@ -247,6 +261,8 @@ public class CompilePipeline {
         }
         ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
             ? new ResultMapping("", "", List.of())
+            : cursorMethod != null
+                ? new ResultMapping("", "", List.of())
             : adapterBindings.rowMapperFieldName() == null
                 ? generateResultMapping(mapperInterface, method, returnType)
                 : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
@@ -274,12 +290,15 @@ public class CompilePipeline {
             adapterBindings.rowMapperFieldName(),
             methodParameters,
             parameterResult.bindings(),
-            sqlInfo == null ? null : sqlInfo.astNode()
+            sqlInfo == null ? null : sqlInfo.astNode(),
+            executionPlanParameterList,
+            cursorMethod == null ? null : cursorMethod.parameterName()
         );
     }
 
     private AdapterBindings analyzeAdapterBindings(
             TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod,
             SqlContentParser.SqlParseResult sqlInfo, ProviderBinding providerBinding,
             List<SqlParameterParser.MethodParameter> methodParameters,
             List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
@@ -297,6 +316,9 @@ public class CompilePipeline {
         java.util.Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters =
             new java.util.LinkedHashMap<>();
         for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
+            if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
+                continue;
+            }
             VariableElement parameter = method.getParameters().get(parameterIndex);
             AnnotationMirror annotation = findAnnotation(
                 parameter, "org.liteorm.annotation.UseParameterBinder");
@@ -316,7 +338,11 @@ public class CompilePipeline {
         }
 
         if (sqlInfo != null && sqlInfo.isDynamic()) {
-            for (VariableElement parameter : method.getParameters()) {
+            for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
+                if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
+                    continue;
+                }
+                VariableElement parameter = method.getParameters().get(parameterIndex);
                 MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
                 binderFields.add(adapterField == null ? null : adapterField.fieldName());
             }
@@ -348,15 +374,21 @@ public class CompilePipeline {
             if (statementType != ExecutionPlan.StatementType.SELECT && !generatedKeyInsert) {
                 throw new CompileException(methodLocation + ": row mapper requires a SELECT method");
             }
-            String mappedType = extractMappedType(resolvedMethodType.getReturnType().toString());
+            String mappedType = cursorMethod == null
+                ? extractMappedType(resolvedMethodType.getReturnType().toString())
+                : cursorMethod.rowType().toString();
             TypeElement mappedTypeElement = elementUtils.getTypeElement(mappedType);
             TypeMirror mappedTypeMirror = mappedTypeElement == null
-                ? resolvedMethodType.getReturnType() : mappedTypeElement.asType();
+                ? cursorMethod == null ? resolvedMethodType.getReturnType() : cursorMethod.rowType()
+                : mappedTypeElement.asType();
             TypeElement rowMapperElement = validateAdapter(
                 mapperInterface, method, annotationTypeValue(rowMapperAnnotation, "value"),
                 "org.liteorm.api.RowMapper", mappedTypeMirror, "row mapper target type");
             rowMapperField = method.getSimpleName() + "RowMapper";
             addAdapterField(fields, rowMapperElement, rowMapperField);
+        }
+        if (cursorMethod != null && rowMapperField == null) {
+            throw new CompileException(methodLocation + ": cursor methods require @UseRowMapper");
         }
         return new AdapterBindings(
             List.copyOf(fields),
@@ -367,9 +399,12 @@ public class CompilePipeline {
 
     private VariableElement findMethodParameter(
             ExecutableElement method, List<SqlParameterParser.MethodParameter> descriptions, String alias) {
-        for (int index = 0; index < descriptions.size(); index++) {
-            if (descriptions.get(index).aliases().contains(alias)) {
-                return method.getParameters().get(index);
+        for (SqlParameterParser.MethodParameter description : descriptions) {
+            if (description.aliases().contains(alias)) {
+                return method.getParameters().stream()
+                    .filter(parameter -> parameter.getSimpleName().contentEquals(description.declaredName()))
+                    .findFirst()
+                    .orElse(null);
             }
         }
         return null;
@@ -712,6 +747,59 @@ public class CompilePipeline {
         }
     }
 
+    private CursorMethod analyzeCursorMethod(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            ExecutionPlan.StatementType statementType) throws CompileException {
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        TypeMirror returnType = resolvedMethodType.getReturnType();
+        if (isType(returnType, "org.liteorm.api.RowCursor")
+                || isType(returnType, "java.util.stream.Stream")) {
+            throw new CompileException(location + ": cursor rows cannot escape the callback scope");
+        }
+
+        CursorMethod cursorMethod = null;
+        for (int index = 0; index < resolvedMethodType.getParameterTypes().size(); index++) {
+            TypeMirror parameterType = resolvedMethodType.getParameterTypes().get(index);
+            if (!isType(parameterType, "org.liteorm.api.CursorCallback")) {
+                continue;
+            }
+            if (cursorMethod != null) {
+                throw new CompileException(location + ": cursor methods require exactly one CursorCallback<T, R>");
+            }
+            if (!(parameterType instanceof DeclaredType declaredType)
+                    || declaredType.getTypeArguments().size() != 2) {
+                throw new CompileException(location + ": CursorCallback must declare row and result types");
+            }
+            cursorMethod = new CursorMethod(
+                index,
+                method.getParameters().get(index).getSimpleName().toString(),
+                declaredType.getTypeArguments().get(0),
+                declaredType.getTypeArguments().get(1)
+            );
+        }
+        if (cursorMethod == null) {
+            return null;
+        }
+        if (statementType != ExecutionPlan.StatementType.SELECT) {
+            throw new CompileException(location + ": cursor methods require a SELECT statement");
+        }
+        TypeMirror comparableReturnType = returnType.getKind().isPrimitive()
+            ? typeUtils.boxedClass((PrimitiveType) returnType).asType()
+            : returnType;
+        if (!typeUtils.isSameType(comparableReturnType, cursorMethod.resultType())) {
+            throw new CompileException(location + ": cursor callback result type " + cursorMethod.resultType()
+                + " does not match Mapper return type " + returnType);
+        }
+        return cursorMethod;
+    }
+
+    private boolean isType(TypeMirror type, String qualifiedName) {
+        return type.getKind() != TypeKind.VOID
+            && typeUtils.erasure(type).toString().equals(qualifiedName);
+    }
+
     private String findUnresolvedGenericType(TypeMirror type) {
         if (type.getKind() == TypeKind.TYPEVAR || type.getKind() == TypeKind.WILDCARD) {
             return type.toString();
@@ -859,8 +947,16 @@ public class CompilePipeline {
      * 构建参数列表字符串
      */
     private String buildParameterList(ExecutableElement method, ExecutableType resolvedMethodType) {
+        return buildParameterList(method, resolvedMethodType, -1);
+    }
+
+    private String buildParameterList(
+            ExecutableElement method, ExecutableType resolvedMethodType, int excludedParameterIndex) {
         List<String> params = new ArrayList<>();
         for (int index = 0; index < method.getParameters().size(); index++) {
+            if (index == excludedParameterIndex) {
+                continue;
+            }
             VariableElement param = method.getParameters().get(index);
             String paramType = resolvedMethodType.getParameterTypes().get(index).toString();
             String paramName = param.getSimpleName().toString();
@@ -1073,6 +1169,10 @@ public class CompilePipeline {
     }
 
     private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {
+    }
+
+    private record CursorMethod(
+        int parameterIndex, String parameterName, TypeMirror rowType, TypeMirror resultType) {
     }
     
     /**

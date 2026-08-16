@@ -41,7 +41,9 @@ public record MapperCompilationModel(
         String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
         List<SqlParameterParser.ParameterBinding> parameterBindings,
-        AstNode astNode
+        AstNode astNode,
+        String executionPlanParameterList,
+        String cursorCallbackParameterName
     ) {
         public MethodModel(
             String methodName,
@@ -71,7 +73,7 @@ public record MapperCompilationModel(
                 sourceType, sqlTemplate, dynamic, false, resultType, resultMappingCode,
                 resultMappingHelperCode, resultColumnLabels, providerClassName, providerFieldName, providerArgumentExpression,
                 adapterFields, parameterBinderFields, rowMapperFieldName, methodParameters, parameterBindings,
-                astNode);
+                astNode, parameterList, null);
         }
     }
 
