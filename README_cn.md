@@ -1,254 +1,333 @@
-# lite-orm
+# LiteORM
 
-`lite-orm` 是一个以编译期代码生成为核心的 Java ORM 实验项目。它不是要复刻一个更轻的 MyBatis，而是要验证并产品化一个更明确的方向：
+LiteORM 是一个面向 Java 的编译期 ORM：在 javac 注解处理阶段读取 Mapper 接口、SQL 注解和 Mapper XML，生成普通 Java `*MapperImpl`，把 SQL 渲染、参数顺序和结果映射尽可能前移到编译期。
 
-> 把 MyBatis 传统上在运行期完成的 Mapper 分发、SQL 渲染、参数绑定和结果映射，尽可能前移到编译期，生成可审查、可调试、可执行的静态 Java 代码。
+它的目标不是复刻完整 MyBatis，而是提供一条更静态、更透明的 Mapper 执行路径：
 
-这个项目的核心资产不是运行时代理，而是编译期模型、动态 SQL AST、代码生成器和一条尽量薄的运行时 JDBC 执行链。
+- Mapper 调用不经过运行期代理和反射分发；
+- 常见动态 SQL 被编译为生成代码中的 Java 分支和循环；
+- 生成 Mapper 只依赖一个 `SqlExecutor`；
+- core 保持 Spring-neutral，可独立使用，也可接入 Spring Boot；
+- 一个 Mapper 只属于一个 DataSource 域，多 DataSource 使用互不重叠的 Mapper 包。
 
-首个 GA 版本明确支持和明确不支持的边界见 [Core GA 契约](docs/core-ga-contract.md)。
+当前版本要求 Java 21。首个 GA 的稳定范围见 [Core GA 契约](docs/core-ga-contract.md)。
 
-## 核心定位
+## Quick Start
 
-### 我们要做什么
+下面先以 Spring Boot 应用为例完成最小接入。Standalone JDBC 装配见后文。
 
-- 生成 Mapper 接口的静态实现类，避免运行期 Mapper 代理和反射分发。
-- 将注解和 XML 中的 SQL 解析为统一编译期模型。
-- 将常见 MyBatis 动态 SQL 编译成 Java 条件分支、循环和 SQL renderer。
-- 在编译期确定参数绑定顺序、SQL 来源、statement 类型和返回形状。
-- 运行期只负责连接、事务、参数绑定、SQL 执行和结果提取这些 JDBC 物理步骤。
-- 保留 MyBatis 风格的 Mapper 编写习惯，让现有项目可以渐进迁移。
+### 1. 添加依赖
 
-### 我们暂时不做什么
+```xml
+<dependency>
+    <groupId>org.liteorm</groupId>
+    <artifactId>lite-orm-spring-boot-starter</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
 
-`lite-orm` 当前阶段不追求 MyBatis 全量无差异兼容。下面这些能力属于后续迭代或明确非 MVP 目标：
+当前仓库版本尚为 SNAPSHOT；在本仓库中开发或运行外部示例前，可先安装到本地 Maven 仓库：
 
-- MyBatis 插件体系的完整兼容。
-- 任意 OGNL 表达式和所有历史 XML 特性。
-- 复杂 `resultMap` 图谱、延迟加载、分步查询、一对多聚合。
-- 二级缓存、分页 DSL、分库分表、多租户、读写分离。
-- 分布式事务和完整企业级治理能力。
+```bash
+mvn -DskipTests install
+```
 
-这些能力可以作为平台化方向演进，但不能混入第一阶段目标。第一阶段要先把“编译期 Mapper 子集替代”做扎实。
+建议显式启用 LiteORM 注解处理器：
 
-## 为什么不是重复造 MyBatis
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <proc>full</proc>
+        <annotationProcessors>
+            <annotationProcessor>org.liteorm.compile.LiteOrmProcessor</annotationProcessor>
+        </annotationProcessors>
+    </configuration>
+</plugin>
+```
 
-MyBatis 的优势是生态成熟、兼容性强、动态 SQL 表达力好。但它的核心模型仍然偏运行期：Mapper 代理、XML/配置解析、参数解析、映射规则等行为大多隐藏在运行时框架内部。
-
-`lite-orm` 的差异化是把这些行为显式化为编译期产物：
-
-| 维度 | MyBatis | lite-orm 目标 |
-| --- | --- | --- |
-| Mapper 调用 | 运行期代理和方法分发 | 编译期生成实现类，普通 Java 调用 |
-| SQL 动态逻辑 | 运行期解释 XML/OGNL | 编译期生成 Java renderer |
-| 参数绑定 | 运行期解析参数名和属性路径 | 编译期确定绑定顺序 |
-| 结果映射 | 运行期映射规则和反射路径较多 | 编译期生成静态映射代码 |
-| 调试体验 | XML 和代理链偏黑盒 | 生成代码可读、可断点 |
-| 静态分析 | 行为隐藏在框架内部 | 模型和生成代码可被 IDE/AI 分析 |
-
-因此，项目真正的方向不是“小 MyBatis”，而是：
-
-> 编译期 Mapper 平台。
-
-## 当前实现状态
-
-当前仓库已经具备一条可验证的核心闭环：
-
-- `lite-orm-core`
-  - `LiteOrmProcessor` 扫描 `@Mapper` 接口。
-  - `CompilePipeline` 统一 XML 和注解 SQL 输入。
-  - `XmlBasedSqlParser` 和 `AnnotationBasedSqlParser` 解析 SQL 来源。
-  - `AstNode` 表示动态 SQL 结构。
-  - `FreemarkerCodeGenerator` 生成 Mapper 实现和执行计划。
-  - 提供不可变执行计划、固定 `JdbcSqlExecutor` 生命周期、执行观察、Standalone 装配和最小本地事务。
-- `lite-orm-spring-boot-starter`
-  - 提供 Spring Boot 自动配置入口。
-  - 扫描并注册编译期生成的 Mapper 实现。
-  - 按显式 Mapper 包与 DataSource 绑定注册生成类，并通过 Spring JDBC 参与宿主事务。
-- `lite-orm-benchmarks`
-  - 使用 JMH 对比相同 H2 schema 和 SQL 下的 Direct JDBC、LiteORM 生成 Mapper 与 MyBatis；普通构建只编译和验证夹具，不自动运行耗时基准。
-
-编译期与运行期闭环已经可用。旧 `*Engine`、processor chain、可变 `ExecutionContext`、连接提供器/事务协调器和全局配置单例已经物理删除。生成 Mapper 只依赖 `SqlExecutor`；core 提供固定 JDBC 执行器，Spring 通过事务适配器参与连接生命周期。
-
-`org.liteorm.compile` 中只有 javac 需要加载的 `LiteOrmProcessor` 是公共类型；SQL 解析器、AST、编译模型和代码生成器均为内部实现，不作为应用扩展 API。
-
-已验证能力包括：
-
-- LiteORM 自有 `org.liteorm.annotation` 注解；项目不在 MyBatis/iBatis 命名空间下发布任何类。
-- 使用 `org.liteorm.annotation.Mapper` 声明的 MyBatis 风格 Mapper 接口。
-- `@Select`、`@Insert`、`@Update`、`@Delete` 注解输入。
-- XML-backed Mapper 方法。
-- `@Param`、`param1`、`arg0`、`list`、`collection`、`array` 等常见参数命名。
-- 动态 SQL 标签：`if`、`choose`、`when`、`otherwise`、`trim`、`where`、`set`、`foreach`、`sql`、`include`。
-- JDBC 批处理：注解 `@Batch` 与 XML `<batch>`，编译期生成逐项参数绑定循环，返回 JDBC `int[]` 更新计数。
-- 单列生成键：使用 `@GeneratedKey("id")` 显式声明键列，JDBC prepare 阶段只请求该列，避免 PostgreSQL 默认返回整行。
-- 静态执行计划、静态参数绑定、基础静态结果映射。
-- LiteORM 本地事务和 Spring 托管事务参与。
-
-典型导入如下：
+### 2. 定义结果类型和 Mapper
 
 ```java
+package com.example.user.mapper;
+
+public record User(Long id, String name, String email, Integer age) {
+}
+```
+
+```java
+package com.example.user.mapper;
+
+import org.liteorm.annotation.Insert;
 import org.liteorm.annotation.Mapper;
 import org.liteorm.annotation.Param;
 import org.liteorm.annotation.Select;
+
+@Mapper
+public interface UserMapper {
+
+    @Insert("INSERT INTO users (id, name, email, age) "
+        + "VALUES (#{id}, #{name}, #{email}, #{age})")
+    int insert(
+        @Param("id") Long id,
+        @Param("name") String name,
+        @Param("email") String email,
+        @Param("age") Integer age
+    );
+
+    @Select("SELECT id, name, email, age FROM users WHERE id = #{id}")
+    User findById(@Param("id") Long id);
+}
 ```
 
-当前构建验证：
-
-- Testcontainers 使用固定的 PostgreSQL 16.4 与 MySQL 8.4.0 镜像，执行同一套生成 Mapper、事务、批量、游标、超时、日期时间、标识符和二进制兼容契约。
-
-```bash
-mvn clean test
-```
-
-## 性能基线
-
-Core GA 使用 JMH 在相同 H2 DataSource、schema、SQL 参数、连接/Session 生命周期和结果消费方式下，对比 LiteORM 生成 Mapper、MyBatis 与 Direct JDBC。`µs/op` 越低越好；“LiteORM 比 MyBatis 快”按 `(MyBatis - LiteORM) / MyBatis` 计算。
-
-| 场景 | LiteORM µs/op | MyBatis µs/op | Direct JDBC µs/op | LiteORM 比 MyBatis 快 |
-| --- | ---: | ---: | ---: | ---: |
-| 标量查询 | 3.477 | 4.239 | 2.475 | 18.0% |
-| Record 映射 | 3.916 | 5.803 | 2.940 | 32.5% |
-| JavaBean 映射 | 3.946 | 5.924 | 2.803 | 33.4% |
-| 动态 SQL，返回一行 | 27.013 | 28.455 | 25.184 | 5.1% |
-| 游标消费十行 | 3.362 | 8.969 | 3.226 | 62.5% |
-| 本地事务加标量查询 | 4.146 | 4.284 | 2.680 | 3.2% |
-| JDBC Batch，一百行 | 41.319 | 71.573 | 40.021 | 42.3% |
-| 生成键 | 3.229 | 4.772 | 2.766 | 32.3% |
-
-在这个受控夹具中，LiteORM 在所有已测场景比 MyBatis 快 3.2%–62.5%，Direct JDBC 作为理论下界参考。该结果衡量的是 H2 上的框架开销，不代表 PostgreSQL/MySQL 的线上延迟；完整协议、分配量和 JFR 观察见 [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)。
-
-## 架构总览
+编译后会生成：
 
 ```text
-Mapper interface + XML/annotations
-        |
-        v
-Annotation Processor
-        |
-        v
-Normalized Mapper Model
-        |
-        +--> Dynamic SQL AST
-        +--> Parameter Model
-        +--> Result Shape
-        +--> Statement Metadata
-        |
-        v
-Generated MapperImpl
-        |
-        v
-ExecutionPlan
-        |
-        v
-SqlExecutor
-        |
-        v
-JdbcSqlExecutor (一个实例绑定一个 DataSource/事务域)
-        |
-        +--> ExecutionInterceptor
-        +--> ConnectionHandleFactory
-        +--> ConnectionHandle.connection
-        +--> PreparedStatement / 参数绑定 / JDBC 执行
-        +--> 结果提取与反向资源释放
+target/generated-sources/annotations/com/example/user/mapper/UserMapperImpl.java
 ```
 
-### 编译期职责
+`UserMapperImpl` 是普通 Java 类，直接实现 `UserMapper`，构造器只接收一个 `SqlExecutor`。生成类不包含 `@Component`、`@Autowired` 或其他 Spring 注解。
 
-编译期负责所有能提前确定的事情：
+### 3. 显式绑定 Mapper 包和 DataSource
 
-- 找到 Mapper 接口和 SQL 来源。
-- 解析 XML 和注解 SQL。
-- 将动态 SQL 转成 AST。
-- 校验参数引用、方法签名和返回类型。
-- 生成 SQL renderer、执行计划、参数绑定和结果映射代码。
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.user.mapper
+      data-source: dataSource
+```
 
-### 运行期职责
+- `package-name` 是需要注册的生成 Mapper 所在包。
+- `data-source` 是 Spring 容器中 DataSource Bean 的名字。
+- 即使应用只有一个 DataSource，也保留这两个显式配置项。
 
-运行期只保留必要的 JDBC 执行职责：
+Starter 会扫描该包中的生成实现，使用 Mapper 接口的默认 JavaBeans 名称注册 Bean。例如 `UserMapper` 注册为 `userMapper`，`URLMapper` 保持为 `URLMapper`。
 
-- 获取和释放数据库连接。
-- 参与本地或托管事务。
-- 创建 `PreparedStatement` 并绑定参数。
-- 执行 SQL。
-- 提取 `ResultSet` 为生成代码可消费的结果结构。
+### 4. 注入并调用 Mapper
 
-固定 JDBC 阶段不是开放的责任链扩展点。日志、指标、审计和慢查询使用有序 `ExecutionInterceptor`；特殊 SQL、参数和结果能力分别使用编译期绑定的 Provider、Binder 和 RowMapper。
+```java
+@Service
+public class UserService {
 
-### core 与 Spring 的职责边界
+    private final UserMapper userMapper;
 
-这里不能简单理解成“`Simple*` 在生产环境全部替换掉”。core 中同时存在四类内容：框架永久保留的领域模型、Spring 需要实现的宿主 SPI、无容器环境的默认实现，以及本来就属于应用基础设施的能力。
+    public UserService(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
 
-| 分类 | 判断标准 | Spring 环境中的处理方式 |
-| --- | --- | --- |
-| core 永久保留 | ORM 自身的编译、执行和扩展语义，与依赖注入容器无关 | 继续直接使用，不委托给 Spring |
-| core 定义 SPI，宿主提供实现 | core 必须依赖抽象，但连接参与方式取决于运行环境 | Spring Starter 提供对应实现并注入 core 组件 |
-| core 默认实现 | 为无 Spring 环境提供可直接运行的最小实现 | Spring 环境通常不创建这些默认实现 |
-| 外部基础设施 | 不属于 ORM 的职责 | 由应用、连接池、数据库或 Spring 基础设施提供 |
+    @Transactional
+    public User createAndLoad(User user) {
+        userMapper.insert(user.id(), user.name(), user.email(), user.age());
+        return userMapper.findById(user.id());
+    }
+}
+```
 
-完整角色区分如下：
+Spring 事务必须使用与该 Mapper 所绑定 DataSource 对应的 `PlatformTransactionManager`。单 DataSource 应用通常由 Spring Boot 自动配置；多 DataSource 应用应显式选择正确的事务管理器。
 
-| 能力/角色 | core 中的定义或实现 | Spring 生产环境 | 归属结论 |
+可运行的完整示例见 [basic-mapper](lite-orm-examples/basic-mapper/README.md)。
+
+## 整体设计
+
+LiteORM 把 Mapper 的“理解过程”放在编译期，把 JDBC 的“物理执行过程”保留在运行期。
+
+```mermaid
+flowchart LR
+    subgraph CompileTime[编译期]
+        Mapper[Mapper 接口]
+        Annotation[SQL 注解]
+        XML[Mapper XML]
+        Processor[LiteOrmProcessor]
+        Pipeline[CompilePipeline]
+        Model[编译模型与动态 SQL AST]
+        Generated[生成 XxxMapperImpl]
+
+        Mapper --> Processor
+        Annotation --> Processor
+        XML --> Processor
+        Processor --> Pipeline
+        Pipeline --> Model
+        Model --> Generated
+    end
+
+    subgraph Runtime[运行期]
+        Call[普通 Java 方法调用]
+        Plan[ExecutionPlan]
+        Executor[SqlExecutor]
+        Handle[ConnectionHandle]
+        JDBC[JDBC Driver / Database]
+        Result[SqlResult]
+
+        Generated --> Call
+        Call --> Plan
+        Plan --> Executor
+        Executor --> Handle
+        Handle --> JDBC
+        JDBC --> Result
+        Result --> Generated
+    end
+```
+
+### 编译期负责什么
+
+- 校验 Mapper 方法、参数和返回类型；
+- 解析 `@Select`、`@Insert`、`@Update`、`@Delete`、`@Batch` 和 Mapper XML；
+- 把受支持的动态 SQL 标签和表达式编译为 Java；
+- 确定参数引用、绑定顺序、SQL 来源和 statement 类型；
+- 生成标量、record、JavaBean、集合、游标、批处理和 generated key 返回代码；
+- 对不支持的表达式、签名和映射尽量在编译期给出定位明确的诊断。
+
+### 运行期负责什么
+
+- 根据生成的 `ExecutionPlan` 获取连接；
+- 创建和配置 JDBC statement；
+- 按既定顺序绑定参数；
+- 执行 SQL、读取结果和释放资源；
+- 参与 standalone 或 Spring 管理的事务；
+- 在固定执行边界通知 `ExecutionInterceptor`。
+
+运行期不会重新读取 Mapper XML，不执行 OGNL、MVEL 或 SpEL，也不通过 Mapper 代理查找目标方法。
+
+## 完整角色表
+
+| 角色 | 所属层 | 主要职责 | 生命周期与边界 |
 | --- | --- | --- | --- |
-| Mapper 编译模型、XML/注解解析、动态 SQL AST、Java 代码生成 | `CompilePipeline`、`MapperCompilationModel`、`CodeGenerator` 等 | 仍由 LiteORM 注解处理器在编译期完成 | **core 永久保留，不委托 Spring** |
-| 生成 Mapper | `XxxMapperImpl`，构造器只依赖 `SqlExecutor` | Starter 仅负责注册和注入这个普通 Java 类 | **生成代码属于 LiteORM；Bean 生命周期委托 Spring** |
-| SQL 执行入口 | `SqlExecutor`、`ExecutionPlan`、`SqlResult` | 原样使用 | **core 永久保留** |
-| 固定 JDBC 生命周期 | `JdbcSqlExecutor` | 原样使用，由 Spring 装配 `SpringConnectionHandleFactory` | **core 永久保留，不由 Spring 重写 SQL 执行** |
-| 参数和结果适配 | `ParameterBinder`、`RowMapper`、`ResultValueConverters` | 原样使用，必要时作为 Spring Bean 被装配 | **core 永久保留；对象发现可委托 Spring** |
-| 执行观察 | `ExecutionInterceptor`、`ExecutionOutcome` | Spring 发现并按 ordering 排序 interceptor Bean | **契约和执行时机属于 core；实例管理委托 Spring** |
-| 单次执行的连接句柄 | SPI：`ConnectionHandle`，只允许取得连接和释放资源 | 实现：`SpringConnectionHandle`，通过 `DataSourceUtils` 取得或释放连接 | **抽象属于 core；连接参与语义委托 Spring** |
-| 连接句柄工厂 | SPI：`ConnectionHandleFactory` | 实现：`SpringConnectionHandleFactory` | **抽象属于 core；宿主实现由 Starter 提供** |
-| 无容器事务句柄 | `SimpleTransaction` | 通常不创建 | **core 默认实现，仅用于独立运行或测试** |
-| 无容器连接句柄工厂 | `SimpleConnectionHandleFactory` | 使用 `SpringConnectionHandleFactory` 代替 | **core 默认实现被 Spring 实现替代** |
-| 事务边界控制 | SPI：`TransactionalExecutor`；默认实现：`SimpleTransactionalExecutor` | 使用 `@Transactional`、`TransactionTemplate` 和 `PlatformTransactionManager` | **边界抽象属于 core；生产边界时机委托 Spring** |
-| 本地事务域保护 | `TransactionDomain`、`TransactionDomainGuard`、`SimpleTransactionDomainGuard` | 通过明确匹配的 executor、DataSource 和 transaction manager 保持同一约束；后续补充 Spring 多数据源启动校验 | **不直接一对一替换，但必须保持相同事务不变量** |
-| 单 DataSource 手工装配 | `LiteOrm.jdbc(...)`、`JdbcAssembly` | `LiteOrmAutoConfiguration` 创建同样的 executor 组件图 | **领域组件不变；创建和依赖注入委托 Spring** |
-| 多 DataSource 包绑定 | core 保持一个 Mapper 只依赖一个 `SqlExecutor` | Starter 根据 `mapper-bindings[].data-source` 装配并注入 executor | **包规则属于 Starter 装配；Mapper 热路径不感知 DataSource** |
-| 动态 DataSource 路由 | core 不提供重复路由系统 | 使用 `AbstractRoutingDataSource`、dynamic-datasource 或其他 DataSource 代理 | **路由属于 DataSource 基础设施，LiteORM 只消费最终 DataSource** |
-| 异常模型 | `LiteOrmException`、`SqlExecutionException`、`TransactionException` 等 | 原样向上层传播，保留 JDBC/Spring cause | **core 永久保留** |
-| DataSource 和连接池 | core 只消费 `javax.sql.DataSource` | 应用配置 DataSource，通常由 HikariCP 和 Spring Boot 管理 | **外部基础设施，LiteORM 不实现** |
-| 事务传播、隔离级别、超时、回滚规则 | core 简单实现只保证最小本地事务正确性 | 由 Spring `PlatformTransactionManager` 和 `@Transactional` 配置决定 | **生产高级事务策略委托 Spring** |
-| 分布式事务 | core 不提供 | 需要应用引入外部事务系统 | **不属于 LiteORM core 或普通 Starter** |
+| Mapper 接口 | 应用/core 契约 | 声明 SQL、参数和返回类型 | 应用源码；编译期输入 |
+| `LiteOrmProcessor` | core 编译期 | javac 注解处理入口，发现 `@Mapper` | 编译期间运行 |
+| `CompilePipeline` | core 编译期内部 | 统一注解/XML、校验方法并建立生成模型 | 非应用扩展 API |
+| `XxxMapperImpl` | 生成代码 | 构造执行计划、调用 executor、完成静态结果映射 | 普通 Java 类；每个实例绑定一个 executor |
+| `ExecutionPlan` / `BatchExecutionPlan` | core 运行期契约 | 描述最终 SQL、有序参数、statement 类型和适配器 | 单次调用创建，不包含 DataSource 名称 |
+| `SqlResult` | core 运行期契约 | 承载查询行、更新数、批量结果或 generated key | JDBC 执行成功后的不可变结果边界 |
+| `SqlExecutor` | core 运行期入口 | 执行一个计划 | 生成 Mapper 的唯一构造器依赖 |
+| `JdbcSqlExecutor` | core JDBC 实现 | 固定 JDBC 生命周期、异常语义和拦截器通知 | 一个实例属于一个 DataSource/事务域 |
+| `ConnectionHandleFactory` | core 连接参与契约 | 为一次执行提供 `ConnectionHandle` | standalone 与 Spring 的主要适配边界 |
+| `TransactionalExecutor` | core standalone 契约 | 提供简单本地事务回调 | 不实现 Spring 传播策略或分布式事务 |
+| `SqlProvider<P>` | core 编译期绑定扩展 | 为少数特殊场景运行时构造 `BoundSql` | 生成 Mapper 直接持有，不自动注册为 Spring Bean |
+| `ParameterBinder<T>` | core 编译期绑定扩展 | 处理 JDBC 默认绑定不足的特殊 Java 类型 | 生成 Mapper 直接持有；实现必须线程安全或无状态 |
+| `RowMapper<T>` | core 编译期绑定扩展 | 映射内建规则不支持的单行形状 | 生成 Mapper 直接持有；不负责多行对象图聚合 |
+| `ExecutionInterceptor` | core 观察扩展 | 日志、指标、审计、授权和执行观察 | standalone 显式传入；Spring 收集有序 Bean |
+| Starter Registrar | Spring Boot 集成 | 扫描生成实现、注册 Mapper 和对应 executor | 只负责 IOC 装配，不改变生成代码和 JDBC 热路径 |
 
-最关键的判断是：Spring **不会替代 `SqlExecutor`、`JdbcSqlExecutor`、执行计划、生成 Mapper 和 JDBC 固定生命周期**。Spring 接管的是组件创建、连接线程绑定和事务边界时机。
+关键边界是：**Spring 不替代生成 Mapper、`ExecutionPlan`、`SqlExecutor` 或 `JdbcSqlExecutor`；Spring 接管的是 Bean 创建、连接参与方式和事务边界。**
 
-两种装配后的依赖关系如下：
+## 两种装配方式
 
-```text
-独立运行：
-Generated Mapper -> JdbcSqlExecutor -> SimpleConnectionHandleFactory -> SimpleTransaction -> DataSource
-                              |
-                              +-> SimpleTransactionalExecutor 控制事务边界
+### Standalone JDBC
 
-Spring 生产：
-Generated Mapper -> JdbcSqlExecutor -> SpringConnectionHandleFactory -> SpringConnectionHandle -> DataSourceUtils
-                                                                      |
-                                                                      +-> Spring 绑定连接
-
-@Transactional / PlatformTransactionManager --------------------------+-> 控制 begin/commit/rollback
+```mermaid
+flowchart LR
+    App[应用代码] --> Mapper[UserMapperImpl]
+    Mapper --> Executor[JdbcSqlExecutor]
+    Executor --> Factory[SimpleConnectionHandleFactory]
+    Factory --> DataSource[DataSource]
+    Tx[SimpleTransactionalExecutor] --> Factory
+    Executor --> Interceptors[ExecutionInterceptor 列表]
 ```
-
-### 事务与多数据源
-
-- `ConnectionHandle` 只负责取得当前执行使用的连接和释放句柄，不暴露 `commit` 或 `rollback`。
-- `ConnectionHandleFactory` 为每次执行返回一个知道连接参与方式的句柄；`SqlExecutor` 不判断连接由 core 还是 Spring 持有。
-- core 的提交和回滚由 `SimpleTransactionalExecutor` 与内部 `SimpleTransaction` 控制；Spring 事务继续由 Spring 决定何时开始、提交和回滚。
-- 一个 `JdbcSqlExecutor` 永久绑定一个 DataSource/事务域。多数据源通过多个独立、具名的 executor 组件图和 Mapper 实例装配，不把数据源名塞进 `ExecutionPlan`。
-- core 不隐式协调跨数据源提交，也不提供分布式事务。动态租户、分片或读写路由优先由绑定的路由 `DataSource` 负责；只有无法由 DataSource 表达时，才显式增加更高层 `SqlExecutor` 装饰器。
-
-## 独立 JDBC 接入
-
-一个 `JdbcAssembly` 对应一个 DataSource 和事务域：
 
 ```java
 JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
     .domain("users")
+    .interceptors(interceptors)
     .build();
 
 UserMapper userMapper = new UserMapperImpl(assembly.sqlExecutor());
 ```
 
-事务外的 Mapper 调用使用临时 auto-commit 连接句柄。多个 Mapper 调用需要共用一个连接并一起提交或回滚时，使用回调式事务边界：
+`JdbcAssembly` 是一个 DataSource 域的不可变装配结果：
+
+- `sqlExecutor()` 注入生成 Mapper；
+- `transactionalExecutor()` 提供简单本地事务回调；
+- 回调外的 Mapper 调用使用独立 auto-commit 连接句柄；
+- 同一 assembly 的事务回调内，Mapper 调用共享线程绑定的根事务。
+
+### Spring Boot
+
+```mermaid
+flowchart LR
+    Service[Spring Service] --> MapperBean[UserMapper Bean / UserMapperImpl]
+    MapperBean --> Executor[JdbcSqlExecutor]
+    Executor --> Factory[SpringConnectionHandleFactory]
+    Factory --> Handle[SpringConnectionHandle]
+    Handle --> Utils[DataSourceUtils]
+    Utils --> DataSource[命名 DataSource Bean]
+    TxManager[PlatformTransactionManager] --> DataSource
+    Interceptors[有序 ExecutionInterceptor Bean] --> Executor
+    Registrar[GeneratedMapperBeanDefinitionRegistrar] -.启动时注册.-> MapperBean
+    Registrar -.启动时创建.-> Executor
+```
+
+Starter 对每个命名 DataSource 创建一个 Spring-aware `SqlExecutor`，并把它构造器注入到对应包下的生成 Mapper。Mapper 调用时不会再次扫描包、查找 Bean 或选择 DataSource。
+
+## SQL 与映射能力
+
+### SQL 来源
+
+支持以下 Mapper SQL 来源：
+
+- `@Select`、`@Insert`、`@Update`、`@Delete`；
+- `@Batch` JDBC 批处理；
+- Mapper XML；
+- `@UseSqlProvider` 运行时 SQL 逃生口。
+
+同一个 Mapper 方法同时存在 XML statement 和 SQL 注解时：
+
+1. XML 优先；
+2. 生成代码只使用 XML；
+3. javac 在对应 Mapper 方法位置输出 warning。
+
+LiteORM 不在运行期加载或重新解释 XML。
+
+### 动态 SQL
+
+当前支持：
+
+- `if`；
+- `choose`、`when`、`otherwise`；
+- `trim`、`where`、`set`；
+- `foreach`；
+- `bind`；
+- `sql`、`include`。
+
+这些标签和受控的 OGNL 风格表达式会被编译为原生 Java。任意方法调用、静态方法访问、不支持的表达式和不安全 `${...}` 替换会直接编译失败。
+
+普通可选条件优先使用编译期动态 SQL。只有 SQL 结构确实必须在运行时决定时，才使用 `SqlProvider`。
+
+### 参数
+
+- 推荐为多参数方法显式声明 `@Param`；
+- 支持声明参数名、`param1`、`arg0`、`list`、`collection`、`array` 等约定名称；
+- 属性路径在编译期解析并生成直接 Java 访问；
+- null 值使用 JDBC `setNull`；
+- varargs、静态 Mapper 方法和无法解析的泛型签名会编译失败。
+
+### 返回类型
+
+SELECT 支持：
+
+- 标量类型；
+- record；
+- JavaBean；
+- 单对象；
+- `Optional<T>`；
+- `List<T>`；
+- `void` + `CursorCallback<T>` 流式消费。
+
+写操作支持更新计数、JDBC batch 的原始 `int[]`，以及使用 `@GeneratedKey("column")` 返回一个明确命名的 generated key。
+
+复杂 `resultMap` 图、嵌套集合聚合和延迟加载不属于当前 core 契约。
+
+### 分页与 StatementOptions
+
+真正的分页必须体现在最终 SQL 中，例如数据库方言的 `LIMIT/OFFSET`、`FETCH FIRST` 或等价语句。分页参数可以是动态参数，并由数据库执行有界查询。
+
+`StatementOptions` 提供 JDBC query timeout、fetch size 和 max rows。`maxRows` 只是客户端/JDBC 安全上限，不是真分页，也不能替代最终 SQL 中的分页条件。
+
+## 事务模型
+
+### core 简单本地事务
+
+core 的事务模型与 MyBatis standalone 使用场景类似：提供明确、简单的本地 JDBC 事务，不承担完整企业事务平台职责。
 
 ```java
 User user = assembly.transactionalExecutor().execute(() -> {
@@ -257,134 +336,193 @@ User user = assembly.transactionalExecutor().execute(() -> {
 });
 ```
 
-回调不暴露事务完成句柄，普通业务代码只调用生成 Mapper。嵌套回调加入当前根事务；嵌套工作失败会把这个本地事务标记为仅回滚，避免异常被外层捕获后错误提交。core 不实现传播枚举、保存点或声明式隔离/只读策略，这些线上事务能力由 Spring 或其他宿主事务管理器负责。
+- 根回调在当前线程绑定一个本地事务；
+- 连接在第一次 Mapper 调用时延迟获取；
+- 正常返回时提交一次；
+- 异常时按需回滚；
+- 嵌套回调加入根事务，不创建独立事务；
+- 嵌套调用失败会把根事务标记为 rollback-only，即使业务代码捕获了内部异常，根事务也不会提交部分结果；
+- 完成后始终清理线程绑定。
 
-## Spring Boot 接入
+core 不提供传播枚举、savepoint、挂起/恢复、声明式隔离级别、只读事务、分布式提交或恢复机制。
 
-Starter 不创建运行时 Mapper 代理，而是注册编译期已经生成的 `*MapperImpl`：
+### Spring 事务
 
-```yaml
-lite-orm:
-  enabled: true
-  mapper-bindings:
-    - package-name: com.example.mapper
-      data-source: dataSource
-```
-
-应用启动时，Starter 扫描配置包中的生成类，解析 `data-source` 指定的 Spring `DataSource` Bean，并通过 `SpringConnectionHandleFactory` 与 core `JdbcAssembly` 创建 Mapper 所需的 `SqlExecutor`。该 Bean 可以是真实连接池，也可以是 `AbstractRoutingDataSource` 或 dynamic-datasource 提供的路由代理。Mapper 调用热路径不再查找 Spring Bean。
-
-每个 Mapper 包和 Mapper 接口只绑定一个 DataSource 域。同一个包不能重复绑定，父子包规则也不能重叠；应用存在多个 DataSource 时，使用互不重叠的 Mapper 包分别绑定。单 DataSource 应用同样保留显式 `package-name + data-source` 配置，Starter 不推断默认 DataSource 或扫描包。
-
-生成的 `*MapperImpl` 不包含 Spring `@Component`、注入或条件注解。Starter 在 IOC BeanDefinition 注册阶段发现生成类，按 Mapper 接口名的 JavaBeans decapitalize 规则注册一次，例如 `UserMapper` 注册为 `userMapper`，并注入该包对应的唯一 `SqlExecutor`。
-
-Starter 始终使用应用提供的 `DataSource`。在 Spring `@Transactional` 范围内复用 Spring 绑定到当前线程的连接；事务外按数据源默认的 auto-commit 行为执行，并在每次调用后释放 JDBC 资源。
-
-`@Transactional` 使用的 `PlatformTransactionManager` 必须管理 Mapper 绑定的同一个 DataSource。若当前活动事务没有绑定该 DataSource，LiteORM 会显式报告事务域不匹配，而不是静默脱离预期事务执行。
-
-## SQL Provider 逃生口
-
-只有当 SQL 无法由当前支持的注解/XML 子集表达时，才使用 `@UseSqlProvider`。Provider 是编译期已知的 `SqlProvider<P>`，需要可访问的无参构造器，并返回由 SQL 文本和有序 `BoundParameter` 列表组成的不可变 `BoundSql`。生成类持有单个 Provider 实例并直接调用普通 Java 方法，不使用反射分发。
-
-Provider Mapper 方法支持零个或一个参数；多个输入应封装为 record。使用 Provider 的方法不能同时声明 XML 或 SQL 注解。
-
-## 自定义 JDBC Adapter
-
-当 JDBC 默认 `setObject` 无法满足特殊值类型时，可以在 Mapper 参数上使用 `@UseParameterBinder`。当返回结构无法由 LiteORM 内建的标量、record 或 JavaBean 映射生成时，可以在查询方法上使用 `@UseRowMapper`。
-
-两种 adapter 都是强类型接口，实现类在编译期确定并需要可访问的无参构造器。生成 Mapper 持有单个 adapter 实例，并通过执行计划传递直接引用。显式 adapter 优先于内建转换。参数为 null 时不调用自定义 binder，而是绑定 SQL `NULL`；只有 `ResultSet.next()` 成功后才调用 row mapper。
-
-## 执行拦截器
-
-可注册 `ExecutionInterceptor`，在受控的 JDBC 执行边界实现日志、指标、审计、授权或路由观察。拦截器只能读取 statement 标识、最终 SQL、有序参数副本、语句/来源类型、耗时、结果数量、失败信息和只读路由元数据，不能替换生成的 SQL、参数 binder 或 row mapper。
-
-`beforeExecution` 按配置顺序执行，`afterSuccess` 和 `afterFailure` 按相反顺序回退。Spring Boot 按 Spring ordering 收集拦截器 bean。终态回调失败只通过 JDK logger 记录，不改变 SQL 成功结果或原始失败，也不会阻止后续观察者和 JDBC 资源释放。
-
-## MyBatis 兼容边界
-
-### 第一阶段支持
-
-- Mapper 接口。
-- 注解 SQL。
-- XML SQL。
-- 常见动态 SQL 标签。
-- 显式 `@Param` 和常见 fallback 参数名。
-- record class 和基础构造器结果映射。
-- 本地事务和 Spring 事务参与。
-
-### 第一阶段不承诺
-
-- 任意 OGNL。
-- 复杂 `resultMap`。
-- 嵌套对象聚合。
-- MyBatis 插件。
-- 懒加载。
-- 二级缓存。
-- 分页插件。
-- 全量 XML 标签兼容。
-
-不支持的能力应该尽量在编译期失败，并给出 Mapper 方法或 XML 节点位置，而不是在运行期模糊 fallback。
-
-## 迁移策略
-
-推荐从 MyBatis 项目中选取低风险 Mapper 渐进迁移：
-
-1. 优先迁移查询型 Mapper。
-2. 优先选择只使用常见动态 SQL 标签的 XML 或注解方法。
-3. 多参数方法显式补充 `@Param`。
-4. 对单对象参数统一使用 `#{user.id}`、`#{user.name}` 这类属性路径。
-5. 先跑外部 demo 项目和真实数据库 E2E，再扩大迁移范围。
-
-示例：
+Spring Boot 应用使用 Spring 管理事务：
 
 ```java
-import org.liteorm.annotation.Mapper;
-import org.liteorm.annotation.Param;
-import org.liteorm.annotation.Select;
-
-@Mapper
-public interface UserMapper {
-
-    @Select("""
-        <script>
-        SELECT id, name, email, age
-        FROM users
-        <where>
-            <if test="name != null and name != ''">
-                name = #{name}
-            </if>
-        </where>
-        </script>
-        """)
-    List<User> findByName(@Param("name") String name);
+@Transactional(transactionManager = "usersTransactionManager")
+public void updateUsers() {
+    userMapper.update(...);
 }
 ```
 
-## SQL 来源优先级
+`SpringConnectionHandleFactory` 通过 Spring JDBC 的连接同步机制取得和释放连接。`JdbcSqlExecutor` 仍执行相同 JDBC 生命周期，但 commit/rollback 时机属于对应的 `PlatformTransactionManager`。
 
-同一个 Mapper 方法可以在迁移期间暂时同时保留 XML SQL 和 SQL 注解。编译器采用以下规则：
+## 多 DataSource
 
-1. XML statement 优先于 `@Select`、`@Insert`、`@Update`、`@Delete`。
-2. 生成代码只使用 XML statement。
-3. 编译期间在对应 Mapper 方法位置输出 WARNING，提示注解已被 XML 覆盖。
-4. 只有 XML 文件中存在同名 statement 时才视为冲突；仅存在同 Mapper XML 文件不会导致其他注解方法误报。
+LiteORM 的确定性关系是：
 
-动态 SQL 表达式采用受控的 OGNL 风格编译子集。注解处理器直接把支持的表达式翻译成原生 Java 条件、属性访问、循环和 bind 表达式；编译期与运行期都不引入 OGNL、MVEL、SpEL 或其他表达式引擎。超出子集的表达式直接编译失败，不会退回运行时解释执行。
+```text
+一个 Mapper 实例 -> 一个 SqlExecutor -> 一个物理或路由 DataSource
+```
 
-可运行的外部 Maven 示例见：
+多个 DataSource 不是让同一个 Mapper 在调用时动态选择多个 executor，而是为不同 Mapper 包建立独立组件图：
 
-- [lite-orm-examples/basic-mapper](lite-orm-examples/basic-mapper/README.md)
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.user.mapper
+      data-source: usersDataSource
+    - package-name: com.example.order.mapper
+      data-source: ordersDataSource
+```
 
-## 当前文档与后续路线
+- 每条规则必须同时声明 `package-name` 和 `data-source`；
+- Mapper 包必须互不重叠，重复、父包和子包规则都会导致启动失败；
+- 一个 Mapper 接口只注册一次，只属于一个 DataSource 域；
+- 每个事务边界必须选择同一 DataSource 对应的事务管理器；
+- core 不协调多个 DataSource 之间的原子提交。
 
-当前 GA 边界和实施计划是：
+如果绑定的是 `AbstractRoutingDataSource` 或其他路由 DataSource，它仍然是该 Mapper 唯一绑定的 DataSource。租户、分片、读写路由和物理连接选择属于路由 DataSource 及其事务管理器，不进入 `ExecutionPlan`。
 
-- [Core GA 契约](docs/core-ga-contract.md)
-- [LiteORM Core GA Implementation Plan](docs/plans/liteorm-core-ga-implementation-plan.md)
-- [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)
-- [MyBatis 迁移指南](docs/migration-guide.md)
-- [扩展契约](docs/extensions.md)
-- [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)
+## Spring Boot 接入
 
-当前固定 JDBC 生命周期、Standalone/Spring 事务适配、显式多数据源装配、外部 Maven 编译夹具、生成源码诊断、真实数据库兼容和失败/并发契约均已实现。下一阶段只允许先建立可复现 benchmark，再讨论缓存或热路径优化。
+### Mapper 如何进入 IOC
 
-判断标准很简单：每个阶段都必须产出可运行、可测试、可解释的能力，而不是只增加抽象。
+生成 `MapperImpl` 时不会写入 `@Component`。Starter 在应用启动阶段：
+
+1. 读取 `lite-orm.mapper-bindings`；
+2. 校验包规则和命名 DataSource；
+3. 扫描目标包中的 `*MapperImpl`；
+4. 验证生成类实现了 `@Mapper` 接口并存在公开 `SqlExecutor` 构造器；
+5. 为 DataSource 创建 Spring-aware `SqlExecutor`；
+6. 使用构造器注入注册生成 Mapper Bean。
+
+Bean 名使用 Mapper 接口简单类名的 `Introspector.decapitalize` 结果，不需要 `bean-name-prefix`：
+
+```text
+UserMapper -> userMapper
+OrderMapper -> orderMapper
+URLMapper -> URLMapper
+```
+
+同名 Mapper Bean、重复包绑定、父子包重叠、DataSource 缺失或生成类结构不合法都会在启动阶段失败，而不是等到第一次 SQL 调用。
+
+### Spring 管理哪些对象
+
+- DataSource 和连接池；
+- `PlatformTransactionManager` 及事务边界；
+- 生成 Mapper Bean 的创建和依赖注入；
+- `ExecutionInterceptor` Bean 的发现与 ordering；
+- 路由 DataSource 所需的租户、分片或读写上下文。
+
+Spring 不会把生成 Mapper 替换成代理式 SQL 分发，也不会重写 `JdbcSqlExecutor` 的固定执行阶段。
+
+## 扩展点
+
+所有由生成 Mapper 持有的 Provider、Binder 和 RowMapper 都会被 Mapper Bean 共享。实现应当无状态、线程安全，或者自行保护可变状态。
+
+### SqlProvider
+
+`SqlProvider<P>` 用于编译期动态 SQL 无法自然表达的少数运行时 SQL 结构：
+
+```java
+@UseSqlProvider(
+    value = UserSearchProvider.class,
+    statementType = ExecutionPlan.StatementType.SELECT
+)
+List<User> search(UserSearch search);
+```
+
+Provider 返回包含 SQL 和有序 `BoundParameter` 的 `BoundSql`。它可以服务 SELECT、INSERT、UPDATE 或 DELETE，但每个 Mapper 方法都必须通过 `statementType` 明确语句类型。
+
+当前生成 Mapper 直接通过无参构造器创建 Provider，并以方法名生成字段，例如 `searchSqlProvider`。它不是 Spring Bean，也不是整个 Mapper 的通用 CRUD 执行器。
+
+### ParameterBinder
+
+在 JDBC 默认 `setObject` 无法满足某个 Java 类型时，对 Mapper 参数使用 `@UseParameterBinder`。生成计划携带 binder 的直接引用；参数为 null 时跳过自定义 binder 并绑定 SQL `NULL`。
+
+### RowMapper
+
+当标量、record 或 JavaBean 内建映射无法表达一个单行结果时，在查询方法上使用 `@UseRowMapper`。它只负责一行的结果形状，不提供复杂多行对象图聚合。
+
+### ExecutionInterceptor
+
+`ExecutionInterceptor` 用于日志、指标、追踪、审计、授权和慢查询观察：
+
+- `beforeExecution` 按注册顺序调用；
+- `afterSuccess` 和 `afterFailure` 按相反顺序回退；
+- 拦截器观察不可变执行信息；
+- 拦截器不能替换生成 SQL、参数 binder 或 row mapper；
+- 终态回调自身失败不会覆盖原始 SQL 结果或原始异常。
+
+Standalone 通过 `JdbcAssembly.interceptors(...)` 显式传入；Spring Boot 自动收集有序的 `ExecutionInterceptor` Bean。
+
+完整扩展约束见 [扩展契约](docs/extensions.md)。
+
+## MyBatis 兼容与迁移
+
+### 当前支持
+
+- LiteORM 自有 `org.liteorm.annotation` Mapper 注解；
+- 注解 SQL 和 Mapper XML；
+- 常见动态 SQL 标签和受控表达式子集；
+- `@Param` 及常见 fallback 参数名；
+- 标量、record、JavaBean、集合和 cursor；
+- JDBC batch 和单列 generated key；
+- standalone 本地事务与 Spring 事务参与。
+
+### 明确不承诺
+
+- 任意 OGNL 和完整 MyBatis XML 兼容；
+- 复杂 `resultMap`、嵌套集合和延迟加载；
+- MyBatis 插件运行时；
+- 一级/二级缓存语义；
+- 内建分页插件或分页 DSL；
+- 同一 Mapper 绑定多个 DataSource；
+- 运行期 XML reload 或 Mapper 代理；
+- 分布式事务和生产级事务策略。
+
+### 推荐迁移顺序
+
+1. 从简单查询和常见动态 SQL Mapper 开始；
+2. 将 MyBatis import 替换为 `org.liteorm.annotation`；
+3. 为多参数方法补充明确的 `@Param`；
+4. 保留受支持的 XML，LiteORM 会在编译期生成 Java；
+5. 用 `SqlProvider`、Binder 或 RowMapper 处理少数明确扩展点；
+6. 无法落入生成契约的复杂能力保留为显式 JDBC；
+7. 检查生成的 `*MapperImpl` 和 javac 诊断，再逐步扩大迁移范围。
+
+详细边界见 [MyBatis 兼容矩阵](docs/mybatis-compatibility.md) 和 [迁移指南](docs/migration-guide.md)。
+
+## 性能基线
+
+仓库包含独立的 `lite-orm-benchmarks` JMH 模块，对比相同 H2 schema 和 SQL 下的 Direct JDBC、LiteORM 与 MyBatis 3.5.19。以下是当前基线的平均耗时，数值越低越好：
+
+| 场景 | Direct JDBC µs/op | LiteORM µs/op | MyBatis µs/op | LiteORM 相对 MyBatis |
+| --- | ---: | ---: | ---: | ---: |
+| 标量查询 | 2.475 | 3.477 | 4.239 | 快 18.0% |
+| record 映射 | 2.940 | 3.916 | 5.803 | 快 32.5% |
+| JavaBean 映射 | 2.803 | 3.946 | 5.924 | 快 33.4% |
+| 动态 SQL 单行查询 | 25.184 | 27.013 | 28.455 | 快 5.1% |
+| Cursor 十行读取 | 3.226 | 3.362 | 8.969 | 快 62.5% |
+| 本地事务加标量查询 | 2.680 | 4.146 | 4.284 | 快 3.2% |
+| JDBC Batch 100 行 | 40.021 | 41.319 | 71.573 | 快 42.3% |
+| Generated key | 2.766 | 3.229 | 4.772 | 快 32.3% |
+
+基线使用 JMH 1.37、H2 2.3.232、JDK 21、2 forks、3 次预热和 5 次测量，并分别采集 GC allocation 与代表性 JFR。它用于观察框架开销，不代表 PostgreSQL/MySQL 网络环境下的业务延迟，也不能单独作为优化依据。
+
+复现命令、分配数据和 JFR 观察见 [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)。
+
+## 深入文档
+
+- [Core GA 契约](docs/core-ga-contract.md)：core 首个 GA 的稳定职责和非目标。
+- [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)：支持、部分支持和不支持能力。
+- [MyBatis 迁移指南](docs/migration-guide.md)：从现有 Mapper 渐进迁移。
+- [扩展契约](docs/extensions.md)：Spring 绑定、Provider、Binder、RowMapper 和 Interceptor。
+- [Core GA 性能基线](docs/benchmarks/core-ga-baseline.md)：JMH、allocation 和 JFR 数据。
+- [Basic Mapper 示例](lite-orm-examples/basic-mapper/README.md)：可执行 Maven consumer。
+- [External Maven Processor 示例](lite-orm-examples/external-maven-processor)：独立于根 Maven reactor 的外部注解处理夹具。
+
+项目判断标准保持简单：优先生成可读、可测试、可诊断的静态代码；运行期只保留 ORM 必需的 JDBC 执行职责，其他能力通过明确的宿主边界或类型化扩展接口接入。

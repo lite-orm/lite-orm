@@ -21,7 +21,7 @@
 - Read: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/GeneratedMapperBeanDefinitionRegistrar.java`
 - Read: `lite-orm-spring-boot-starter/src/main/java/org/liteorm/spring/boot/LiteOrmAutoConfiguration.java`
 
-- [ ] **Step 1: 核对 Maven 坐标和 Java/Spring 版本**
+- [x] **Step 1: 核对 Maven 坐标和 Java/Spring 版本**
 
 Run:
 
@@ -31,7 +31,7 @@ rg -n "<groupId>|<artifactId>|<version>|maven.compiler|java.version|spring-boot"
 
 Expected: 找到 README Quick Start 所需的准确依赖坐标和版本要求。
 
-- [ ] **Step 2: 核对 Mapper 生成和 Spring 注册行为**
+- [x] **Step 2: 核对 Mapper 生成和 Spring 注册行为**
 
 Run:
 
@@ -41,7 +41,7 @@ rg -n "BeanDefinition|beanName|decapitalize|SqlExecutor|SpringConnectionHandleFa
 
 Expected: 确认生成 Mapper 无 Spring 注解，Starter 注册生成实现并注入对应 `SqlExecutor`。
 
-- [ ] **Step 3: 核对事务和多 DataSource 契约**
+- [x] **Step 3: 核对事务和多 DataSource 契约**
 
 Run:
 
@@ -56,7 +56,7 @@ Expected: 确认 core 简单本地事务、Spring 事务参与以及 Mapper/Data
 **Files:**
 - Modify: `README_cn.md`
 
-- [ ] **Step 1: 用目标章节替换旧结构**
+- [x] **Step 1: 用目标章节替换旧结构**
 
 按以下一级章节顺序重写全文：
 
@@ -76,7 +76,7 @@ MyBatis 兼容与迁移
 深入文档
 ```
 
-- [ ] **Step 2: 添加三张 Mermaid 图**
+- [x] **Step 2: 添加三张 Mermaid 图**
 
 必须包含：
 
@@ -88,7 +88,7 @@ Spring Boot 装配依赖
 
 依赖方向必须与 `JdbcAssembly`、`SpringConnectionHandleFactory` 和生成 Mapper 构造器一致。
 
-- [ ] **Step 3: 补全公开角色表**
+- [x] **Step 3: 补全公开角色表**
 
 角色表必须明确包含：
 
@@ -107,7 +107,7 @@ ExecutionInterceptor
 Spring Starter Registrar
 ```
 
-- [ ] **Step 4: 删除过时和重复内容**
+- [x] **Step 4: 删除过时和重复内容**
 
 删除历史 Engine 清理、已完成实施任务、重复职责说明，以及任何暗示 `bean-name-prefix`、隐式默认 DataSource、运行期 Mapper 代理或 Provider 自动注册为 Spring Bean 的表述。
 
@@ -116,7 +116,7 @@ Spring Starter Registrar
 **Files:**
 - Verify: `README_cn.md`
 
-- [ ] **Step 1: 检查章节顺序和关键术语**
+- [x] **Step 1: 检查章节顺序和关键术语**
 
 Run:
 
@@ -126,7 +126,7 @@ rg -n '^#{1,3} |SqlProvider|mapper-bindings|package-name|data-source|SimpleTrans
 
 Expected: 章节顺序符合设计，关键角色存在，`bean-name-prefix` 不存在。
 
-- [ ] **Step 2: 检查仓库内链接和 Markdown 空白错误**
+- [x] **Step 2: 检查仓库内链接和 Markdown 空白错误**
 
 Run:
 
@@ -136,7 +136,7 @@ git diff --check
 
 Expected: 命令退出码为 0。
 
-- [ ] **Step 3: 对照实现复核配置和代码示例**
+- [x] **Step 3: 对照实现复核配置和代码示例**
 
 Run:
 
@@ -146,7 +146,7 @@ mvn -pl lite-orm-examples/basic-mapper -am -DskipTests compile
 
 Expected: Maven 构建成功，README 中引用的注解处理和生成 Mapper 路径仍有效。
 
-- [ ] **Step 4: 提交文档重构**
+- [x] **Step 4: 提交文档重构**
 
 ```bash
 git add README_cn.md docs/superpowers/plans/2026-08-16-readme-cn-restructure.md
