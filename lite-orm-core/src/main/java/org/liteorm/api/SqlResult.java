@@ -7,28 +7,24 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * SQL执行结果
- * Core包返回给Compiler生成代码的结果封装
- * 
- * 设计原则：
- * - 包含原始的执行结果
- * - 不包含任何映射逻辑（映射由Compiler生成代码完成）
- * - 只表示成功结果；执行失败由 SqlExecutionException 直接抛出
+ * Immutable successful SQL execution result consumed by generated Mapper code.
+ * Mapping logic remains in generated code, while execution failures are raised as
+ * {@link SqlExecutionException}.
  * 
  * @author lite-orm
  * @since 2024/09/29
  */
 public final class SqlResult {
     
-    private final List<Object[]> queryResults;   // 查询结果的原始数据
+    private final List<Object[]> queryResults;
     private final List<ResultColumn> resultColumns;
     private final Map<String, Integer> columnIndexes;
-    private final int updateCount;               // 更新行数
-    private final boolean isQuery;               // 是否为查询操作
+    private final int updateCount;
+    private final boolean isQuery;
     private final int[] batchUpdateCounts;
     private final Object generatedKey;
     
-    // 查询结果构造器
+    // Creates a query result.
     public static SqlResult forQuery(List<Object[]> results) {
         return forQuery(List.of(), results);
     }
@@ -37,7 +33,7 @@ public final class SqlResult {
         return new SqlResult(results, columns, 0, true, null, null);
     }
     
-    // 更新结果构造器
+    // Creates an update result.
     public static SqlResult forUpdate(int updateCount) {
         return new SqlResult(null, List.of(), updateCount, false, null, null);
     }

@@ -4,12 +4,7 @@ import javax.lang.model.element.ExecutableElement;
 import java.util.List;
 
 /**
- * SQL内容解析器接口 - 解析XML/注解中的动态SQL为AST
- * 
- * 职责：
- * 1. 解析XML文件中的SQL内容
- * 2. 解析注解中的动态SQL字符串
- * 3. 输出标准化的AST节点树
+ * Parses annotation or XML SQL into a normalized dynamic SQL model.
  * 
  * @author lite-orm
  * @since 2024/10/01
@@ -17,60 +12,60 @@ import java.util.List;
 interface SqlContentParser {
     
     /**
-     * 解析方法的SQL内容
+     * Parses SQL for one Mapper method.
      * 
-     * @param method 方法元素
-     * @return SQL解析结果，如果不支持则返回null
+     * @param method Mapper method
+     * @return parsed SQL, or {@code null} when this parser does not provide SQL
      */
     SqlParseResult parseSql(ExecutableElement method);
     
     /**
-     * 检查是否支持解析该方法
+     * Returns whether this parser can inspect the method.
      * 
-     * @param method 方法元素
-     * @return 是否支持
+     * @param method Mapper method
+     * @return whether the parser supports the method
      */
     boolean supports(ExecutableElement method);
     
     /**
-     * 获取解析器名称
+     * Returns the parser name used in diagnostics.
      * 
-     * @return 解析器名称
+     * @return parser name
      */
     String getParserName();
     
     /**
-     * SQL解析结果
+     * Parsed SQL metadata.
      */
     record SqlParseResult(
-        String sqlTemplate,           // SQL模板（可能包含#{param}或动态标签）
-        SqlType sqlType,             // SQL类型
-        SqlSourceType sourceType,    // SQL来源类型
-        boolean isDynamic,           // 是否为动态SQL
-        List<ParameterInfo> parameters, // 参数信息
-        AstNode astNode             // 动态SQL的AST节点（如果有）
+        String sqlTemplate,
+        SqlType sqlType,
+        SqlSourceType sourceType,
+        boolean isDynamic,
+        List<ParameterInfo> parameters,
+        AstNode astNode
     ) {}
     
     /**
-     * 参数信息
+     * Compile-time parameter metadata.
      */
     record ParameterInfo(
-        String name,        // 参数名
-        String accessCode,  // 访问代码（如user.name()）
-        String typeName     // 类型名称
+        String name,
+        String accessCode,
+        String typeName
     ) {}
     
     /**
-     * SQL来源类型
+     * SQL source type.
      */
     enum SqlSourceType {
-        XML,           // XML文件中的SQL
-        ANNOTATION,    // 注解中的SQL
-        SCRIPT         // 注解中的<script>标签
+        XML,
+        ANNOTATION,
+        SCRIPT
     }
     
     /**
-     * SQL类型
+     * SQL statement type.
      */
     enum SqlType {
         SELECT, INSERT, UPDATE, DELETE, BATCH

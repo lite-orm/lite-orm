@@ -29,12 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 编译管道 - 串联解析→渲染→代码生成的主线流程
- * 
- * 职责：
- * 1. 协调SQL解析器和代码生成器
- * 2. 管理解析器优先级
- * 3. 提供统一的编译接口
+ * Coordinates SQL parsing, validation, compilation modeling, and source generation.
  * 
  * @author lite-orm
  * @since 2024/10/01
@@ -64,23 +59,21 @@ final class CompilePipeline {
         this.typeUtils = typeUtils;
         this.messager = messager;
         
-        // 初始化解析器（按优先级排序）
         this.sqlParsers = Arrays.asList(
-            new XmlBasedSqlParser(filer),      // 优先级最高：XML覆盖注解
-            new AnnotationBasedSqlParser()     // 注解解析器
+            new XmlBasedSqlParser(filer),
+            new AnnotationBasedSqlParser()
         );
-        
-        // 初始化代码生成器和参数解析器
+
         this.codeGenerator = new FreemarkerCodeGenerator();
         this.parameterParser = new SqlParameterParser();
     }
     
     /**
-     * 编译Mapper接口
+     * Compiles a Mapper interface into Java source.
      * 
-     * @param mapperInterface Mapper接口
-     * @return 生成的Java代码
-     * @throws CompileException 编译异常
+     * @param mapperInterface Mapper interface
+     * @return generated Java source
+     * @throws CompileException when validation or generation fails
      */
     public String compileMapper(TypeElement mapperInterface) throws CompileException {
         try {
@@ -91,7 +84,6 @@ final class CompilePipeline {
                     mapperInterface.getQualifiedName());
             }
             
-            // 2. 生成代码
             return codeGenerator.generateMapperImpl(mapperInterface, compilationModel, elementUtils, typeUtils);
         } catch (CompileException e) {
             throw e;
@@ -115,15 +107,13 @@ final class CompilePipeline {
     }
     
     /**
-     * 检查是否支持该接口
+     * Returns whether this pipeline can compile the interface.
      */
     public boolean supports(TypeElement mapperInterface) {
-        // 检查是否有@Mapper注解
         if (mapperInterface.getAnnotation(org.liteorm.annotation.Mapper.class) != null) {
             return true;
         }
         
-        // 检查是否有任何方法包含SQL注解
         return mapperInterface.getEnclosedElements().stream()
             .anyMatch(element -> element instanceof ExecutableElement &&
                 (hasUseSqlProvider((ExecutableElement) element)
@@ -131,7 +121,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 分析接口方法
+     * Analyzes inherited and declared Mapper methods.
      */
     private List<MapperCompilationModel.MethodModel> analyzeInterfaceMethods(TypeElement mapperInterface)
             throws CompileException {
@@ -161,7 +151,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 分析单个方法
+     * Analyzes one Mapper method.
      */
     private MapperCompilationModel.MethodModel analyzeMethod(
             TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType)
@@ -172,7 +162,6 @@ final class CompilePipeline {
 
         ProviderBinding providerBinding = analyzeProviderBinding(mapperInterface, method, resolvedMethodType);
 
-        // 1. 解析SQL内容
         SqlContentParser.SqlParseResult sqlInfo = null;
         if (providerBinding == null) {
             for (SqlContentParser parser : sqlParsers) {
@@ -198,7 +187,7 @@ final class CompilePipeline {
                         + ": XML mapper exists but statement '" + method.getSimpleName() + "' was not found"
                 );
             }
-            return null; // 跳过没有SQL的方法
+            return null;
         }
         validateMethodSignature(mapperInterface, method);
         validateResolvedMethodTypes(mapperInterface, method, resolvedMethodType);
@@ -214,7 +203,6 @@ final class CompilePipeline {
         CursorMethod cursorMethod = analyzeCursorMethod(
             mapperInterface, method, resolvedMethodType, statementType);
 
-        // 2. 生成标准化参数模型和绑定顺序
         List<VariableElement> executionParameters = new ArrayList<>();
         List<TypeMirror> executionParameterTypes = new ArrayList<>();
         for (int index = 0; index < method.getParameters().size(); index++) {
@@ -243,7 +231,7 @@ final class CompilePipeline {
             mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
             methodParameters, parameterResult.bindings());
 
-        // 3. 构建方法信息
+        // Build the normalized method model.
         String methodName = method.getSimpleName().toString();
         String returnType = resolvedMethodType.getReturnType().toString();
         String parameterList = buildParameterList(method, resolvedMethodType);
@@ -951,7 +939,7 @@ final class CompilePipeline {
     }
 
     /**
-     * 构建参数列表字符串
+     * Builds the generated Java parameter list.
      */
     private String buildParameterList(ExecutableElement method, ExecutableType resolvedMethodType) {
         return buildParameterList(method, resolvedMethodType, -1);
@@ -973,7 +961,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 生成结果映射代码
+     * Generates result-mapping source.
      */
     private ResultMapping generateResultMapping(
             TypeElement mapperInterface, ExecutableElement method, String returnType) throws CompileException {
@@ -990,7 +978,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 提取List元素类型
+     * Extracts a {@link List} element type.
      */
     private String extractListElementType(String listType) {
         int start = listType.indexOf('<') + 1;
@@ -1005,7 +993,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 生成单对象映射代码
+     * Generates mapping source for one result object.
      */
     private ResultMapping generateSingleMapping(
             TypeElement mapperInterface, ExecutableElement method, String objectType) throws CompileException {
@@ -1060,12 +1048,11 @@ final class CompilePipeline {
     }
     
     /**
-     * 生成record class映射代码（零反射）
+     * Generates direct record construction source.
      */
     private ResultMapping generateRecordMapping(
             TypeElement mapperInterface, ExecutableElement mapperMethod,
             TypeElement typeElement, String objectType) throws CompileException {
-        // 获取record components
         var recordComponents = typeElement.getRecordComponents();
         List<String> columnLabels = new ArrayList<>(recordComponents.size());
         
@@ -1095,7 +1082,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 生成普通类映射代码
+     * Generates JavaBean mapping source.
      */
     private ResultMapping generateJavaBeanMapping(
             TypeElement mapperInterface, ExecutableElement mapperMethod,
@@ -1183,7 +1170,7 @@ final class CompilePipeline {
     }
     
     /**
-     * 编译异常
+     * Mapper compilation failure with an optional diagnostic element.
      */
     public static class CompileException extends Exception {
         private final Element element;

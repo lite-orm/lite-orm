@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记更新方法的注解
+ * Marks a Mapper method as an UPDATE statement.
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -18,8 +18,8 @@ import java.lang.annotation.Target;
 public @interface Update {
     
     /**
-     * SQL语句，支持参数占位符
-     * 例如：UPDATE user SET name = #{name} WHERE id = #{id}
+     * SQL statement with supported parameter placeholders.
+     * For example: {@code UPDATE user SET name = #{name} WHERE id = #{id}}.
      */
     String[] value();
 }

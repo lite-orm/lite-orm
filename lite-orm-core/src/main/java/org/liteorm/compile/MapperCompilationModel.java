@@ -5,7 +5,7 @@ import org.liteorm.api.ExecutionPlan;
 import java.util.List;
 
 /**
- * Mapper编译期标准模型。
+ * Validated compile-time Mapper model.
  *
  * @author lite-orm
  * @since 2026/03/26

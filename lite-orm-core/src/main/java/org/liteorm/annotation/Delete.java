@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记删除方法的注解
+ * Marks a Mapper method as a DELETE statement.
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -18,8 +18,8 @@ import java.lang.annotation.Target;
 public @interface Delete {
     
     /**
-     * SQL语句，支持参数占位符
-     * 例如：DELETE FROM user WHERE id = #{id}
+     * SQL statement with supported parameter placeholders.
+     * For example: {@code DELETE FROM user WHERE id = #{id}}.
      */
     String[] value();
 }

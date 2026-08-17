@@ -14,7 +14,7 @@
     <packaging>jar</packaging>
 
     <name>LiteORM Spring Boot Starter</name>
-    <description>LiteORM Spring Boot自动配置启动器</description>
+    <description>LiteORM Spring Boot auto-configuration starter</description>
 
     <dependencies>
         <!-- LiteORM Core -->
@@ -63,7 +63,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- HikariCP (optional, Spring Boot默认已包含) -->
+        <!-- HikariCP is optional because Spring Boot includes it by default. -->
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>

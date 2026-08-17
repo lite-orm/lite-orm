@@ -2,12 +2,12 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.liteorm.test.UserMapperXml">
     
-    <!-- 简单查询 -->
+    <!-- Simple query -->
     <select id="findById" resultType="org.liteorm.test.User">
         SELECT * FROM users WHERE id = #{id}
     </select>
     
-    <!-- 动态查询 -->
+    <!-- Dynamic query -->
     <select id="findByCondition" resultType="org.liteorm.test.User">
         SELECT * FROM users
         <where>
@@ -28,7 +28,7 @@
         </where>
     </select>
     
-    <!-- 动态插入 -->
+    <!-- Dynamic insert -->
     <insert id="insertUser">
         INSERT INTO users
         <trim prefix="(" suffix=")" suffixOverrides=",">
@@ -44,7 +44,7 @@
         </trim>
     </insert>
     
-    <!-- 动态更新 -->
+    <!-- Dynamic update -->
     <update id="updateUser">
         UPDATE users
         <set>
@@ -55,7 +55,7 @@
         WHERE id = #{id}
     </update>
     
-    <!-- 批量操作 -->
+    <!-- Batch operation -->
     <insert id="batchInsert">
         INSERT INTO users (name, age, email) VALUES
         <foreach collection="list" item="user" separator=",">
@@ -63,7 +63,7 @@
         </foreach>
     </insert>
     
-    <!-- 复杂查询 -->
+    <!-- Complex query -->
     <select id="findUsersWithPagination" resultType="org.liteorm.test.User">
         SELECT * FROM users
         <where>

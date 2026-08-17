@@ -153,11 +153,12 @@ LiteORM intentionally does not promise arbitrary OGNL, complex `resultMap` graph
 See:
 
 - [Chinese README](README_cn.md)
+- [Design philosophy](Design%20Philosophy.md)
+- [Documentation index](docs/README.md)
 - [Core GA contract](docs/core-ga-contract.md)
 - [Extension contracts](docs/extensions.md)
 - [Migration guide](docs/migration-guide.md)
 - [MyBatis compatibility matrix](docs/mybatis-compatibility.md)
-- [Architecture review](docs/architecture/liteorm-architecture-review.md)
-- [Core GA implementation plan](docs/plans/liteorm-core-ga-implementation-plan.md)
+- [Active adoption roadmap](docs/superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md)
 - [Executable basic Mapper example](lite-orm-examples/basic-mapper/README.md)
 - [Core GA benchmark baseline](docs/benchmarks/core-ga-baseline.md)

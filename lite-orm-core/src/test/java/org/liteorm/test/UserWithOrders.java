@@ -3,13 +3,13 @@ package org.liteorm.test;
 import java.util.List;
 
 /**
- * 用户及其订单 - 用于测试一对多关联
+ * User and order fixture used by unsupported relationship-mapping tests.
  * 
- * @param id 用户ID
- * @param name 用户名
- * @param email 邮箱
- * @param age 年龄
- * @param orders 订单列表
+ * @param id user identifier
+ * @param name user name
+ * @param email user email
+ * @param age user age
+ * @param orders user orders
  * 
  * @author lite-orm
  * @since 2024/11/15

@@ -1,25 +1,25 @@
-# LiteORM配置示例
+# LiteORM configuration example
 
 lite-orm:
-  # 是否启用LiteORM（默认true）
+  # Enables LiteORM auto-configuration. Defaults to true.
   enabled: true
   
-  # 慢查询阈值（毫秒，默认1000）
+  # Slow-query threshold in milliseconds. Defaults to 1000.
   slow-query-threshold: 1000
   
-  # 是否启用SQL日志（默认true）
+  # Enables SQL logging. Defaults to true.
   sql-logging: true
   
-  # 是否记录参数值（默认true）
+  # Logs parameter values. Defaults to true.
   log-parameters: true
   
-  # 是否启用SQL审计（默认false）
+  # Enables SQL auditing. Defaults to false.
   audit-enabled: false
   
-  # 审计是否异步（默认true）
+  # Runs auditing asynchronously. Defaults to true.
   audit-async: true
   
-  # Mapper 包必须显式绑定到一个 Spring DataSource Bean
+  # Each Mapper package must bind to one Spring DataSource bean.
   mapper-bindings:
     - package-name: com.example.mapper
       data-source: dataSource

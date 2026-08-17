@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记插入方法的注解
+ * Marks a Mapper method as an INSERT statement.
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -18,8 +18,8 @@ import java.lang.annotation.Target;
 public @interface Insert {
     
     /**
-     * SQL语句，支持参数占位符
-     * 例如：INSERT INTO user (name, email) VALUES (#{name}, #{email})
+     * SQL statement with supported parameter placeholders.
+     * For example: {@code INSERT INTO user (name, email) VALUES (#{name}, #{email})}.
      */
     String[] value();
 }

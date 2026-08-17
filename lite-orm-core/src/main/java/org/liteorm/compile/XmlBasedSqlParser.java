@@ -29,12 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 基于XML的SQL解析器实现
- * 
- * 职责：
- * 1. 解析XML文件中的SQL内容
- * 2. 构建AST节点树
- * 3. 支持MyBatis XML格式
+ * Parses Mapper XML into the normalized dynamic SQL model.
  * 
  * @author lite-orm
  * @since 2024/10/01
@@ -76,7 +71,6 @@ final class XmlBasedSqlParser implements SqlContentParser {
     
     @Override
     public boolean supports(ExecutableElement method) {
-        // 检查是否有对应的XML文件
         return getXmlPath(method) != null;
     }
 
@@ -91,7 +85,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 获取XML文件路径
+     * Returns the conventional Mapper XML resource path.
      */
     private String getXmlPath(ExecutableElement method) {
         if (!(method.getEnclosingElement() instanceof TypeElement typeElement)) {
@@ -111,7 +105,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 获取XML文档
+     * Loads and caches a Mapper XML resource.
      */
     private XmlResource getXmlResource(String xmlPath) {
         return xmlCache.computeIfAbsent(xmlPath, path -> {
@@ -129,7 +123,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
                 Document document = builder.parse(is);
                 return new XmlResource(document, collectSqlFragments(document));
             } catch (ParserConfigurationException | SAXException | IOException e) {
-                System.err.println("XML文件解析失败: " + path + ", " + e.getMessage());
+                System.err.println("XML parsing failed: " + path + ", " + e.getMessage());
                 return null;
             }
         });
@@ -173,7 +167,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 缓存SQL片段
+     * Collects named SQL fragments.
      */
     private Map<String, Element> collectSqlFragments(Document document) {
         Map<String, Element> fragments = new HashMap<>();
@@ -191,7 +185,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 查找SQL元素
+     * Finds a statement element by identifier.
      */
     private Element findSqlElement(Document document, String methodName) {
         NodeList selectNodes = document.getElementsByTagName("select");
@@ -238,7 +232,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析SQL元素
+     * Parses one statement element.
      */
     private SqlParseResult parseSqlElement(
             Element sqlElement, ExecutableElement method, ParseContext context) {
@@ -249,10 +243,8 @@ final class XmlBasedSqlParser implements SqlContentParser {
         String sqlContent = getSqlContent(sqlElement);
         boolean isDynamic = containsDynamicTags(sqlElement);
         
-        // 解析参数
         List<ParameterInfo> parameters = parseParameters(method);
         
-        // 解析AST节点
         AstNode astNode = isDynamic ? parseAstNode(sqlElement, context) : null;
         
         return new SqlParseResult(
@@ -375,7 +367,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 获取SQL内容
+     * Returns text content for a statement element.
      */
     private String getSqlContent(Element sqlElement) {
         StringBuilder content = new StringBuilder();
@@ -392,7 +384,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 检查是否包含动态标签
+     * Returns whether the statement contains dynamic tags.
      */
     private boolean containsDynamicTags(Element sqlElement) {
         return sqlElement.getElementsByTagName("if").getLength() > 0 ||
@@ -406,7 +398,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析AST节点 - 递归解析整个XML结构
+     * Recursively parses the statement AST.
      */
     private AstNode parseAstNode(Element sqlElement, ParseContext context) {
         List<AstNode> children = parseChildNodes(sqlElement, context);
@@ -420,7 +412,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 递归解析子节点
+     * Recursively parses child nodes.
      */
     private List<AstNode> parseChildNodes(Element element, ParseContext context) {
         List<AstNode> nodes = new ArrayList<>();
@@ -447,7 +439,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析元素节点，根据标签名返回对应的AstNode
+     * Parses an element into its corresponding AST node.
      */
     private AstNode parseElementNode(Element element, ParseContext context) {
         String tagName = element.getTagName().toLowerCase();
@@ -479,7 +471,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析IF元素
+     * Parses an {@code if} element.
      */
     private AstNode parseIfElement(Element element, ParseContext context) {
         String test = element.getAttribute("test");
@@ -488,7 +480,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析FOREACH元素
+     * Parses a {@code foreach} element.
      */
     private AstNode parseForeachElement(Element element, ParseContext context) {
         String collection = element.getAttribute("collection");
@@ -501,7 +493,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析CHOOSE元素
+     * Parses a {@code choose} element.
      */
     private AstNode parseChooseElement(Element element, ParseContext context) {
         List<AstNode> children = parseChildNodes(element, context);
@@ -509,7 +501,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析WHEN元素
+     * Parses a {@code when} element.
      */
     private AstNode parseWhenElement(Element element, ParseContext context) {
         String test = element.getAttribute("test");
@@ -518,7 +510,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析OTHERWISE元素
+     * Parses an {@code otherwise} element.
      */
     private AstNode parseOtherwiseElement(Element element, ParseContext context) {
         List<AstNode> children = parseChildNodes(element, context);
@@ -526,7 +518,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析WHERE元素
+     * Parses a {@code where} element.
      */
     private AstNode parseWhereElement(Element element, ParseContext context) {
         List<AstNode> children = parseChildNodes(element, context);
@@ -534,7 +526,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析SET元素
+     * Parses a {@code set} element.
      */
     private AstNode parseSetElement(Element element, ParseContext context) {
         List<AstNode> children = parseChildNodes(element, context);
@@ -542,7 +534,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析TRIM元素
+     * Parses a {@code trim} element.
      */
     private AstNode parseTrimElement(Element element, ParseContext context) {
         String prefix = element.getAttribute("prefix");
@@ -554,7 +546,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析BIND元素
+     * Parses a {@code bind} element.
      */
     private AstNode parseBindElement(Element element) {
         String name = element.getAttribute("name");
@@ -563,7 +555,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析INCLUDE元素
+     * Parses an {@code include} element.
      */
     private AstNode parseIncludeElement(Element element, ParseContext context) {
         String refId = element.getAttribute("refid");
@@ -594,7 +586,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析参数
+     * Describes Mapper method parameters.
      */
     private List<ParameterInfo> parseParameters(ExecutableElement method) {
         List<ParameterInfo> parameters = new ArrayList<>();

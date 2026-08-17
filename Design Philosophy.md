@@ -1,443 +1,166 @@
 # LiteORM Design Philosophy
-*How first-principles thinking shapes a compile-time Mapper platform*
 
-> "我不想改进马车，我想发明汽车" - 亨利·福特  
-> "第一性原理是推理的最强武器" - 埃隆·马斯克
+## Purpose
 
-## 引言：为什么还要做一个 ORM？
+LiteORM exists to provide a smaller and more predictable SQL Mapper for Java teams that value explicit SQL, compile-time feedback, readable generated code, and direct JDBC behavior.
 
-Java ORM 领域已经有 MyBatis 和 Hibernate。`lite-orm` 的价值不在于再做一个运行时 ORM，而在于验证一个更窄、更清晰的方向：
+The project does not measure success by copying the MyBatis API surface. It succeeds when a team can adopt LiteORM through normal Maven or Gradle dependencies, migrate common Mapper code with limited friction, understand generated behavior, and diagnose failures without framework internals.
 
-> MyBatis 运行期完成的许多 Mapper 工作，其实可以在编译期确定，并生成普通 Java 代码。
+## Core Model
 
-因此，`lite-orm` 的目标不是“小 MyBatis”，而是“编译期 Mapper 平台”。第一阶段只聚焦常见 Mapper、注解/XML SQL、常见动态 SQL、静态参数绑定、静态结果映射和薄运行时执行链。
+The durable LiteORM model is:
 
-## 第一性原理思维：重新定义ORM的本质
-
-### 🎯 核心问题：什么是ORM？
-
-传统认知：ORM是"对象关系映射"，需要复杂的运行时反射和配置。
-
-**第一性原理分析**：
-```
-SQL执行的物理事实 = Connection + PreparedStatement + 参数绑定 + 执行 + 结果提取
-对象映射的物理事实 = 字段赋值 + 类型转换
-```
-
-**核心洞察**：既然我们知道编译期就能确定SQL和映射逻辑，为什么要在运行时用反射？
-
-### 🔬 架构推演过程
-
-#### 第一轮思考：分离关注点
-```
-lite-compiler (编译期) + lite-core (运行时)
+```text
+Mapper interface + annotations/XML
+        |
+        v
+Annotation processor
+        |
+        v
+Validated compilation model
+        |
+        v
+Generated Mapper implementation
+        |
+        v
+SqlExecutor
+        |
+        v
+Fixed JDBC lifecycle
 ```
 
-**问题发现**：
-- 职责边界模糊：SqlEngine该放哪里？
-- 依赖关系复杂：compiler → core → 生成代码 → core
-- 过度抽象：为了分离而分离
-
-#### 第二轮思考：统一视角
-```
-ORM = 编译期代码生成 + 运行时最小化执行
-```
-
-**关键洞察**：
-1. **编译期和运行时是一体的**，分离它们是人为复杂化
-2. **用户只关心一件事**：写个接口，能执行SQL
-3. **框架内部的事情**：怎么实现不应该暴露给用户
-
-### 💡 新架构哲学
-
-#### 🎯 用户依赖简化原则
-```
-lite-orm user-facing dependency
-├── 编译期处理器 (AnnotationProcessor)
-├── 运行时执行器 (SqlEngine)  
-└── 生成代码模板 (Templates)
-```
-
-**原则**：
-- 对用户暴露尽量简单的依赖和配置入口。
-- 内部仍然可以按职责拆分为 core、starter、未来的 testing/demo 模块。
-- 模块拆分服务于可测试性、发布边界和使用体验，不为了形式上的分层而分层。
-
-#### 🔧 热路径零反射原则
-```
-能编译期确定的，不留给运行期热路径
-```
-
-**实现方式**：
-1. **Mapper 分发静态化**：生成 MapperImpl，避免运行期动态代理作为核心路径。
-2. **SQL renderer 静态化**：把常见动态 SQL 翻译成 Java 分支和循环。
-3. **参数绑定静态化**：编译期确定参数顺序和属性访问路径。
-4. **结果映射静态化**：生成可读的构造器或 setter 映射代码。
-5. **运行时最小化**：只保留必要的 JDBC 执行职责。
-
-#### 🎪 责任链重新定义
-```
-不是为了扩展而设计，而是为了必要性而存在
-```
-
-**5个核心运行时职责**（基于SQL执行和事务边界的物理必需）：
-1. **ConnectionProcessor** - 获取连接（物理必需）
-2. **LocalTransactionCoordinator** - 事务管理（数据一致性必需）
-3. **ParameterProcessor** - 参数绑定（安全性必需）
-4. **ExecutionProcessor** - SQL执行（核心必需）
-5. **ResultProcessor** - 结果提取（数据获取必需）
-
-其中 `ConnectionProcessor`、`ParameterProcessor`、`ExecutionProcessor`、`ResultProcessor` 属于单次 SQL 执行链；`LocalTransactionCoordinator` 位于执行链外，负责跨多次 Mapper 调用的本地事务边界。扩展点可以存在，但默认链路不应该被缓存、审计、分页、路由等远期能力污染。
-
-### 📊 推理过程核心表格
-
-#### 🔬 ORM核心元素分析表
-
-| 核心元素 | 职责 | 属于谁 | 为什么必需 | 物理必需性 |
-|---------|------|--------|------------|------------|
-| **连接获取** | 获取/复用Connection | ConnectionProcessor | SQL执行前提 | ✅ 物理必需 |
-| **参数绑定** | 防SQL注入的参数设置 | ParameterProcessor | 安全性要求 | ✅ 物理必需 |
-| **SQL执行** | 原生JDBC调用 | ExecutionProcessor | 核心动作 | ✅ 物理必需 |
-| **结果提取** | ResultSet → Object[] | ResultProcessor | 数据获取 | ✅ 物理必需 |
-| **事务管理** | commit/rollback | LocalTransactionCoordinator | 数据一致性 | ✅ 物理必需 |
-
-> **洞察**：每个元素都对应SQL执行的物理事实，没有多余抽象
-
-#### 🔄 架构演进对比表
-
-| 特性 | 原分离架构 | 统一架构 | 改进效果 | 用户价值 |
-|------|-----------|----------|----------|----------|
-| **用户依赖** | 多个内部概念暴露 | 简单入口 | 使用门槛降低 | 开箱更直接 |
-| **内部职责** | 编译期和运行期边界模糊 | compile/runtime/api 分包 | 职责更清晰 | 易于维护 |
-| **发布边界** | 容易过早拆分 | 先保持核心闭环 | 降低协调成本 | 快速验证 |
-| **错误排查** | 跨模块定位复杂 | 生成代码和执行链可见 | 问题定位更直接 | 调试体验更好 |
-
-> **核心洞察**：分离是人为复杂化，统一是本质需求
-
-#### ⚡ 性能对比分析表
-
-| 特性 | MyBatis | Hibernate | LiteORM | 性能优势 |
-|------|---------|-----------|---------|----------|
-| **SQL解析** | 运行时解析和构建较多 | 运行时HQL转换 | 编译期生成 renderer | 减少热路径解析 |
-| **对象映射** | 运行期映射规则较多 | 运行时反射+代理 | 编译期生成映射 | 减少热路径反射 |
-| **类型检查** | 很多问题运行时暴露 | 很多问题运行时暴露 | 尽量编译期诊断 | 更早失败 |
-| **代码可见性** | XML和代理链较隐蔽 | 注解和运行期增强较多 | 生成代码可读 | 更易审查和调试 |
-| **启动速度** | 需要构建运行时配置 | 实体扫描较重 | 少量运行时启动工作 | 有启动优势空间 |
-| **运行性能** | 成熟但存在框架层开销 | 抽象更重 | 接近手写 JDBC 的目标 | 有执行优势空间 |
-
-> **判断**：编译期方案有明确性能和诊断优势空间，但必须通过真实基准和迁移样例验证，不能只靠理论结论。
-
-#### 🎯 运行时组件详细表
-
-| 组件 | 单一职责 | 输入 | 输出 | 物理对应 | 为什么必需 |
-|--------|----------|------|------|----------|------------|
-| **ConnectionProcessor** | 获取数据库连接 | 无连接状态 | Connection对象 | 数据库物理连接 | 没有连接无法操作数据库 |
-| **LocalTransactionCoordinator** | 管理事务状态 | Connection | 事务状态设置 | 数据库事务机制 | 保证数据一致性 |
-| **ParameterProcessor** | 绑定SQL参数 | SQL+参数值 | PreparedStatement | JDBC参数绑定 | 防止SQL注入 |
-| **ExecutionProcessor** | 执行SQL语句 | PreparedStatement | ResultSet/UpdateCount | SQL引擎执行 | 这是核心操作 |
-| **ResultProcessor** | 提取查询结果 | ResultSet | Object[]数组 | 内存数据结构 | 将数据库结果转为Java对象 |
+Compile-time work includes:
 
-> **设计哲学**：每个处理器都对应一个不可省略的物理步骤
+- Mapper method validation;
+- SQL source selection;
+- dynamic SQL expression compilation;
+- parameter and adapter planning;
+- return-shape and result-mapping validation;
+- readable Java source generation.
 
-#### 🔄 完整请求链路对比表
+Runtime work includes:
 
-| 阶段 | MyBatis | Hibernate | LiteORM | 性能差异 |
-|------|---------|-----------|---------|----------|
-| **编译期** | 部分语法检查 | 注解扫描 | 生成 MapperImpl 和 renderer | LiteORM 前移更多工作 |
-| **启动期** | 构建运行时配置 | 构建 SessionFactory | 目标是减少启动扫描 | 需要基准验证 |
-| **运行期调用** | 代理调用 | 代理和拦截器 | 普通实现类调用 | 理论路径更短 |
-| **SQL构建** | 动态 SQL 运行期参与 | HQL 转 SQL | 生成 Java renderer | 逻辑更可见 |
-| **结果映射** | 映射规则运行期处理 | 反射和代理较多 | 生成映射代码 | 调试更直接 |
-| **内存占用** | 需要运行时元数据 | 元数据和代理较多 | 目标是更少运行时元数据 | 需要实测 |
+- acquiring a connection handle;
+- preparing and configuring a JDBC statement;
+- binding parameters;
+- executing SQL;
+- reading or mapping results;
+- closing resources;
+- publishing one final execution outcome.
 
-> **总结**：LiteORM 的优势应该通过热路径缩短、启动工作减少和生成代码可见性体现；具体收益必须用 benchmark 和真实项目迁移验证。
+## Architectural Principles
 
-#### 🎭 用户体验对比表
+### Compile Stable Knowledge
 
-| 体验维度 | MyBatis | Hibernate | LiteORM | 用户感受 |
-|----------|---------|-----------|---------|----------|
-| **学习成本** | 中等（XML+注解） | 高（概念复杂） | 低（只要会接口） | LiteORM最简单 |
-| **调试体验** | 困难（XML黑盒） | 很困难（代理+魔法） | 容易（生成代码可读） | LiteORM最透明 |
-| **错误提示** | 运行时XML错误 | 运行时魔法错误 | 编译期类型错误 | LiteORM最安全 |
-| **代码提示** | 弱（字符串SQL） | 中等（HQL） | 强（类型安全） | LiteORM最友好 |
-| **性能调优** | 手动XML优化 | 复杂配置调优 | 生成代码直接优化 | LiteORM最直观 |
-| **团队协作** | XML维护困难 | 配置复杂 | 生成代码可review | LiteORM最协作友好 |
+Anything that can be determined reliably by javac should not be rediscovered on every Mapper call. Unsupported signatures, unknown parameters, invalid XML, unsafe substitution, incompatible result types, and unsupported dynamic expressions should fail during compilation.
 
-> **用户价值**：LiteORM提供最佳开发体验
+Compile-time processing must remain deterministic. The processor must not depend on network resources, runtime container state, or a general template engine.
 
-#### 📈 技术债务对比表
+### Keep Runtime Explicit
 
-| 债务类型 | MyBatis | Hibernate | LiteORM | 长期影响 |
-|----------|---------|-----------|---------|----------|
-| **运行时依赖** | 反射+XML解析器 | 复杂ORM引擎 | 最小JDBC封装 | LiteORM最轻量 |
-| **升级风险** | XML兼容性问题 | 版本间巨大差异 | 生成代码稳定 | LiteORM最稳定 |
-| **性能瓶颈** | 反射+动态解析 | 代理+懒加载 | 接近原生性能 | LiteORM最可预测 |
-| **调试复杂度** | 中等 | 极高 | 极低 | LiteORM最可维护 |
-| **团队门槛** | 需要XML专家 | 需要ORM专家 | 普通Java开发者 | LiteORM最平民化 |
+Generated Mapper implementations are ordinary Java classes. They receive a `SqlExecutor`, build immutable execution plans, execute them, and adapt the result to the declared return type.
 
-> **战略价值**：LiteORM减少长期技术债务
+LiteORM does not expose a session abstraction and does not use runtime Mapper proxies. The runtime path should remain visible in generated source and debuggable with normal Java tools.
 
-### 🚀 对比传统ORM
+### Keep One JDBC Lifecycle
 
-#### MyBatis的问题
-```
-运行时反射 + XML解析 + 复杂配置 = 性能损耗 + 学习成本
-```
+`JdbcSqlExecutor` owns the physical statement lifecycle. Standalone and hosted integrations may replace connection participation and transaction ownership, but they must not fork or reimplement statement preparation, binding, execution, result reading, mapping, cleanup, or interceptor completion.
 
-#### Hibernate的问题  
-```
-过度抽象 + 魔法太多 + 性能不可控 = 黑盒 + 调试困难
-```
+Every acquired resource has one owner. Cleanup failures remain observable, original failures remain primary, and terminal observation failures do not overwrite SQL or cleanup failures.
 
-#### LiteORM的解决方案
-```
-编译期生成 + 运行时最小化 + 类型安全 = 性能 + 可读性 + 可调试
-```
+### Prefer Deep Boundaries
 
-**核心差异目标**：
-- **可见性**：生成的 Mapper 代码可读、可审查、可断点调试。
-- **性能**：减少 Mapper 分发、SQL 解析、参数访问和结果映射中的运行期框架开销；真实收益需要 benchmark 验证。
-- **安全性**：把受支持 Mapper 子集的类型和引用错误尽量前移到编译期，并避免主执行路径中的反射分发。
-- **简单性**：尽量保留 MyBatis 风格接口和 XML/注解习惯，但接入体验仍需通过外部项目 E2E 验证。
+Modules and interfaces should hide meaningful complexity rather than mirror implementation phases. A new helper, layer, wrapper, option, or callback must reduce the number of facts callers need to understand.
 
-### 🎯 设计原则总结
+Related state, invariants, and failure handling stay with the module that owns them. Do not move complexity upward into generated Mappers or application code merely to keep an internal implementation small.
 
-#### 1. 第一性原理
-> 从SQL执行的物理事实出发，不接受"传统做法"
+### Keep the Core Small
 
-#### 2. 编译期优于运行时
-> 能稳定在编译期确定的，尽量不留给运行时解释和推断
+The core owns only the reusable runtime contract:
 
-#### 3. 可见性优于魔法
-> 生成的代码要像手写的一样清晰可读
+- annotations and public extension APIs;
+- immutable execution plans and results;
+- JDBC execution;
+- minimal standalone local transactions;
+- built-in observation interceptors.
 
-#### 4. 性能优于抽象
-> 不为了设计模式而牺牲性能
+The annotation processor, Spring integration, migration tooling, generator, benchmarks, examples, and test infrastructure remain separate modules with one-way dependencies.
 
-#### 5. 简单性优于完备性
-> 先稳定覆盖高频 Mapper 场景，再通过显式扩展接口处理少量特殊需求
+### Use Typed Extension Points
 
-### 🧠 第一性原理推理总结
-
-#### 💡 完整推理流程表
+Exceptional behavior enters through narrow typed contracts:
 
-| 推理步骤 | 传统思维 | 第一性原理思维 | 结果 |
-|----------|----------|----------------|------|
-| **1. 问题定义** | ORM需要映射对象关系 | SQL执行+结果转换就是全部 | 重新定义问题本质 |
-| **2. 现状分析** | MyBatis/Hibernate是标准 | 分析它们的物理限制 | 发现运行时开销问题 |
-| **3. 约束识别** | 必须运行时灵活 | 编译期就能确定一切 | 突破传统约束 |
-| **4. 方案设计** | 改进现有方案 | 从零开始最优设计 | 编译期生成方案 |
-| **5. 架构选择** | 分离编译期和运行时 | 统一为用户体验服务 | 单一模块架构 |
-| **6. 实现策略** | 复杂的抽象层 | 每个组件都物理必需 | 5个核心处理器 |
+- `SqlProvider` for SQL structure that cannot be expressed by the supported static model;
+- `ParameterBinder` for application or vendor parameter types;
+- `RowMapper` for custom result shapes;
+- `ExecutionInterceptor` for observation;
+- `ConnectionHandleFactory` for host-managed connection participation.
 
-> **关键洞察**：第一性原理让我们跳出传统ORM的思维陷阱
+Extensions must not replace the fixed JDBC lifecycle or become a general runtime plugin chain.
 
-#### 🎯 设计决策矩阵
+### Keep DataSource Ownership Unambiguous
 
-| 决策点 | 选项A | 选项B | 第一性原理判断 | 最终选择 |
-|--------|-------|-------|----------------|----------|
-| **模块划分** | core+compiler分离 | 统一模块 | 用户只关心一个依赖 | 统一模块 ✅ |
-| **SQL处理** | 运行时解析 | 编译期生成 | 编译期确定性能更好 | 编译期生成 ✅ |
-| **对象映射** | 运行时反射 | 编译期硬编码 | 硬编码零开销 | 编译期硬编码 ✅ |
-| **错误处理** | 运行时异常 | 编译期检查 | 越早发现越好 | 编译期检查 ✅ |
-| **扩展性** | 复杂的插件系统 | 生成代码直接修改 | 简单性优于完备性 | 生成代码修改 ✅ |
-| **调试方式** | 黑盒调试 | 生成代码可见 | 透明性最重要 | 代码可见 ✅ |
-
-> **决策原则**：每个选择都基于物理事实而非传统惯例
-
-### 🔮 未来演进
-
-#### 短期目标
-- [ ] 明确 MyBatis 兼容子集，并把不支持项变成编译期诊断。
-- [ ] 建立外部 demo 项目，验证真实依赖接入、注解处理器、XML 资源查找和数据库 E2E。
-- [ ] 硬化 `${}`、参数歧义、未知属性、返回类型不匹配等安全和诊断边界。
-
-#### 中期目标  
-- [ ] 增强结果映射：JavaBean setter、构造器选择、列名到属性名映射、基础类型返回。
-- [ ] 增强 Spring Boot starter：Mapper Bean 注册、事务参与、配置文档和样例。
-- [ ] 建立 MyBatis 迁移 fixtures，持续记录支持、差异和不支持项。
-
-#### 长期愿景
-- [ ] 导出机器可读元数据，服务 IDE、AI、静态分析和治理工具。
-- [ ] 增加可观测性、缓存、分页 DSL、读写分离、分库分表等平台能力。
-- [ ] 通过真实 benchmark 证明适用场景下的性能和启动收益。
-
----
-
-## 结论：方向正确，但要靠工程化兑现
-
-第一性原理给出的核心判断是正确的：Mapper、SQL、参数和映射里有大量信息可以在编译期确定。这个方向具备和 MyBatis 拉开差异的空间。
-
-但项目成败不取决于口号，而取决于接下来几个工程结果：
-
-1. 编译期诊断是否足够准确。
-2. 外部项目接入是否稳定。
-3. 生成代码是否长期可读、可调试。
-4. MyBatis 兼容边界是否清晰。
-5. 真实数据库 E2E 和 benchmark 是否能支撑优势判断。
-
-### 核心结论
-
-`lite-orm` 应该坚持一个定位：
-
-> 先做可信的编译期 MyBatis 子集替代，再演进为编译期 Mapper 平台。
-
-不要追求第一阶段全量替代 MyBatis。先稳定支持高频 Mapper 模式，把不支持项在编译期说清楚，让使用者知道什么时候能用、什么时候不能用。这才是可持续的路线。
-
----
-
-## 🔄 最新架构演进记录 (2024/09/29)
-
-### 📦 包结构重构：基于物理职责的重新组织
-
-**问题识别**：原`processor`包混合了两个完全不同维度的角色
-- 编译期注解处理器 vs 运行时责任链处理器
-- 违反了单一职责原则和接口隔离原则
-
-**解决方案**：基于物理职责和时间维度重新分包
-```
-org.liteorm/
-├── api/                    # 核心API接口（物理边界）
-│   ├── SqlEngine.java      # 执行引擎接口
-│   ├── SqlTask.java        # 任务封装
-│   ├── SqlResult.java      # 结果封装
-│   ├── ConnectionProvider.java  # 连接管理接口
-│   ├── TransactionCoordinator.java # 事务管理接口
-│   ├── TransactionContext.java # 事务上下文
-│   └── TransactionException.java # 事务异常
-├── compile/                # 编译期组件（时间维度）
-│   ├── LiteOrmProcessor.java   # 注解处理器
-│   ├── AnnotationBasedMapperGenerator.java # 代码生成器
-│   └── MapperGenerator.java    # 生成器接口
-├── runtime/                # 运行时组件（时间维度）
-│   ├── SqlProcessor.java       # 处理器接口
-│   ├── ConnectionProcessor.java # 连接处理器
-│   ├── ParameterProcessor.java  # 参数处理器
-│   ├── ExecutionProcessor.java  # 执行处理器
-│   └── ResultProcessor.java    # 结果处理器
-├── LocalTransactionCoordinator.java # 本地事务协调器
-├── StandaloneSqlEngine.java # 本地事务与执行引擎组合入口
-└── DefaultSqlEngine.java   # 纯 SQL 执行实现（可配置）
-```
-
-**收益**：
-- ✅ 职责清晰：按时间维度和物理职责分离
-- ✅ 符合设计原则：单一职责、接口隔离
-- ✅ 易于理解：包名语义明确
-- ✅ 便于扩展：清晰的边界便于添加新功能
-
-### 🔧 可配置性增强：消除"写死"问题
-
-**问题识别**：DefaultSqlEngine硬编码了5个处理器，不支持外部扩展
-
-**解决方案**：支持外部传入处理器列表
-```java
-// 默认构造器 - 使用标准 SQL 执行链
-public DefaultSqlEngine(ConnectionProvider connectionProvider)
-
-// 可配置构造器 - 支持外部传入处理器列表
-public DefaultSqlEngine(ConnectionProvider connectionProvider, List<SqlProcessor> processors)
-```
-
-**收益**：
-- ✅ 扩展性：支持自定义处理器
-- ✅ 兼容性：保持默认行为不变
-- ✅ 灵活性：可替换、添加、重排处理器
-- ✅ 测试性：便于单元测试和集成测试
-
-### 🎯 事务管理增强：支持自管理和外部扩展
-
-**物理必需性分析**：
-```
-事务的物理阶段 = BEGIN + PROCESS + COMMIT/ROLLBACK
-每个阶段都有明确的物理对应：连接管理、状态跟踪、异常处理
-```
-
-**核心组件**：
-- **TransactionCoordinator**: 只暴露当前事务连接
-- **TransactionOperations**: 只暴露手动 begin/commit/rollback
-- **TransactionContext**: 事务上下文（线程安全）
-- **TransactionException**: 事务异常（详细分类）
-- **LocalTransactionCoordinator**: 自管理实现（ThreadLocal隔离）
-
-**集成支持**：
-- ✅ 自管理模式：`StandaloneSqlEngine` 委托 `LocalTransactionCoordinator` 控制事务生命周期
-- ✅ Spring模式：Spring 控制 begin/commit/rollback，LiteORM 只通过 `DataSourceUtils` 借还连接
-- ✅ 线程安全：基于ThreadLocal的事务隔离
-- ✅ 异常安全：自动回滚和资源清理
-
-### 🏗️ 代码生成方向：基于 record class 的静态映射
-
-**目标形态**：生成明确的 Object[] 到业务对象转换
-```java
-// 生成的硬编码映射（零反射）
-return new User((Long)row[0], (String)row[1], (String)row[2], (Integer)row[3]);
-```
-
-**物理原理**：
-- record class有确定的构造器签名
-- Object[]有确定的字段顺序  
-- 直接硬编码类型转换，避免反射
-
-**当前边界与目标**：
-- 当前生成器已经具备基础静态映射路径，但常见 record、JavaBean、标量和 `List<T>` 形状仍需在真实数据库 E2E 中系统验证。
-- 受支持的类型转换应生成直接构造器、setter 或显式转换代码，避免运行期反射发现映射规则。
-- 性能目标是接近手写 JDBC 的框架开销水平，但在 M10 benchmark 完成前不把它作为已证明结论。
-- 不支持的嵌套对象图应在编译期明确失败，而不是运行时猜测或静默降级。
-
-### 🎯 下一阶段：专注代码生成工程
-
-**当前状态**：核心原型链路已经形成并通过仓库内测试，下一阶段需要通过外部项目 E2E、诊断测试和真实结果映射验证其可靠性。
-
-**下一步重点**：
-1. **完善AnnotationBasedMapperGenerator**
-   - 支持复杂参数绑定（#{param}语法）
-   - 增强结果映射（自动类型推断）
-   - 支持动态SQL构建
-   - 优化生成代码质量
-
-2. **XML编译器开发**
-   - 动态SQL转Java代码
-   - 编译期SQL验证
-   - 与注解方式统一
-
-3. **性能优化和测试**
-   - 基准测试 vs MyBatis
-   - 集成测试覆盖
-   - 生产环境验证
-
-**设计原则坚持**：
-- 每个功能都基于物理必需性
-- 主路径避免 Mapper 动态代理、运行时 XML 解释和反射属性发现
-- 能稳定编译的行为尽量前移，不对开放式运行时能力作不现实承诺
-- 生成代码可读可调试
-
----
-
-## 🎊 阶段性总结
-
-通过这次基于第一性原理的架构演进，我们实现了：
-
-### 🏆 核心成就
-1. **架构清晰化**：从混乱的包结构到清晰的职责分离
-2. **可配置化**：从硬编码到支持外部扩展
-3. **事务管理**：从简单到支持复杂场景
-4. **代码生成**：从早期占位到硬编码零反射实现
-
-### 💡 关键洞察
-- **包结构设计**：应该基于物理职责和时间维度，而不是功能相似性
-- **可配置性**：不写死任何组件，支持外部传入和替换
-- **事务管理**：基于物理阶段设计，支持自管理和外部集成
-- **代码生成**：把可确定的 Mapper 行为前移，减少运行时解释和推断开销
-
-### 🚀 技术价值
-- **性能潜力**：减少框架热路径开销，具体收益等待可复现 benchmark 验证
-- **开发体验**：类型安全、编译期检查、代码可读
-- **架构优势**：清晰的职责边界、良好的扩展性
-- **维护优势**：生成代码可调试、问题定位容易
-
-**下一阶段应专注 MVP 硬化：外部项目 E2E、编译期诊断、安全边界、结果映射和 Spring 接入。**
-
----
-
-*"能在编译期确定的，不留给运行期热路径；不能稳定支持的，就在编译期说清楚。" - LiteORM 设计原则*
+One generated Mapper is assembled against one `SqlExecutor` and one DataSource domain. Multiple DataSources use disjoint Mapper groups. Dynamic rebinding of the same Mapper to multiple DataSources is outside the contract.
+
+Spring may provide IoC, transaction managers, physical DataSources, and ordered interceptor beans. It does not own Mapper semantics or JDBC execution.
+
+## Compatibility Philosophy
+
+LiteORM supports common SQL Mapper work directly, converts some MyBatis patterns into static LiteORM forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
+
+Direct support focuses on:
+
+- annotation and XML CRUD;
+- controlled dynamic SQL;
+- scalar, record, JavaBean, list, optional, cursor, batch, and generated-key contracts;
+- explicit transactions and DataSource bindings;
+- typed providers, binders, row mappers, and interceptors.
+
+Migration tooling may rewrite deterministic syntax. It must report rather than guess when encountering complex `resultMap` graphs, nested queries, arbitrary OGNL, plugins, caches, or ambiguous Spring configuration.
+
+## Explicit Non-Goals
+
+LiteORM does not add:
+
+- first-level or second-level ORM caches;
+- `SqlSession`;
+- runtime XML reload or OGNL interpretation;
+- lazy loading or complex relationship graphs;
+- automatic count queries or framework pagination models;
+- distributed transaction management;
+- runtime SQL rewriting plugins;
+- full MyBatis plugin or API compatibility;
+- one Mapper dynamically bound to multiple DataSources.
+
+These omissions are deliberate boundaries, not incomplete features.
+
+## Evidence Before Claims
+
+Architecture and performance claims require executable evidence:
+
+- public contracts are protected by focused tests and API checks;
+- generated source is protected by golden and compilation tests;
+- JDBC behavior is tested with H2 and production drivers;
+- PostgreSQL and MySQL behavior is verified with Testcontainers;
+- Spring behavior is verified through physical DataSources and transaction managers;
+- Maven and Gradle consumption is verified outside the reactor;
+- benchmark claims use equivalent transaction boundaries and reproducible commands.
+
+Optimization follows measurement. A shorter theoretical path is not a performance result.
+
+## Change Decision Checklist
+
+Before accepting a design change, ask:
+
+1. Does it reduce or increase the concepts users must understand?
+2. Can the behavior be decided at compile time?
+3. Does it preserve the single JDBC lifecycle?
+4. Does it keep runtime artifacts independent of processor and tooling code?
+5. Is the extension typed and narrow, or is it becoming a general plugin mechanism?
+6. Is DataSource and transaction ownership explicit?
+7. Is failure and resource ownership observable and deterministic?
+8. Is the change justified by a user case, compatibility need, or measured evidence?
+9. Can the contract be tested through a stable public boundary?
+10. Does the documentation identify one authoritative source of truth?
+
+The preferred change is the smallest one that strengthens these invariants while keeping ordinary Mapper use simple.

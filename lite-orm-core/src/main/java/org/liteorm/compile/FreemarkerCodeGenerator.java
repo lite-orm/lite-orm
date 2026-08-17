@@ -20,7 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 基于FreeMarker的代码生成器实现。
+ * FreeMarker-backed Java source generator.
  *
  * @author lite-orm
  * @since 2024/10/01
@@ -66,7 +66,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             template.process(dataModel, writer);
             return writer.toString();
         } catch (IOException | TemplateException e) {
-            throw new GenerationException("代码生成失败", e);
+            throw new GenerationException("Source generation failed", e);
         }
     }
 

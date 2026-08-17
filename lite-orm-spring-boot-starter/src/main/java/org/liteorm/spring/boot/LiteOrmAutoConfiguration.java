@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Bean;
 import javax.sql.DataSource;
 
 /**
- * LiteORM自动配置类
+ * LiteORM Spring Boot auto-configuration.
  * 
  * @author lite-orm
  * @since 2024/11/15

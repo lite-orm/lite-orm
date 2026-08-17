@@ -3,12 +3,7 @@ package org.liteorm.compile;
 import java.util.List;
 
 /**
- * AST节点接口 - 动态SQL的抽象语法树
- * 
- * 职责：
- * 1. 表示动态SQL的树形结构
- * 2. 支持各种动态标签（if、foreach、choose等）
- * 3. 为代码生成提供结构化数据
+ * Dynamic SQL abstract syntax tree node.
  * 
  * @author lite-orm
  * @since 2024/10/01
@@ -16,35 +11,35 @@ import java.util.List;
 interface AstNode {
     
     /**
-     * 节点类型
+     * Returns the node type.
      */
     NodeType getNodeType();
     
     /**
-     * 子节点
+     * Returns child nodes in source order.
      */
     List<AstNode> getChildren();
     
     /**
-     * 节点类型枚举
+     * Supported dynamic SQL node types.
      */
     enum NodeType {
-        CONTAINER,  // 容器节点
-        TEXT,       // 文本节点
-        IF,         // <if>条件节点
-        FOREACH,    // <foreach>循环节点
-        CHOOSE,     // <choose>选择节点
-        WHEN,       // <when>条件分支
-        OTHERWISE,  // <otherwise>默认分支
-        WHERE,      // <where>条件包装
-        SET,        // <set>更新包装
-        TRIM,       // <trim>修剪包装
-        BIND,       // <bind>局部变量绑定
-        INCLUDE,    // <include> SQL片段引用
+        CONTAINER,
+        TEXT,
+        IF,
+        FOREACH,
+        CHOOSE,
+        WHEN,
+        OTHERWISE,
+        WHERE,
+        SET,
+        TRIM,
+        BIND,
+        INCLUDE,
     }
 
     /**
-     * 容器节点 - 保留多个混合子节点的顺序。
+     * Container that preserves mixed child-node order.
      */
     record ContainerNode(List<AstNode> children) implements AstNode {
         @Override
@@ -54,7 +49,7 @@ interface AstNode {
     }
     
     /**
-     * 文本节点 - 静态SQL片段
+     * Static SQL text fragment.
      */
     record TextNode(String text) implements AstNode {
         @Override
@@ -64,7 +59,7 @@ interface AstNode {
     }
     
     /**
-     * IF条件节点
+     * Conditional {@code if} node.
      */
     record IfNode(String test, List<AstNode> children) implements AstNode {
         @Override
@@ -74,7 +69,7 @@ interface AstNode {
     }
     
     /**
-     * FOREACH循环节点
+     * Iteration node.
      */
     record ForeachNode(String collection, String item, String separator, 
                        String open, String close, List<AstNode> children) implements AstNode {
@@ -85,7 +80,7 @@ interface AstNode {
     }
     
     /**
-     * CHOOSE选择节点
+     * Choice container node.
      */
     record ChooseNode(List<AstNode> children) implements AstNode {
         @Override
@@ -95,7 +90,7 @@ interface AstNode {
     }
     
     /**
-     * WHEN条件分支节点
+     * Conditional choice branch.
      */
     record WhenNode(String test, List<AstNode> children) implements AstNode {
         @Override
@@ -105,7 +100,7 @@ interface AstNode {
     }
     
     /**
-     * OTHERWISE默认分支节点
+     * Default choice branch.
      */
     record OtherwiseNode(List<AstNode> children) implements AstNode {
         @Override
@@ -115,7 +110,7 @@ interface AstNode {
     }
     
     /**
-     * WHERE条件包装节点
+     * Conditional WHERE wrapper.
      */
     record WhereNode(List<AstNode> children) implements AstNode {
         @Override
@@ -125,7 +120,7 @@ interface AstNode {
     }
     
     /**
-     * SET更新包装节点
+     * Conditional SET wrapper.
      */
     record SetNode(List<AstNode> children) implements AstNode {
         @Override
@@ -135,7 +130,7 @@ interface AstNode {
     }
     
     /**
-     * TRIM修剪包装节点
+     * Configurable trim wrapper.
      */
     record TrimNode(String prefix, String suffix, String prefixOverrides, 
                    String suffixOverrides, List<AstNode> children) implements AstNode {
@@ -146,7 +141,7 @@ interface AstNode {
     }
     
     /**
-     * BIND局部变量绑定节点
+     * Local expression binding node.
      */
     record BindNode(String name, String value) implements AstNode {
         @Override
@@ -156,7 +151,7 @@ interface AstNode {
     }
     
     /**
-     * INCLUDE SQL片段引用节点
+     * SQL fragment reference node.
      */
     record IncludeNode(String refId) implements AstNode {
         @Override

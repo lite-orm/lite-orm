@@ -7,8 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记Mapper接口的注解
- * 用于在编译期生成对应的实现类
+ * Marks an interface for compile-time Mapper implementation generation.
  * 
  * @author lite-orm
  * @since 2024/09/29

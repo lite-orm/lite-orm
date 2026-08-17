@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记Mapper方法参数名的注解。
+ * Declares the SQL-visible alias of a Mapper method parameter.
  *
  * @author lite-orm
  * @since 2026/03/26
@@ -18,7 +18,7 @@ import java.lang.annotation.Target;
 public @interface Param {
 
     /**
-     * 参数别名。
+     * The parameter alias.
      */
     String value();
 }

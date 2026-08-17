@@ -14,7 +14,7 @@
     <packaging>jar</packaging>
 
     <name>LiteORM Core</name>
-    <description>LiteORM核心模块 - 编译期 Mapper 生成与 JDBC 执行</description>
+    <description>LiteORM compile-time Mapper generation and JDBC runtime</description>
 
     <dependencies>
         <!-- FreeMarker for template rendering -->

@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * LiteORM配置属性
+ * LiteORM Spring Boot configuration properties.
  * 
  * @author lite-orm
  * @since 2024/11/15
@@ -15,37 +15,37 @@ import java.util.List;
 public class LiteOrmProperties {
     
     /**
-     * 是否启用LiteORM
+     * Whether LiteORM auto-configuration is enabled.
      */
     private boolean enabled = true;
     
     /**
-     * 慢查询阈值（毫秒）
+     * Slow-query threshold in milliseconds.
      */
     private long slowQueryThreshold = 1000L;
     
     /**
-     * 是否启用慢查询监控
+     * Whether slow-query monitoring is enabled.
      */
     private boolean slowQueryMonitoring = true;
     
     /**
-     * 是否启用SQL日志
+     * Whether SQL logging is enabled.
      */
     private boolean sqlLogging = true;
     
     /**
-     * 是否记录参数值
+     * Whether parameter values are logged.
      */
     private boolean logParameters = true;
     
     /**
-     * 是否启用SQL审计
+     * Whether SQL auditing is enabled.
      */
     private boolean auditEnabled = false;
     
     /**
-     * 审计是否异步
+     * Whether auditing runs asynchronously.
      */
     private boolean auditAsync = true;
     

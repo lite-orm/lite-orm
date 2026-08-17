@@ -21,12 +21,7 @@ import java.io.Writer;
 import java.util.Set;
 
 /**
- * 重新设计的LiteORM注解处理器
- * 
- * 核心理念：
- * - 生成零反射的纯Java代码
- * - 硬编码SQL和结果映射
- * - 最小化运行时依赖
+ * Annotation processor that generates ordinary Java Mapper implementations.
  * 
  * @author lite-orm
  * @since 2024/09/29
@@ -52,7 +47,6 @@ public class LiteOrmProcessor extends AbstractProcessor {
         this.elementUtils = processingEnv.getElementUtils();
         this.typeUtils = processingEnv.getTypeUtils();
         
-        // 初始化编译管道
         this.compilePipeline = new CompilePipeline(elementUtils, typeUtils, messager, filer);
         
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processor initialized");
@@ -67,7 +61,6 @@ public class LiteOrmProcessor extends AbstractProcessor {
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing started...");
         
         try {
-            // 只处理@Mapper注解 - 生成零反射的纯Java实现
             processMapperAnnotations(roundEnv);
             
             messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing completed successfully");
@@ -91,18 +84,16 @@ public class LiteOrmProcessor extends AbstractProcessor {
                 messager.printMessage(Diagnostic.Kind.NOTE, 
                     "Processing Mapper: " + typeElement.getQualifiedName());
                 
-                // 生成零反射的MapperImpl
                 generateZeroReflectionMapperImpl(typeElement);
             }
         }
     }
     
     /**
-     * 生成零反射的MapperImpl
+     * Generates one Mapper implementation.
      */
     private void generateZeroReflectionMapperImpl(TypeElement mapperInterface) throws IOException {
         try {
-            // 检查是否支持该接口
             if (!compilePipeline.supports(mapperInterface)) {
                 messager.printMessage(Diagnostic.Kind.WARNING,
                     "Skipping unsupported interface: " + mapperInterface.getQualifiedName());
@@ -113,10 +104,8 @@ public class LiteOrmProcessor extends AbstractProcessor {
             String className = mapperInterface.getSimpleName() + "Impl";
             String qualifiedClassName = packageName + "." + className;
             
-            // 编译生成代码
             String javaCode = compilePipeline.compileMapper(mapperInterface);
-            
-            // 写入文件
+
             JavaFileObject builderFile = filer.createSourceFile(qualifiedClassName);
             try (Writer writer = builderFile.openWriter()) {
                 writer.write(javaCode);

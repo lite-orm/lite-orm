@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * SQL参数解析器 - 编译期解析#{param}与MyBatis风格参数命名。
+ * Parses {@code #{param}} expressions and MyBatis-style aliases at compile time.
  *
  * @author lite-orm
  * @since 2024/09/29
@@ -24,7 +24,7 @@ final class SqlParameterParser {
     private static final Pattern HASH_PARAM_PATTERN = Pattern.compile("#\\{([^}]+)\\}");
 
     /**
-     * 根据编译期方法参数生成标准化参数描述。
+     * Builds normalized parameter metadata from a Mapper method.
      */
     public List<MethodParameter> describeMethodParameters(List<? extends VariableElement> methodParameters) {
         return describeMethodParameters(methodParameters, methodParameters.stream()
@@ -67,14 +67,14 @@ final class SqlParameterParser {
     }
 
     /**
-     * 解析SQL中的参数绑定顺序。
+     * Parses SQL parameter binding order.
      */
     public SqlParseResult parseSqlFromElements(String sql, List<? extends VariableElement> methodParameters) {
         return parseSql(sql, describeMethodParameters(methodParameters));
     }
 
     /**
-     * 使用标准化参数模型解析SQL中的参数绑定顺序。
+     * Parses SQL binding order with normalized parameter metadata.
      */
     public SqlParseResult parseSql(String sql, List<MethodParameter> methodParameters) {
         Map<String, MethodParameter> aliasLookup = buildAliasLookup(methodParameters);
@@ -94,7 +94,7 @@ final class SqlParameterParser {
     }
 
     /**
-     * 生成静态参数绑定代码。
+     * Generates direct parameter access source.
      */
     public String generateParameterBindingCode(List<ParameterBinding> bindings) {
         if (bindings.isEmpty()) {
@@ -111,7 +111,7 @@ final class SqlParameterParser {
     }
 
     /**
-     * 将OGNL风格属性路径转换为Java访问表达式。
+     * Converts a supported OGNL-style property path into a Java access expression.
      */
     public String toJavaAccess(String expression, List<MethodParameter> methodParameters) {
         Map<String, MethodParameter> aliasLookup = buildAliasLookup(methodParameters);

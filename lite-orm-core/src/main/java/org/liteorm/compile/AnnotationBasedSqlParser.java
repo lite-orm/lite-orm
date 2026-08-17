@@ -21,12 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 基于注解的SQL解析器实现
- * 
- * 职责：
- * 1. 解析注解中的SQL内容
- * 2. 支持<script>标签的动态SQL
- * 3. 构建AST节点树
+ * Parses SQL and dynamic scripts declared through Mapper annotations.
  * 
  * @author lite-orm
  * @since 2024/10/01
@@ -35,22 +30,17 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     
     @Override
     public SqlParseResult parseSql(ExecutableElement method) {
-        // 1. 检查注解
         String sqlContent = getSqlFromAnnotation(method);
         if (sqlContent == null) {
             return null;
         }
 
-        // 2. 判断是否为动态SQL
         boolean isDynamic = containsDynamicTags(sqlContent);
 
-        // 3. 解析参数
         List<ParameterInfo> parameters = parseParameters(method);
 
-        // 4. 解析AST节点
         AstNode astNode = isDynamic ? parseAstNode(sqlContent) : null;
 
-        // 5. 确定SQL类型
         SqlType sqlType = determineSqlType(method);
 
         return new SqlParseResult(
@@ -74,28 +64,24 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 从注解获取SQL内容
+     * Returns SQL declared by a supported statement annotation.
      */
     private String getSqlFromAnnotation(ExecutableElement method) {
-        // 检查@Select注解
         Select selectAnnotation = method.getAnnotation(Select.class);
         if (selectAnnotation != null) {
             return String.join("\n", selectAnnotation.value());
         }
         
-        // 检查@Insert注解
         Insert insertAnnotation = method.getAnnotation(Insert.class);
         if (insertAnnotation != null) {
             return String.join("\n", insertAnnotation.value());
         }
         
-        // 检查@Update注解
         Update updateAnnotation = method.getAnnotation(Update.class);
         if (updateAnnotation != null) {
             return String.join("\n", updateAnnotation.value());
         }
         
-        // 检查@Delete注解
         Delete deleteAnnotation = method.getAnnotation(Delete.class);
         if (deleteAnnotation != null) {
             return String.join("\n", deleteAnnotation.value());
@@ -110,7 +96,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 检查是否包含动态标签
+     * Returns whether the SQL contains supported dynamic tags.
      */
     private boolean containsDynamicTags(String sqlContent) {
         return sqlContent.contains("<if") ||
@@ -125,26 +111,24 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析AST节点
+     * Parses the dynamic SQL AST.
      */
     private AstNode parseAstNode(String sqlContent) {
         try {
-            // 检查是否有<script>标签
             if (sqlContent.contains("<script>")) {
                 String scriptContent = extractScriptContent(sqlContent);
                 return parseXmlContent(scriptContent);
             } else {
-                // 直接解析内容
                 return parseXmlContent(sqlContent);
             }
         } catch (Exception e) {
-            System.err.println("AST解析失败: " + e.getMessage());
+            System.err.println("AST parsing failed: " + e.getMessage());
             return new AstNode.TextNode(sqlContent);
         }
     }
     
     /**
-     * 提取script标签内容
+     * Extracts the contents of a {@code script} element.
      */
     private String extractScriptContent(String sqlContent) {
         int start = sqlContent.indexOf("<script>") + 8;
@@ -156,10 +140,9 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析XML内容
+     * Parses dynamic SQL XML content.
      */
     private AstNode parseXmlContent(String xmlContent) throws Exception {
-        // 包装为完整的XML文档
         String fullXml = "<root>" + xmlContent + "</root>";
         
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -171,7 +154,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析XML元素
+     * Parses one XML element.
      */
     private AstNode parseElement(Element element) {
         String tagName = element.getTagName();
@@ -208,7 +191,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析IF元素
+     * Parses an {@code if} element.
      */
     private AstNode parseIfElement(Element element) {
         String test = element.getAttribute("test");
@@ -217,7 +200,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析FOREACH元素
+     * Parses a {@code foreach} element.
      */
     private AstNode parseForeachElement(Element element) {
         String collection = element.getAttribute("collection");
@@ -230,7 +213,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析CHOOSE元素
+     * Parses a {@code choose} element.
      */
     private AstNode parseChooseElement(Element element) {
         List<AstNode> children = parseChildren(element);
@@ -238,7 +221,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析WHEN元素
+     * Parses a {@code when} element.
      */
     private AstNode parseWhenElement(Element element) {
         String test = element.getAttribute("test");
@@ -247,7 +230,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析OTHERWISE元素
+     * Parses an {@code otherwise} element.
      */
     private AstNode parseOtherwiseElement(Element element) {
         List<AstNode> children = parseChildren(element);
@@ -255,7 +238,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析WHERE元素
+     * Parses a {@code where} element.
      */
     private AstNode parseWhereElement(Element element) {
         List<AstNode> children = parseChildren(element);
@@ -263,7 +246,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析SET元素
+     * Parses a {@code set} element.
      */
     private AstNode parseSetElement(Element element) {
         List<AstNode> children = parseChildren(element);
@@ -271,7 +254,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析TRIM元素
+     * Parses a {@code trim} element.
      */
     private AstNode parseTrimElement(Element element) {
         String prefix = element.getAttribute("prefix");
@@ -283,7 +266,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析BIND元素
+     * Parses a {@code bind} element.
      */
     private AstNode parseBindElement(Element element) {
         String name = element.getAttribute("name");
@@ -292,7 +275,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析INCLUDE元素
+     * Parses an {@code include} element.
      */
     private AstNode parseIncludeElement(Element element) {
         String refId = element.getAttribute("refid");
@@ -300,7 +283,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析子元素
+     * Parses child nodes in source order.
      */
     private List<AstNode> parseChildren(Element element) {
         List<AstNode> children = new ArrayList<>();
@@ -322,7 +305,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 获取文本内容
+     * Returns direct text content.
      */
     private String getTextContent(Element element) {
         StringBuilder text = new StringBuilder();
@@ -339,7 +322,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 解析参数
+     * Describes Mapper method parameters.
      */
     private List<ParameterInfo> parseParameters(ExecutableElement method) {
         List<ParameterInfo> parameters = new ArrayList<>();
@@ -355,7 +338,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     }
     
     /**
-     * 确定SQL类型
+     * Determines the statement type.
      */
     private SqlType determineSqlType(ExecutableElement method) {
         if (method.getAnnotation(Select.class) != null) {
@@ -369,7 +352,7 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
         } else if (method.getAnnotation(Batch.class) != null) {
             return SqlType.BATCH;
         } else {
-            return SqlType.SELECT; // 默认
+            return SqlType.SELECT;
         }
     }
 }

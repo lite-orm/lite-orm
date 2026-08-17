@@ -1,11 +1,10 @@
--- LiteORM测试数据库初始化脚本
--- 用于DatabaseIntegrationTest
+-- LiteORM test database initialization for DatabaseIntegrationTest.
 
--- 删除已存在的表
+-- Drop existing tables.
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS users;
 
--- 创建users表
+-- Create the users table.
 CREATE TABLE users (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
@@ -19,7 +18,7 @@ CREATE TABLE users (
     INDEX idx_age (age)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建orders表（用于关联查询测试）
+-- Create the orders table for relationship fixtures.
 CREATE TABLE orders (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
@@ -32,13 +31,13 @@ CREATE TABLE orders (
     INDEX idx_order_no (order_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 插入测试数据
+-- Insert test data.
 INSERT INTO users (name, email, age, status) VALUES
-('张三', 'zhangsan@example.com', 25, 'ACTIVE'),
-('李四', 'lisi@example.com', 30, 'ACTIVE'),
-('王五', 'wangwu@example.com', 28, 'INACTIVE'),
-('赵六', 'zhaoliu@example.com', 35, 'ACTIVE'),
-('孙七', 'sunqi@example.com', 22, 'ACTIVE');
+('Alice', 'alice@example.com', 25, 'ACTIVE'),
+('Bob', 'bob@example.com', 30, 'ACTIVE'),
+('Carol', 'carol@example.com', 28, 'INACTIVE'),
+('David', 'david@example.com', 35, 'ACTIVE'),
+('Eve', 'eve@example.com', 22, 'ACTIVE');
 
 INSERT INTO orders (user_id, order_no, amount, status) VALUES
 (1, 'ORD001', 100.00, 'COMPLETED'),
@@ -47,7 +46,6 @@ INSERT INTO orders (user_id, order_no, amount, status) VALUES
 (3, 'ORD004', 300.00, 'CANCELLED'),
 (4, 'ORD005', 250.00, 'COMPLETED');
 
--- 验证数据
-SELECT 'users表记录数:' as info, COUNT(*) as count FROM users;
-SELECT 'orders表记录数:' as info, COUNT(*) as count FROM orders;
-
+-- Verify fixture data.
+SELECT 'users row count:' as info, COUNT(*) as count FROM users;
+SELECT 'orders row count:' as info, COUNT(*) as count FROM orders;

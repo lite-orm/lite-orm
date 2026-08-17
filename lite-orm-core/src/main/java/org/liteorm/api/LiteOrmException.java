@@ -1,9 +1,7 @@
 package org.liteorm.api;
 
 /**
- * LiteORM基础异常类
- * 
- * 所有LiteORM异常的父类
+ * Base class for public LiteORM failures.
  * 
  * @author lite-orm
  * @since 2024/11/15
@@ -22,4 +20,3 @@ public class LiteOrmException extends RuntimeException {
         super(cause);
     }
 }
-

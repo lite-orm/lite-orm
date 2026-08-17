@@ -1,0 +1,21 @@
+name: Commit message
+
+on:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          while IFS= read -r commit_hash; do
+            git show -s --format=%B "$commit_hash" > /tmp/liteorm-commit-message
+            scripts/validate-commit-message.sh /tmp/liteorm-commit-message
+          done < <(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")
