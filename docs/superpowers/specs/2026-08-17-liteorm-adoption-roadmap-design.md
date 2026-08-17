@@ -180,6 +180,20 @@ LiteORM 自有 DTD 通过内置 resolver 离线解析。
 
 Spring 只允许替换 `ConnectionHandleFactory` 和事务宿主，不允许复制或重写 `JdbcSqlExecutor`。
 
+#### 4.1.7 MySQL Testcontainers 完整矩阵
+
+MySQL 不只作为 core 的单个兼容性测试存在，而是作为公开发布前的跨模块 integration gate：
+
+- 固定使用仓库 property 管理的 MySQL 8.4 LTS container image；
+- 建立非发布的 test-support module，统一 container lifecycle、DataSource、schema 初始化和诊断输出；
+- core 覆盖 JDBC 类型、generated key、batch、cursor、事务和 cleanup failure；
+- processor 覆盖 annotation/XML 生成代码在真实 MySQL 上的编译与执行；
+- Spring Starter 覆盖 physical MySQL DataSource、`@Transactional` 和 rollback；
+- generator 覆盖 MySQL metadata、identity、nullable 和类型映射；
+- GitHub Actions 使用独立 MySQL Testcontainers job，Docker 不可用时本地允许明确 skip，发布 CI 不允许 skip。
+
+Testcontainers 及 MySQL 测试支持不得进入任何用户 runtime artifact。
+
 ### 4.2 API 冻结
 
 在拆包和发布前重新审核 `PublicApiSurfaceTest`：
@@ -208,8 +222,7 @@ lite-orm-processor
     CompilePipeline
     SQL parsers
     AST and compilation model
-    source generator
-    FreeMarker
+    JDK-only source generator
     processor service metadata
 
 lite-orm-spring-boot-starter
@@ -218,11 +231,19 @@ lite-orm-spring-boot-starter
 
 约束：
 
-- `lite-orm-core` runtime dependency tree 不包含 FreeMarker；
+- 所有公开 artifact dependency tree 不包含 FreeMarker 或其他模板引擎；
 - Starter runtime dependency tree 不包含 compiler implementation；
 - processor 通过 Maven annotation processor path 和 Gradle `annotationProcessor` 引入；
 - processor 版本必须与 core 版本一致；
 - processor 生成代码只能引用 core public API。
+
+processor 使用专用 `JavaSourceGenerator` 和小型 source writer 直接渲染 package、imports、class、fields、constructor、Mapper methods 与 execution plan factories。替代实现必须满足：
+
+- 与现有 golden source 和 compilation tests 保持语义等价；
+- 输出顺序、换行、缩进和 import 顺序确定；
+- 不实现通用模板语言、表达式执行或运行期模板加载；
+- 删除 `FreemarkerCodeGenerator`、`mapper-impl.ftl`、FreeMarker dependency 和相关配置；
+- 生成失败通过现有 compiler diagnostics 报告，不泄漏不完整源码。
 
 ### 4.4 Maven 与 Gradle 外部消费夹具
 
@@ -293,6 +314,7 @@ Starter 保留：
 - Maven Central 发布配置；
 - GitHub Actions build/test/release；
 - PostgreSQL/MySQL CI matrix；
+- MySQL Testcontainers core/processor/Starter/generator matrix；
 - API compatibility check；
 - dependency update automation；
 - CHANGELOG；
@@ -739,7 +761,7 @@ DB generator 不强制阻塞 `1.0.0`，可以作为独立 `0.x` 工具发布。
 
 本路线图完成时应满足：
 
-1. 用户 runtime classpath 不包含 processor 或 FreeMarker；
+1. 所有用户 artifact 和 processor classpath 均不包含 FreeMarker，用户 runtime classpath 不包含 processor；
 2. Maven 和 Gradle 外部项目都能 clean build；
 3. Spring Boot single/multi DataSource 示例可直接运行；
 4. LiteORM XML 使用自有版本化 DTD，并离线编译；
