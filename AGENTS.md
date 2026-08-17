@@ -7,7 +7,7 @@ This file is the canonical entry point for every coding agent working in this re
 Read these files before making non-trivial changes:
 
 1. `AGENTS.md`
-2. `Design Philosophy.md`
+2. `Design-Philosophy.md`
 3. `docs/README.md`
 4. `docs/agent/project-context.md`
 5. `docs/agent/engineering-guide.md`

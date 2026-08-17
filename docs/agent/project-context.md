@@ -59,7 +59,7 @@ Mapper source
 
 ## Source-of-Truth Map
 
-- Product principles: `Design Philosophy.md`
+- Product principles: `Design-Philosophy.md`
 - Core contract: `docs/core-ga-contract.md`
 - Extensions and Spring boundaries: `docs/extensions.md`
 - Migration boundary: `docs/mybatis-compatibility.md` and `docs/migration-guide.md`

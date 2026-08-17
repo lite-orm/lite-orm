@@ -6,7 +6,7 @@ This index identifies the current source of truth for each project concern. Docu
 
 - [`../README.md`](../README.md): English project introduction and quick start.
 - [`../README_cn.md`](../README_cn.md): Chinese project introduction and quick start.
-- [`../Design Philosophy.md`](../Design%20Philosophy.md): durable product and architecture principles.
+- [`../Design-Philosophy.md`](../Design-Philosophy.md): durable product and architecture principles.
 - [`agent/project-context.md`](agent/project-context.md): fast repository context for contributors and coding agents.
 - [`agent/engineering-guide.md`](agent/engineering-guide.md): engineering, testing, documentation, and commit conventions.
 - [`agent/tooling.md`](agent/tooling.md): cross-agent rule discovery, Superpowers version locking, and environment verification.

@@ -530,7 +530,7 @@ Standalone 通过 `JdbcAssembly.interceptors(...)` 显式传入；Spring Boot �
 
 ## 深入文档
 
-- [设计哲学](Design%20Philosophy.md)：项目长期原则、架构边界和明确非目标。
+- [设计哲学](Design-Philosophy.md)：项目长期原则、架构边界和明确非目标。
 - [文档索引](docs/README.md)：当前契约、指南、证据和活跃路线图入口。
 - [Core GA 契约](docs/core-ga-contract.md)：core 首个 GA 的稳定职责和非目标。
 - [MyBatis 兼容矩阵](docs/mybatis-compatibility.md)：支持、部分支持和不支持能力。

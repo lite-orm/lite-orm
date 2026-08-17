@@ -153,7 +153,7 @@ LiteORM intentionally does not promise arbitrary OGNL, complex `resultMap` graph
 See:
 
 - [Chinese README](README_cn.md)
-- [Design philosophy](Design%20Philosophy.md)
+- [Design philosophy](Design-Philosophy.md)
 - [Documentation index](docs/README.md)
 - [Core GA contract](docs/core-ga-contract.md)
 - [Extension contracts](docs/extensions.md)

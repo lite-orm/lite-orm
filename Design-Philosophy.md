@@ -1,5 +1,9 @@
 # LiteORM Design Philosophy
 
+> "First principles are the strongest weapon for reasoning." — Elon Musk
+>
+> "I don't want to improve the carriage; I want to invent the automobile." — Henry Ford
+
 ## Purpose
 
 LiteORM exists to provide a smaller and more predictable SQL Mapper for Java teams that value explicit SQL, compile-time feedback, readable generated code, and direct JDBC behavior.
@@ -68,35 +72,47 @@ LiteORM does not expose a session abstraction and does not use runtime Mapper pr
 
 Every acquired resource has one owner. Cleanup failures remain observable, original failures remain primary, and terminal observation failures do not overwrite SQL or cleanup failures.
 
-### Prefer Deep Boundaries
+### Prefer Proven Solutions and Exercise Engineering Judgment
 
-Modules and interfaces should hide meaningful complexity rather than mirror implementation phases. A new helper, layer, wrapper, option, or callback must reduce the number of facts callers need to understand.
+Engineering principles are guides for judgment, not rigid procedures. Before creating a custom design, first determine whether a mature industry standard, library, protocol, pattern, or implementation already solves the problem.
 
-Related state, invariants, and failure handling stay with the module that owns them. Do not move complexity upward into generated Mappers or application code merely to keep an internal implementation small.
+When a proven solution matches LiteORM's requirements, architectural boundaries, dependency constraints, and ownership model, adopt it directly. Do not rebuild an established solution merely to follow an internal process or demonstrate architectural purity.
 
-### Keep the Core Small
+Maturity alone is not sufficient. A solution must also fit the actual context. Consider its correctness, maintenance status, complexity, dependencies, operational cost, failure behavior, security, compatibility, and long-term ownership.
 
-The core owns only the reusable runtime contract:
+When no mature solution fits, identify the essential responsibilities, data, invariants, boundaries, and failure modes. Build the simplest correct design that expresses those elements clearly. Simple does not mean careless, temporary, or untested: every increment must remain correct, readable, maintainable, and supported by proportionate verification.
 
-- annotations and public extension APIs;
-- immutable execution plans and results;
-- JDBC execution;
-- minimal standalone local transactions;
-- built-in observation interceptors.
+Let real usage, repeated changes, and measured bottlenecks provide evidence for later refactoring and optimization. Delaying an abstraction does not permit accumulating disorder; each iteration must leave the code clean, testable, and safe to change. Decisions that are expensive to reverse, including public contracts, persistent data, security boundaries, resource ownership, and failure semantics, require deliberate design before implementation.
 
-The annotation processor, Spring integration, migration tooling, generator, benchmarks, examples, and test infrastructure remain separate modules with one-way dependencies.
+### Apply Proven Design Principles
 
-### Use Typed Extension Points
+LiteORM uses the following design framework:
 
-Exceptional behavior enters through narrow typed contracts:
+```text
+SOLID principles
+        |
+        v
+High cohesion and low coupling
+        |
+        v
+Appropriate design patterns
+```
 
-- `SqlProvider` for SQL structure that cannot be expressed by the supported static model;
-- `ParameterBinder` for application or vendor parameter types;
-- `RowMapper` for custom result shapes;
-- `ExecutionInterceptor` for observation;
-- `ConnectionHandleFactory` for host-managed connection participation.
+SOLID guides the design of classes, interfaces, modules, and extension boundaries:
 
-Extensions must not replace the fixed JDBC lifecycle or become a general runtime plugin chain.
+- **Single Responsibility Principle:** each module has one coherent responsibility and one clear owner for its state, invariants, and failures;
+- **Open/Closed Principle:** stable behavior is extended through explicit contracts instead of repeatedly modifying the fixed execution lifecycle;
+- **Liskov Substitution Principle:** an implementation that replaces another must preserve its documented behavior, resource ownership, and failure semantics;
+- **Interface Segregation Principle:** callers depend on small, purpose-specific interfaces rather than broad framework abstractions;
+- **Dependency Inversion Principle:** high-level policy depends on stable abstractions, while low-level compiler, JDBC, container, and tooling details remain behind those boundaries.
+
+The desired result is high cohesion within each module and low coupling between modules. Related behavior and invariants stay together, dependencies remain explicit and one-way where possible, and internal complexity does not leak into generated Mappers or application code.
+
+Established design patterns are tools for recurring problems, not goals by themselves. Use a pattern only when it makes ownership, collaboration, or extension clearer and reduces the concepts callers must understand. Do not add a pattern, wrapper, layer, callback, or configuration option merely to make the design appear more flexible.
+
+Do not apply SOLID principles, design patterns, abstraction rules, or architectural styles mechanically. Use them only when they make the design easier to understand, verify, maintain, and change.
+
+For LiteORM, this keeps the runtime contract cohesive, separates compiler and integration concerns, and allows exceptional behavior through narrow typed contracts such as `SqlProvider`, `ParameterBinder`, `RowMapper`, `ExecutionInterceptor`, and `ConnectionHandleFactory`. These extensions must not replace the fixed JDBC lifecycle or become a general runtime plugin chain.
 
 ### Keep DataSource Ownership Unambiguous
 
