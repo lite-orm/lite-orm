@@ -319,8 +319,8 @@ Starter 保留：
 
 ```xml
 <!DOCTYPE mapper
-    PUBLIC "-//liteorm.org//DTD Mapper 1.0//EN"
-    "https://lite-orm.github.io/dtd/liteorm-mapper-1.0.dtd">
+    PUBLIC "-//LiteORM//DTD Mapper 1.0//EN"
+    "https://lite-orm.github.io/lite-orm/dtd/liteorm-mapper-1.0.dtd">
 ```
 
 要求：
@@ -694,8 +694,10 @@ Database metadata
 必须完成：
 
 - P0 全部任务；
+- LiteORM Mapper DTD 和离线 resolver；
 -核心文档站点；
 - single DataSource Spring example；
+- XML feature showcase 的正式支持子集；
 - Maven 和 Gradle external fixtures；
 - Maven Central 发布；
 -公平 benchmark；
@@ -705,8 +707,7 @@ Database metadata
 
 必须完成：
 
-- LiteORM DTD；
-- XML feature example；
+- XML generated key 和 `foreach index` 增量；
 - multi DataSource Spring example；
 - migration scanner；
 - migration before/after example。
