@@ -1,0 +1,71 @@
+name: Agent Tooling
+
+on:
+  pull_request:
+    paths:
+      - ".agent-tools/**"
+      - "scripts/check-agent-environment.sh"
+      - "scripts/test-check-agent-environment.sh"
+      - ".github/workflows/agent-tooling.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".agent-tools/**"
+      - "scripts/check-agent-environment.sh"
+      - "scripts/test-check-agent-environment.sh"
+      - ".github/workflows/agent-tooling.yml"
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/check-agent-environment.sh
+          bash -n scripts/test-check-agent-environment.sh
+          scripts/test-check-agent-environment.sh
+
+  check-upstream:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare pinned and upstream versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pinned_version="$(tr -d '[:space:]' < .agent-tools/superpowers.version)"
+          latest_version="$(gh api repos/obra/superpowers/releases/latest --jq '.tag_name | ltrimstr("v")')"
+          echo "pinned=$pinned_version" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest_version" >> "$GITHUB_OUTPUT"
+          if [[ "$pinned_version" == "$latest_version" ]]; then
+            echo "update_required=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update_required=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create update issue
+        if: steps.versions.outputs.update_required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINNED_VERSION: ${{ steps.versions.outputs.pinned }}
+          LATEST_VERSION: ${{ steps.versions.outputs.latest }}
+        run: |
+          issue_title="chore(agent): update Superpowers to $LATEST_VERSION"
+          existing_issue="$(gh issue list --state open --search "$issue_title in:title" --json number --jq 'length')"
+          if [[ "$existing_issue" == "0" ]]; then
+            gh issue create \
+              --title "$issue_title" \
+              --body "LiteORM currently pins Superpowers $PINNED_VERSION, while upstream provides $LATEST_VERSION. Review the release notes and follow docs/agent/tooling.md before updating the lock."
+          fi

@@ -11,6 +11,7 @@ Read these files before making non-trivial changes:
 3. `docs/README.md`
 4. `docs/agent/project-context.md`
 5. `docs/agent/engineering-guide.md`
+6. `docs/agent/tooling.md`
 
 For contract or roadmap work, also read the relevant source of truth listed in `docs/README.md`.
 
@@ -27,6 +28,14 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Runtime artifacts must not contain the annotation processor, FreeMarker, or another template engine.
 - Mapper XML and annotation scripts are compiled; LiteORM does not interpret XML or OGNL at runtime.
 - Do not add `SqlSession`, runtime Mapper proxies, ORM caches, lazy loading, automatic count queries, framework `Page<T>`, or a general SQL-rewrite plugin chain.
+
+## Agent Tooling Policy
+
+- `AGENTS.md` is the only canonical project rule file; tool-specific instruction files must remain thin adapters.
+- Use the Superpowers version pinned in `.agent-tools/superpowers.version` for non-trivial agent-driven work.
+- Keep exactly one active Superpowers installation and run `scripts/check-agent-environment.sh` before starting significant work.
+- Superpowers defines workflow, not LiteORM architecture; repository rules always remain authoritative.
+- Agent plugins and developer-global configuration must never become build or CI dependencies.
 
 ## Working Rules
 

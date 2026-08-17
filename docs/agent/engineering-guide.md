@@ -104,6 +104,14 @@ fix: stuff
 
 Run `scripts/setup-git-hooks.sh` once per clone. CI validates all pull-request commit subjects.
 
+## Agent Workflow
+
+- Treat `AGENTS.md` as the canonical project policy across all agent clients.
+- Use Superpowers as the workflow layer for planning, TDD, debugging, review, and delivery.
+- Use the exact version in `.agent-tools/superpowers.version` and keep only one installation active.
+- Run `scripts/check-agent-environment.sh` before non-trivial agent-driven work.
+- Follow `docs/agent/tooling.md` for installation, fallback, and upgrade procedures.
+
 ## Completion Standard
 
 A change is complete only when:
