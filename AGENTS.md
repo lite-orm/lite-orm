@@ -32,9 +32,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 ## Agent Tooling Policy
 
 - `AGENTS.md` is the only canonical project rule file; tool-specific instruction files must remain thin adapters.
-- Use the Superpowers version pinned in `.agent-tools/superpowers.version` for non-trivial agent-driven work.
-- Keep exactly one active Superpowers installation and run `scripts/check-agent-environment.sh` before starting significant work.
-- Superpowers defines workflow, not LiteORM architecture; repository rules always remain authoritative.
+- Agent plugins and skills define workflow, not LiteORM architecture; repository rules always remain authoritative.
 - Agent plugins and developer-global configuration must never become build or CI dependencies.
 
 ## Working Rules
@@ -75,7 +73,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Maintain one authoritative owner for each project fact.
 - Update documentation in the same change as the contract it describes.
 - Delete completed implementation plans and superseded architecture snapshots instead of presenting them as current guidance.
-- Keep active Superpowers specs and plans only while they guide unfinished roadmap work.
+- Keep active roadmap specs and plans under `docs/superpowers/` only while they guide unfinished work.
 - Update `docs/README.md` when adding, moving, replacing, or deleting documentation.
 
 ## Commit Policy
