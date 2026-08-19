@@ -36,6 +36,14 @@ The Core GA JMH baseline compares generated LiteORM Mappers, MyBatis, and Direct
 
 In this controlled fixture LiteORM is 3.2%–62.5% faster than MyBatis across the measured scenarios, while Direct JDBC remains the lower-bound reference. These are framework-overhead measurements on H2, not PostgreSQL/MySQL production-latency claims. See the [full protocol, allocation results, and JFR observations](docs/benchmarks/core-ga-baseline.md).
 
+## LiteORM vs MyBatis Lifecycle
+
+The animation highlights what takes effect during compilation, application startup, and each Mapper method call.
+
+![Animated comparison of the LiteORM and MyBatis compilation, startup, and method-call lifecycles](docs/assets/liteorm-vs-mybatis-flow-en.gif)
+
+LiteORM generates an ordinary `*MapperImpl` during javac annotation processing. MyBatis normally builds Mapper metadata and proxy factories at startup, then routes calls through its runtime proxy, session, executor, SQL-source, and handler pipeline.
+
 ## Compile-Time Model
 
 Supported first-stage inputs include:

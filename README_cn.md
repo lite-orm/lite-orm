@@ -132,42 +132,11 @@ Spring 事务必须使用与该 Mapper 所绑定 DataSource 对应的 `PlatformT
 
 LiteORM 把 Mapper 的“理解过程”放在编译期，把 JDBC 的“物理执行过程”保留在运行期。
 
-```mermaid
-flowchart LR
-    subgraph CompileTime[编译期]
-        Mapper[Mapper 接口]
-        Annotation[SQL 注解]
-        XML[Mapper XML]
-        Processor[LiteOrmProcessor]
-        Pipeline[CompilePipeline]
-        Model[编译模型与动态 SQL AST]
-        Generated[生成 XxxMapperImpl]
+下图依次高亮编译期、应用启动期和每次 Mapper 方法调用时真正发生的工作：
 
-        Mapper --> Processor
-        Annotation --> Processor
-        XML --> Processor
-        Processor --> Pipeline
-        Pipeline --> Model
-        Model --> Generated
-    end
+![LiteORM 与 MyBatis 在编译期、启动期和调用期的动态流程对比](docs/assets/liteorm-vs-mybatis-flow-zh.gif)
 
-    subgraph Runtime[运行期]
-        Call[普通 Java 方法调用]
-        Plan[ExecutionPlan]
-        Executor[SqlExecutor]
-        Handle[ConnectionHandle]
-        JDBC[JDBC Driver / Database]
-        Result[SqlResult]
-
-        Generated --> Call
-        Call --> Plan
-        Plan --> Executor
-        Executor --> Handle
-        Handle --> JDBC
-        JDBC --> Result
-        Result --> Generated
-    end
-```
+LiteORM 在 javac 注解处理阶段生成普通的 `*MapperImpl`。MyBatis 通常在启动期构建 Mapper 元数据和代理工厂，并在调用期经过代理、Session、Executor、SQL source 与 Handler 管线。
 
 ### 编译期负责什么
 

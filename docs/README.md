@@ -9,7 +9,7 @@ This index identifies the current source of truth for each project concern. Docu
 - [`../Design-Philosophy.md`](../Design-Philosophy.md): durable product and architecture principles.
 - [`agent/project-context.md`](agent/project-context.md): fast repository context for contributors and coding agents.
 - [`agent/engineering-guide.md`](agent/engineering-guide.md): engineering, testing, documentation, and commit conventions.
-- [`agent/tooling.md`](agent/tooling.md): cross-agent rule discovery, Superpowers version locking, and environment verification.
+- [`agent/tooling.md`](agent/tooling.md): cross-agent rule discovery and the shared non-trivial-work workflow.
 
 ## Current Contracts
 

@@ -68,7 +68,7 @@ Test categories:
 
 - Write user and contributor documentation in English.
 - `README_cn.md` and other explicitly localized files may use their target language.
-- Superpowers planning artifacts may use English or Chinese.
+- Roadmap planning artifacts under `docs/superpowers/` may use English or Chinese.
 - Update the owning contract, not several copies of the same fact.
 - Delete superseded plans and reviews after their durable conclusions move into a contract or philosophy document.
 - Run the link and language checks documented in `docs/agent/documentation-policy.md`.
@@ -107,10 +107,8 @@ Run `scripts/setup-git-hooks.sh` once per clone. CI validates all pull-request c
 ## Agent Workflow
 
 - Treat `AGENTS.md` as the canonical project policy across all agent clients.
-- Use Superpowers as the workflow layer for planning, TDD, debugging, review, and delivery.
-- Use the exact version in `.agent-tools/superpowers.version` and keep only one installation active.
-- Run `scripts/check-agent-environment.sh` before non-trivial agent-driven work.
-- Follow `docs/agent/tooling.md` for installation, fallback, and upgrade procedures.
+- Use your client's native tooling as the workflow layer for planning, TDD, debugging, review, and delivery.
+- Follow `docs/agent/tooling.md` for the shared workflow and thin-adapter expectations.
 
 ## Completion Standard
 

@@ -32,19 +32,22 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 ## Agent Tooling Policy
 
 - `AGENTS.md` is the only canonical project rule file; tool-specific instruction files must remain thin adapters.
-- Use the Superpowers version pinned in `.agent-tools/superpowers.version` for non-trivial agent-driven work.
-- Keep exactly one active Superpowers installation and run `scripts/check-agent-environment.sh` before starting significant work.
-- Superpowers defines workflow, not LiteORM architecture; repository rules always remain authoritative.
+- Agent plugins and skills define workflow, not LiteORM architecture; repository rules always remain authoritative.
 - Agent plugins and developer-global configuration must never become build or CI dependencies.
 
 ## Working Rules
 
 - Inspect the current implementation and tests before proposing changes.
+- Resolve uncertainty from the owning contract, tests, and current implementation before asking or assuming. Surface an assumption when it would change public behavior, compatibility, ownership, or task scope.
 - Preserve existing behavior unless the task explicitly changes a contract.
 - Use characterization tests before changing poorly understood behavior.
 - Prefer the smallest coherent change that fixes the root cause.
+- Every changed line must contribute directly to the requested outcome or remove code made obsolete by that same change.
+- Apply a bounded Boy Scout Rule: leave touched code clean, but do not rename, reformat, reorganize, or refactor unrelated code.
 - Keep public contracts narrow and stable; keep compiler internals package-private.
 - Avoid speculative abstractions, compatibility layers, and configuration switches.
+- Introduce an abstraction only when it owns a concrete invariant, isolates a volatile responsibility, or serves demonstrated current use; never add one solely for hypothetical reuse.
+- Define the observable success criteria and the command or test that proves them before implementing a non-trivial change.
 - Do not mix unrelated cleanup into a focused change.
 - Never silently swallow compiler, JDBC, cleanup, transaction, or resource failures.
 - Do not place Testcontainers or test-support dependencies on a user runtime classpath.
@@ -59,6 +62,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 ## Testing Policy
 
 - Use JUnit 5 for Java tests.
+- For a feature, bug fix, or behavior change, first run a focused test that fails for the expected reason, implement the minimum production change, then refactor only while the relevant tests remain green.
 - Start with the narrowest relevant test, then run the owning module, then the reactor when the change crosses module boundaries.
 - Use H2 for fast focused behavior, PostgreSQL/MySQL Testcontainers for driver contracts, and Spring integration tests for transaction participation.
 - A release claim requires successful Maven/Gradle external-consumer checks and zero skipped database jobs in CI.
@@ -69,7 +73,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Maintain one authoritative owner for each project fact.
 - Update documentation in the same change as the contract it describes.
 - Delete completed implementation plans and superseded architecture snapshots instead of presenting them as current guidance.
-- Keep active Superpowers specs and plans only while they guide unfinished roadmap work.
+- Keep active roadmap specs and plans under `docs/superpowers/` only while they guide unfinished work.
 - Update `docs/README.md` when adding, moving, replacing, or deleting documentation.
 
 ## Commit Policy
