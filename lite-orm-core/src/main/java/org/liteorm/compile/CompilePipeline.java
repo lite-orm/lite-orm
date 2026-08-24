@@ -126,24 +126,89 @@ final class CompilePipeline {
     private List<MapperCompilationModel.MethodModel> analyzeInterfaceMethods(TypeElement mapperInterface)
             throws CompileException {
         Map<String, MapperCompilationModel.MethodModel> methodInfos = new LinkedHashMap<>();
+        List<ResolvedMapperMethod> resolvedMethods = new ArrayList<>();
 
         for (var element : elementUtils.getAllMembers(mapperInterface)) {
             if (element instanceof ExecutableElement method) {
-                try {
-                    ExecutableType resolvedMethodType = (ExecutableType) typeUtils.asMemberOf(
-                        (DeclaredType) mapperInterface.asType(), method);
-                    MapperCompilationModel.MethodModel methodInfo = analyzeMethod(
-                        mapperInterface, method, resolvedMethodType);
-                    if (methodInfo != null) {
-                        methodInfos.putIfAbsent(methodKey(method, resolvedMethodType), methodInfo);
-                    }
-                } catch (CompileException exception) {
-                    throw exception.element() == null ? exception.at(method) : exception;
+                ExecutableType resolvedMethodType = (ExecutableType) typeUtils.asMemberOf(
+                    (DeclaredType) mapperInterface.asType(), method);
+                resolvedMethods.add(new ResolvedMapperMethod(method, resolvedMethodType));
+            }
+        }
+        validateNoOverloadedSqlMethods(mapperInterface, resolvedMethods);
+
+        for (ResolvedMapperMethod resolvedMethod : resolvedMethods) {
+            ExecutableElement method = resolvedMethod.method();
+            try {
+                MapperCompilationModel.MethodModel methodInfo = analyzeMethod(
+                    mapperInterface, method, resolvedMethod.type());
+                if (methodInfo != null) {
+                    methodInfos.putIfAbsent(methodKey(method, resolvedMethod.type()), methodInfo);
                 }
+            } catch (CompileException exception) {
+                throw exception.element() == null ? exception.at(method) : exception;
             }
         }
         
         return List.copyOf(methodInfos.values());
+    }
+
+    private void validateNoOverloadedSqlMethods(
+            TypeElement mapperInterface, List<ResolvedMapperMethod> resolvedMethods) throws CompileException {
+        Map<String, List<ResolvedMapperMethod>> methodsByName = new LinkedHashMap<>();
+        XmlBasedSqlParser xmlParser = (XmlBasedSqlParser) sqlParsers.get(0);
+        for (ResolvedMapperMethod method : resolvedMethods) {
+            boolean defaultWithoutSql = method.method().isDefault()
+                && !hasExplicitSqlDeclaration(method.method());
+            boolean hasXmlResource;
+            try {
+                hasXmlResource = xmlParser.hasMapperResourceFile(method.method());
+            } catch (RuntimeException exception) {
+                throw new CompileException(
+                    resolvedMethodLocation(mapperInterface, method.method(), method.type())
+                        + ": failed to inspect XML SQL: " + exception.getMessage(), exception
+                ).at(method.method());
+            }
+            if (!defaultWithoutSql
+                    && (hasExplicitSqlDeclaration(method.method()) || hasXmlResource)) {
+                methodsByName.computeIfAbsent(
+                    method.method().getSimpleName().toString(), ignored -> new ArrayList<>()).add(method);
+            }
+        }
+        for (var entry : methodsByName.entrySet()) {
+            Map<String, ResolvedMapperMethod> distinctSignatures = new LinkedHashMap<>();
+            for (ResolvedMapperMethod method : entry.getValue()) {
+                distinctSignatures.putIfAbsent(resolvedSignature(method), method);
+            }
+            if (distinctSignatures.size() > 1) {
+                List<Map.Entry<String, ResolvedMapperMethod>> overloads =
+                    new ArrayList<>(distinctSignatures.entrySet());
+                overloads.sort(Map.Entry.comparingByKey());
+                String signatures = String.join(", ", overloads.stream().map(Map.Entry::getKey).toList());
+                throw new CompileException(
+                    mapperInterface.getQualifiedName() + "#" + entry.getKey()
+                        + ": overloaded Mapper SQL methods are not supported: " + signatures
+                ).at(overloads.get(0).getValue().method());
+            }
+        }
+    }
+
+    private String resolvedSignature(ResolvedMapperMethod method) {
+        return method.method().getSimpleName() + "(" + String.join(", ",
+            method.type().getParameterTypes().stream().map(Object::toString).toList()) + ")";
+    }
+
+    private String resolvedMethodLocation(
+            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType) {
+        return mapperInterface.getQualifiedName() + "#"
+            + resolvedSignature(new ResolvedMapperMethod(method, resolvedMethodType));
+    }
+
+    private String sqlSourceName(SqlContentParser parser) {
+        return parser instanceof XmlBasedSqlParser ? "XML" : "annotation";
+    }
+
+    private record ResolvedMapperMethod(ExecutableElement method, ExecutableType type) {
     }
 
     private String methodKey(ExecutableElement method, ExecutableType resolvedMethodType) {
@@ -172,8 +237,9 @@ final class CompilePipeline {
                             break;
                         }
                     } catch (Exception e) {
-                        throw new CompileException("Failed to parse " + parser.getParserName() + " for " +
-                            mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": " + e.getMessage(), e);
+                        throw new CompileException(
+                            resolvedMethodLocation(mapperInterface, method, resolvedMethodType)
+                                + ": failed to parse " + sqlSourceName(parser) + " SQL: " + e.getMessage(), e);
                     }
                 }
             }
@@ -183,7 +249,7 @@ final class CompilePipeline {
             XmlBasedSqlParser xmlParser = (XmlBasedSqlParser) sqlParsers.get(0);
             if (xmlParser.hasMapperResource(method)) {
                 throw new CompileException(
-                    mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                    resolvedMethodLocation(mapperInterface, method, resolvedMethodType)
                         + ": XML mapper exists but statement '" + method.getSimpleName() + "' was not found"
                 );
             }

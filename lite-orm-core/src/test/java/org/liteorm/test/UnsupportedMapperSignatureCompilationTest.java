@@ -53,6 +53,146 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void overloadedMapperSqlMethodsFailWithBothResolvedSignatures() throws Exception {
+        assertUnsupportedMethod(
+            "OverloadedMapper",
+            """
+                @Select("SELECT 1")
+                int find(Long id);
+
+                @Select("SELECT 1")
+                int find(String name);
+                """,
+            "find",
+            "overloaded Mapper SQL methods are not supported: "
+                + "find(java.lang.Long), find(java.lang.String)"
+        );
+    }
+
+    @Test
+    void xmlMethodOverloadIsRejectedBeforeMalformedXmlIsParsed() throws Exception {
+        assertUnsupportedMethod(
+            "OverloadedMalformedXmlMapper",
+            """
+                ValueRow findValue(Long id);
+
+                ValueRow findValue(String name);
+                """,
+            "findValue",
+            "overloaded Mapper SQL methods are not supported: "
+                + "findValue(java.lang.Long), findValue(java.lang.String)"
+        );
+    }
+
+    @Test
+    void inheritedSqlMethodOverloadIsRejected() throws Exception {
+        assertUnsupportedSource(
+            "InheritedOverloadMapper",
+            """
+                package org.liteorm.test.diagnostics;
+
+                import org.liteorm.annotation.Mapper;
+                import org.liteorm.annotation.Select;
+
+                interface ParentOverloadMapper {
+                    @Select("SELECT 1")
+                    int find(Long id);
+                }
+
+                @Mapper
+                public interface InheritedOverloadMapper extends ParentOverloadMapper {
+                    @Select("SELECT 1")
+                    int find(String name);
+                }
+                """,
+            "find",
+            "overloaded Mapper SQL methods are not supported: "
+                + "find(java.lang.Long), find(java.lang.String)"
+        );
+    }
+
+    @Test
+    void providerSqlMethodOverloadIsRejected() throws Exception {
+        assertUnsupportedSource(
+            "ProviderOverloadMapper",
+            """
+                package org.liteorm.test.diagnostics;
+
+                import java.util.List;
+                import org.liteorm.annotation.Mapper;
+                import org.liteorm.annotation.UseSqlProvider;
+                import org.liteorm.api.BoundSql;
+                import org.liteorm.api.ExecutionPlan;
+                import org.liteorm.api.SqlProvider;
+
+                final class LongProvider implements SqlProvider<Long> {
+                    public LongProvider() {
+                    }
+
+                    public BoundSql provide(Long value) {
+                        return new BoundSql("SELECT 1", List.of());
+                    }
+                }
+
+                final class StringProvider implements SqlProvider<String> {
+                    public StringProvider() {
+                    }
+
+                    public BoundSql provide(String value) {
+                        return new BoundSql("SELECT 1", List.of());
+                    }
+                }
+
+                @Mapper
+                public interface ProviderOverloadMapper {
+                    @UseSqlProvider(value = LongProvider.class,
+                        statementType = ExecutionPlan.StatementType.SELECT)
+                    int find(Long id);
+
+                    @UseSqlProvider(value = StringProvider.class,
+                        statementType = ExecutionPlan.StatementType.SELECT)
+                    int find(String name);
+                }
+                """,
+            "find",
+            "overloaded Mapper SQL methods are not supported: "
+                + "find(java.lang.Long), find(java.lang.String)"
+        );
+    }
+
+    @Test
+    void sameSignatureOverrideDefaultHelperAndObjectMethodsDoNotTriggerOverload() throws Exception {
+        assertSupportedSource(
+            "ValidEffectiveMethodsMapper",
+            """
+                package org.liteorm.test.diagnostics;
+
+                import org.liteorm.annotation.Mapper;
+                import org.liteorm.annotation.Select;
+
+                interface ParentEffectiveMethodsMapper {
+                    @Select("SELECT 1")
+                    int find(Long id);
+                }
+
+                @Mapper
+                public interface ValidEffectiveMethodsMapper extends ParentEffectiveMethodsMapper {
+                    @Override
+                    @Select("SELECT 1")
+                    int find(Long id);
+
+                    default String find(String value) {
+                        return value;
+                    }
+
+                    @Select("SELECT 1")
+                    int equals(String value);
+                }
+                """
+        );
+    }
+
+    @Test
     void unknownSqlParameterRootFailsWithMapperMethodAndReference() throws Exception {
         assertUnsupportedMethod(
             "UnknownParameterMapper",
@@ -90,12 +230,133 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void malformedMapperXmlFailsWithMapperMethodAndResourcePath() throws Exception {
+        assertUnsupportedMethod(
+            "MalformedXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "failed to parse XML resource /org/liteorm/test/diagnostics/MalformedXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void mapperXmlDoctypeIsRejectedWithResourcePath() throws Exception {
+        assertUnsupportedMethod(
+            "DoctypeXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "DOCTYPE is not allowed in XML resource "
+                + "/org/liteorm/test/diagnostics/DoctypeXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void mapperXmlExternalParameterEntityIsRejectedBeforeNetworkAccess() throws Exception {
+        assertUnsupportedMethod(
+            "ParameterEntityXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "DOCTYPE is not allowed in XML resource "
+                + "/org/liteorm/test/diagnostics/ParameterEntityXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void mapperXmlExternalDtdIsRejectedBeforeNetworkAccess() throws Exception {
+        assertUnsupportedMethod(
+            "ExternalDtdXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "DOCTYPE is not allowed in XML resource "
+                + "/org/liteorm/test/diagnostics/ExternalDtdXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void mapperXmlXIncludeIsRejectedWithResourcePath() throws Exception {
+        assertUnsupportedMethod(
+            "XIncludeXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "XInclude is not allowed in XML resource "
+                + "/org/liteorm/test/diagnostics/XIncludeXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void mapperXmlExternalSchemaIsRejectedWithResourcePath() throws Exception {
+        assertUnsupportedMethod(
+            "ExternalSchemaXmlMapper",
+            "ValueRow findValue();",
+            "findValue",
+            "external schema declarations are not allowed in XML resource "
+                + "/org/liteorm/test/diagnostics/ExternalSchemaXmlMapper.xml"
+        );
+    }
+
+    @Test
+    void malformedAnnotationScriptFailsInsteadOfFallingBackToTextSql() throws Exception {
+        assertUnsupportedMethod(
+            "MalformedAnnotationScriptMapper",
+            """
+                @Select({
+                    "<script>",
+                    "SELECT 1",
+                    "<if test=\\\"id != null\\\">WHERE 1 = #{id}",
+                    "</script>"
+                })
+                int find(Long id);
+                """,
+            "find",
+            "failed to parse annotation SQL script"
+        );
+    }
+
+    @Test
+    void annotationScriptDoctypeIsRejected() throws Exception {
+        assertUnsupportedMethod(
+            "DoctypeAnnotationScriptMapper",
+            """
+                @Select({
+                    "<script>",
+                    "<!DOCTYPE root>",
+                    "<if test=\\\"id != null\\\">SELECT #{id}</if>",
+                    "</script>"
+                })
+                int find(Long id);
+                """,
+            "find",
+            "DOCTYPE is not allowed in annotation SQL script"
+        );
+    }
+
+    @Test
+    void unsupportedAnnotationScriptTagFailsInsteadOfBecomingTextSql() throws Exception {
+        assertUnsupportedMethod(
+            "UnsupportedAnnotationTagMapper",
+            """
+                @Select({
+                    "<script>",
+                    "SELECT 1",
+                    "<unsupported>WHERE 1 = 1</unsupported>",
+                    "</script>"
+                })
+                int find();
+                """,
+            "find",
+            "Unsupported annotation SQL tag <unsupported>"
+        );
+    }
+
+    @Test
     void unsupportedXmlTagFailsWithMapperMethodAndTagName() throws Exception {
         assertUnsupportedMethod(
             "UnsupportedTagMapper",
             "ValueRow findValue();",
             "findValue",
-            "Unsupported XML tag <unsupported>"
+            "XML resource /org/liteorm/test/diagnostics/UnsupportedTagMapper.xml "
+                + "[namespace=org.liteorm.test.diagnostics.UnsupportedTagMapper, "
+                + "statementId=findValue]: Unsupported XML tag <unsupported>"
         );
     }
 
@@ -238,6 +499,58 @@ class UnsupportedMapperSignatureCompilationTest {
         );
     }
 
+    @Test
+    void failedMapperDoesNotPreventIndependentMapperGeneration() throws Exception {
+        Path sourceDirectory = temporaryDirectory.resolve("sources");
+        Path classesDirectory = temporaryDirectory.resolve("classes");
+        Path generatedDirectory = temporaryDirectory.resolve("generated");
+        Path invalidSource = sourceDirectory.resolve(
+            "org/liteorm/test/diagnostics/AInvalidMapper.java");
+        Path validSource = sourceDirectory.resolve(
+            "org/liteorm/test/diagnostics/ZIndependentMapper.java");
+        Files.createDirectories(invalidSource.getParent());
+        Files.createDirectories(classesDirectory);
+        Files.createDirectories(generatedDirectory);
+        Files.writeString(invalidSource, """
+            package org.liteorm.test.diagnostics;
+
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+
+            @Mapper
+            public interface AInvalidMapper {
+                @Select("SELECT 1")
+                int find(Long id);
+
+                @Select("SELECT 1")
+                int find(String name);
+            }
+            """, StandardCharsets.UTF_8);
+        Files.writeString(validSource, """
+            package org.liteorm.test.diagnostics;
+
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+
+            @Mapper
+            public interface ZIndependentMapper {
+                @Select("SELECT 1")
+                int count();
+            }
+            """, StandardCharsets.UTF_8);
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        boolean compilationSucceeded = compile(
+            List.of(invalidSource, validSource), classesDirectory, generatedDirectory, diagnostics);
+
+        assertFalse(compilationSucceeded, () -> diagnostics.getDiagnostics().toString());
+        assertTrue(diagnostics.getDiagnostics().stream()
+            .anyMatch(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR
+                && diagnostic.getMessage(null).contains("AInvalidMapper#find")));
+        assertTrue(Files.exists(generatedDirectory.resolve(
+            "org/liteorm/test/diagnostics/ZIndependentMapperImpl.java")));
+    }
+
     private void assertUnsupportedMethod(
             String mapperName,
             String methodSource,
@@ -311,8 +624,66 @@ class UnsupportedMapperSignatureCompilationTest {
         assertEquals(methodLine, diagnostic.getLineNumber(), diagnostics.getDiagnostics().toString());
     }
 
+    private void assertUnsupportedSource(
+            String mapperName,
+            String source,
+            String methodName,
+            String expectedMessage) throws Exception {
+        Path sourceDirectory = temporaryDirectory.resolve("sources");
+        Path classesDirectory = temporaryDirectory.resolve("classes");
+        Path generatedDirectory = temporaryDirectory.resolve("generated");
+        Path mapperSource = sourceDirectory.resolve(
+            "org/liteorm/test/diagnostics/" + mapperName + ".java");
+        Files.createDirectories(mapperSource.getParent());
+        Files.createDirectories(classesDirectory);
+        Files.createDirectories(generatedDirectory);
+        Files.writeString(mapperSource, source, StandardCharsets.UTF_8);
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        boolean compilationSucceeded = compile(
+            mapperSource, classesDirectory, generatedDirectory, diagnostics);
+
+        assertFalse(compilationSucceeded, () -> diagnostics.getDiagnostics().toString());
+        Diagnostic<? extends JavaFileObject> diagnostic = diagnostics.getDiagnostics().stream()
+            .filter(candidate -> candidate.getKind() == Diagnostic.Kind.ERROR)
+            .filter(candidate -> candidate.getMessage(null).contains(mapperName + "#" + methodName))
+            .filter(candidate -> candidate.getMessage(null).contains(expectedMessage))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(diagnostics.getDiagnostics().toString()));
+        long methodLine = Files.readAllLines(mapperSource).stream()
+            .takeWhile(line -> !line.contains(methodName + "("))
+            .count() + 1;
+        assertEquals(methodLine, diagnostic.getLineNumber(), diagnostics.getDiagnostics().toString());
+    }
+
+    private void assertSupportedSource(String mapperName, String source) throws Exception {
+        Path sourceDirectory = temporaryDirectory.resolve("sources");
+        Path classesDirectory = temporaryDirectory.resolve("classes");
+        Path generatedDirectory = temporaryDirectory.resolve("generated");
+        Path mapperSource = sourceDirectory.resolve(
+            "org/liteorm/test/diagnostics/" + mapperName + ".java");
+        Files.createDirectories(mapperSource.getParent());
+        Files.createDirectories(classesDirectory);
+        Files.createDirectories(generatedDirectory);
+        Files.writeString(mapperSource, source, StandardCharsets.UTF_8);
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        boolean compilationSucceeded = compile(
+            mapperSource, classesDirectory, generatedDirectory, diagnostics);
+
+        assertTrue(compilationSucceeded, () -> diagnostics.getDiagnostics().toString());
+    }
+
     private boolean compile(
             Path mapperSource,
+            Path classesDirectory,
+            Path generatedDirectory,
+            DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
+        return compile(List.of(mapperSource), classesDirectory, generatedDirectory, diagnostics);
+    }
+
+    private boolean compile(
+            List<Path> mapperSources,
             Path classesDirectory,
             Path generatedDirectory,
             DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
@@ -320,7 +691,7 @@ class UnsupportedMapperSignatureCompilationTest {
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
             Iterable<? extends JavaFileObject> compilationUnits =
-                fileManager.getJavaFileObjectsFromPaths(List.of(mapperSource));
+                fileManager.getJavaFileObjectsFromPaths(mapperSources);
             List<String> options = List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.diagnostics.OverloadedMalformedXmlMapper">
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT value
+        <if test="id != null">
+    </select>
+</mapper>
