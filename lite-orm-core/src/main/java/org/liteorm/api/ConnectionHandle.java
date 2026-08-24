@@ -9,6 +9,10 @@ public interface ConnectionHandle extends AutoCloseable {
 
     Connection connection();
 
+    /**
+     * Releases this execution's connection participation. This method does not grant the executor
+     * authority to commit or roll back a surrounding standalone or hosted transaction.
+     */
     @Override
     void close();
 }

@@ -1,5 +1,10 @@
 package org.liteorm.api;
 
+/**
+ * Reports a physical JDBC lifecycle failure with statement, phase, source, and execution-state
+ * context. Cleanup-only failures use {@link ExecutionPhase#CLEANUP}; when an earlier failure exists,
+ * cleanup failures remain suppressed on its cause.
+ */
 public class SqlExecutionException extends LiteOrmException {
 
     private final String statementId;

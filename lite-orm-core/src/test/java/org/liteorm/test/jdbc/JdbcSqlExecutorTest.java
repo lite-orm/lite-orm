@@ -28,6 +28,8 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JdbcSqlExecutorTest {
 
@@ -170,15 +173,25 @@ class JdbcSqlExecutorTest {
             List<String> events = new ArrayList<>();
             PreparedStatement statement = statement(
                 events, null, 1, generatedKeys(events, keyRows), null);
+            AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
+            ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+                @Override
+                public void afterFailure(ExecutionOutcome outcome) {
+                    observedOutcome.set(outcome);
+                }
+            };
+            JdbcSqlExecutor executor = new JdbcSqlExecutor(
+                new TrackingFactory(connection(events, statement), events), List.of(interceptor));
 
             SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
-                executor(events, statement).execute(
+                executor.execute(
                     writePlan(ExecutionPlan.StatementType.INSERT, true, null)));
 
             SQLException cause = assertInstanceOf(SQLException.class, failure.getCause());
             assertEquals(keyRows.isEmpty()
                 ? "JDBC returned no generated key"
                 : "JDBC returned multiple generated keys for one insert", cause.getMessage());
+            assertEquals(1, observedOutcome.get().affectedRows());
             assertEquals(List.of("keys.close", "statement.close", "transaction.close"),
                 events.subList(events.size() - 3, events.size()));
         }
@@ -249,6 +262,24 @@ class JdbcSqlExecutorTest {
     }
 
     @Test
+    void emptyBatchCleanupFailureRemainsNotExecuted() {
+        List<String> events = new ArrayList<>();
+        SQLException closeFailure = new SQLException("statement close failed");
+        PreparedStatement statement = statement(events, null, 0, null, new int[]{99}, closeFailure);
+        BatchExecutionPlan plan = new BatchExecutionPlan(
+            "test.Mapper.insertAll", "INSERT INTO users(id) VALUES (?)",
+            List.of(), ExecutionPlan.SqlSource.GENERATED);
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(events, statement).execute(plan));
+
+        assertSame(closeFailure, failure.getCause());
+        assertEquals(ExecutionPhase.CLEANUP, failure.getPhase());
+        assertEquals(JdbcExecutionState.NOT_EXECUTED, failure.getExecutionState());
+        assertFalse(events.contains("executeBatch"));
+    }
+
+    @Test
     void usesCustomBinderAndRowMapperWithoutReflection() {
         List<String> bindEvents = new ArrayList<>();
         PreparedStatement writeStatement = statement(bindEvents, null, 1, null, null);
@@ -314,6 +345,93 @@ class JdbcSqlExecutorTest {
         assertEquals(List.of(
             "first.before", "failing.before", "failing.success", "first.success:3"
         ), events);
+    }
+
+    @Test
+    void terminalSuccessCallbackErrorPropagates() {
+        AssertionError callbackError = new AssertionError("observer error");
+        ExecutionInterceptor failing = new ExecutionInterceptor() {
+            @Override
+            public void afterSuccess(ExecutionOutcome outcome) {
+                throw callbackError;
+            }
+        };
+        PreparedStatement statement = statement(new ArrayList<>(), null, 3, null, null);
+        JdbcSqlExecutor executor = new JdbcSqlExecutor(
+            new TrackingFactory(connection(new ArrayList<>(), statement), new ArrayList<>()),
+            List.of(failing));
+
+        AssertionError deliveredError = assertThrows(AssertionError.class, () ->
+            executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
+
+        assertSame(callbackError, deliveredError);
+    }
+
+    @Test
+    void terminalFailureCallbackErrorPropagates() {
+        AssertionError callbackError = new AssertionError("observer error");
+        ExecutionInterceptor failing = new ExecutionInterceptor() {
+            @Override
+            public void afterFailure(ExecutionOutcome outcome) {
+                throw callbackError;
+            }
+        };
+        ConnectionHandleFactory transactions = () -> new ConnectionHandle() {
+            @Override
+            public Connection connection() {
+                throw new IllegalStateException("connection failed");
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        AssertionError deliveredError = assertThrows(AssertionError.class, () ->
+            new JdbcSqlExecutor(transactions, List.of(failing)).execute(selectPlan(null)));
+
+        assertSame(callbackError, deliveredError);
+    }
+
+    @Test
+    void outcomeDurationIncludesCleanupAndExcludesTerminalCallbackWork() {
+        long workNanos = 2_000_000L;
+        AtomicLong cleanupDuration = new AtomicLong();
+        AtomicLong callbackDuration = new AtomicLong();
+        AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
+        PreparedStatement statement = statement(new ArrayList<>(), null, 3, null, null);
+        Connection connection = connection(new ArrayList<>(), statement);
+        ConnectionHandleFactory transactions = () -> new ConnectionHandle() {
+            @Override
+            public Connection connection() {
+                return connection;
+            }
+
+            @Override
+            public void close() {
+                long startedAt = System.nanoTime();
+                doWorkFor(workNanos);
+                cleanupDuration.set(System.nanoTime() - startedAt);
+            }
+        };
+        ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+            @Override
+            public void afterSuccess(ExecutionOutcome outcome) {
+                observedOutcome.set(outcome);
+                long startedAt = System.nanoTime();
+                doWorkFor(workNanos);
+                callbackDuration.set(System.nanoTime() - startedAt);
+            }
+        };
+        JdbcSqlExecutor executor = new JdbcSqlExecutor(transactions, List.of(interceptor));
+
+        long invocationStartedAt = System.nanoTime();
+        executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null));
+        long invocationDuration = System.nanoTime() - invocationStartedAt;
+
+        assertTrue(observedOutcome.get().durationNanos() >= cleanupDuration.get());
+        assertTrue(invocationDuration - observedOutcome.get().durationNanos()
+            >= callbackDuration.get());
     }
 
     @Test
@@ -454,12 +572,55 @@ class JdbcSqlExecutorTest {
     }
 
     @Test
+    void cleanupFailureProducesOneFinalFailureOutcomeAfterResourceRelease() {
+        List<String> events = new ArrayList<>();
+        SQLException closeFailure = new SQLException("statement close failed");
+        PreparedStatement statement = statement(events, null, 3, null, null, closeFailure);
+        AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
+        ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+            @Override
+            public void beforeExecution(ExecutionPlan plan) {
+                events.add("before");
+            }
+
+            @Override
+            public void afterSuccess(ExecutionOutcome outcome) {
+                events.add("success");
+            }
+
+            @Override
+            public void afterFailure(ExecutionOutcome outcome) {
+                observedOutcome.set(outcome);
+                SqlExecutionException failure = assertInstanceOf(
+                    SqlExecutionException.class, outcome.failure());
+                events.add("failure:" + failure.getPhase());
+            }
+        };
+        JdbcSqlExecutor executor = new JdbcSqlExecutor(
+            new TrackingFactory(connection(events, statement), events), List.of(interceptor));
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null)));
+
+        assertSame(failure, observedOutcome.get().failure());
+        assertSame(closeFailure, failure.getCause());
+        assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
+        assertEquals(3, observedOutcome.get().affectedRows());
+        assertEquals(List.of(
+            "before", "transaction.open", "transaction.connection", "connection.prepare",
+            "setObject:1:Alice", "executeUpdate", "statement.close", "transaction.close",
+            "failure:CLEANUP"
+        ), events);
+    }
+
+    @Test
     void preservesPrimaryFailureAndFlattensCallbackAndCleanupFailures() {
         SQLException executionFailure = new SQLException("read failed");
         SQLException resultSetCloseFailure = new SQLException("rows close failed");
         SQLException statementCloseFailure = new SQLException("statement close failed");
         IllegalStateException transactionCloseFailure = new IllegalStateException("transaction close failed");
         IllegalArgumentException callbackFailure = new IllegalArgumentException("callback failed");
+        AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
         ResultSet resultSet = failingRows(executionFailure, resultSetCloseFailure);
         PreparedStatement statement = statement(new ArrayList<>(), resultSet, 0, null, null, statementCloseFailure);
         Connection connection = connection(new ArrayList<>(), statement);
@@ -468,6 +629,7 @@ class JdbcSqlExecutorTest {
         ExecutionInterceptor interceptor = new ExecutionInterceptor() {
             @Override
             public void afterFailure(ExecutionOutcome outcome) {
+                observedOutcome.set(outcome);
                 throw callbackFailure;
             }
         };
@@ -478,10 +640,34 @@ class JdbcSqlExecutorTest {
         assertSame(executionFailure, failure.getCause());
         assertEquals(ExecutionPhase.RESULT_READING, failure.getPhase());
         assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
+        assertSame(failure, observedOutcome.get().failure());
         assertArrayEquals(
             new Throwable[]{resultSetCloseFailure, statementCloseFailure, transactionCloseFailure},
             executionFailure.getSuppressed());
         assertFalse(failure.getMessage().contains("customer-secret"));
+    }
+
+    @Test
+    void repeatedCleanupThrowableIsPreservedOnceWithoutSelfSuppression() {
+        SQLException sharedCloseFailure = new SQLException("shared close failed");
+        int[] cursor = {-1};
+        ResultSetMetaData metadata = proxy(ResultSetMetaData.class,
+            (method, args) -> method.equals("getColumnCount") ? 1 : null);
+        ResultSet resultSet = proxy(ResultSet.class, (method, args) -> switch (method) {
+            case "getMetaData" -> metadata;
+            case "next" -> ++cursor[0] == 0;
+            case "getObject" -> "value";
+            case "close" -> throw sharedCloseFailure;
+            default -> null;
+        });
+        PreparedStatement statement = statement(
+            new ArrayList<>(), resultSet, 0, null, null, sharedCloseFailure);
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor(new ArrayList<>(), statement).execute(selectPlan(null)));
+
+        assertSame(sharedCloseFailure, failure.getCause());
+        assertArrayEquals(new Throwable[0], sharedCloseFailure.getSuppressed());
     }
 
     private ExecutionInterceptor interceptor(String name, List<String> events) {
@@ -492,6 +678,13 @@ class JdbcSqlExecutorTest {
             }
             @Override public void afterFailure(ExecutionOutcome outcome) { events.add(name + ".failure"); }
         };
+    }
+
+    private void doWorkFor(long durationNanos) {
+        long deadline = System.nanoTime() + durationNanos;
+        while (System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
     }
 
     private JdbcSqlExecutor executor(List<String> events, PreparedStatement statement) {
