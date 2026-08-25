@@ -143,67 +143,78 @@ git add lite-orm-core
 git commit -m "fix: finalize jdbc outcomes after cleanup"
 ```
 
-### Task 2: 冻结 JDBC 类型矩阵和宿主生命周期契约
+### Task 2A: 冻结内置 JDBC 类型契约
 
 **Files:**
 - Modify: `lite-orm-core/src/main/java/org/liteorm/runtime/ResultValueConverters.java`
 - Modify: `lite-orm-core/src/main/java/org/liteorm/compile/CompilePipeline.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/JdbcTypeCompilationTest.java`
+- Create: `lite-orm-core/src/test/java/org/liteorm/test/JdbcTypeRuntimeTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/database/AbstractDatabaseCompatibilityTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/database/PostgresCompatibilityTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/database/MySqlCompatibilityTest.java`
-- Create: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcLifecycleContract.java`
-- Create: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/StandaloneJdbcLifecycleTest.java`
-- Create: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/SpringJdbcLifecycleTest.java`
+- Modify: `lite-orm-core/src/test/resources/database/schema.sql`
 - Modify: `docs/core-ga-contract.md`
 
-- [ ] **Step 1: 先固定三个待决类型的支持结论**
+- [ ] **Step 1: 把支持范围写成可验证契约**
 
-本版本支持 `UUID`、`LocalTime`、`OffsetDateTime`。生成代码优先使用 JDBC 4.2 `PreparedStatement.setObject`/`ResultSet.getObject(type)`，并保留驱动返回 `String`/`Timestamp` 时的显式转换；其他未知类型继续要求 `ParameterBinder` 或 `RowMapper`。
+内置支持 `UUID`、`LocalTime`、`OffsetDateTime`，但只承诺以下语义：PostgreSQL/H2 UUID 使用原生类型，MySQL UUID 使用 `CHAR(36)`，`BINARY(16)` 使用自定义 binder/mapper；`LocalTime` 按列精度保留；`OffsetDateTime` 只保证 instant 一致，不保证原 offset 一致。
 
-- [ ] **Step 2: 写类型矩阵 RED 测试**
+- [ ] **Step 2: 写最小 RED 矩阵**
 
-在 H2 compile/runtime fixture 及 PostgreSQL/MySQL contract 中为每种类型覆盖参数绑定、scalar、record 和 JavaBean；nullable 列必须同时覆盖 null/non-null。
+`JdbcTypeCompilationTest` 验证三种类型可生成 scalar/record/JavaBean 映射，且不支持的结果类型仍要求 `RowMapper`。`JdbcTypeRuntimeTest` 用 H2 快速验证读写与 null。PostgreSQL/MySQL 共享 contract 用一个包含全部类型的对象验证驱动差异，不做“每种类型 × 每种返回形态”的重复组合。
 
 ```java
-assertEquals(expectedUuid, mapper.findUuid(expectedUuid));
-assertEquals(expectedLocalTime, mapper.findTemporal(id).localTime());
-assertEquals(expectedOffsetDateTime.toInstant(), mapper.findBean(id).getOffsetDateTime().toInstant());
+assertEquals(expectedUuid, actual.uuid());
+assertEquals(expectedLocalTime, actual.localTime());
+assertEquals(expectedOffsetDateTime.toInstant(), actual.offsetDateTime().toInstant());
 ```
 
-- [ ] **Step 3: 最小实现类型转换并验证**
+- [ ] **Step 3: 实现有证据的最小转换**
 
-Run:
+`JdbcSqlExecutor` 继续使用当前 `setObject`/`getObject`，不为 typed `getObject(type)` 扩展 `ExecutionPlan`。`ResultValueConverters` 只增加测试驱动实际需要的 `UUID`、`LocalTime` 和 `OffsetDateTime` 转换；不增加推测性的通用字符串时间解析。
+
+- [ ] **Step 4: 验证并更新契约**
 
 ```bash
-mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest test
+mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,JdbcTypeRuntimeTest test
 mvn -pl lite-orm-core -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest test
 ```
 
-Expected: H2 必须 PASS；Docker 可用时 PostgreSQL/MySQL PASS，不可用时由现有 Testcontainers 设置明确 skip。
-
-- [ ] **Step 4: 抽取共享生命周期 characterization contract**
-
-`JdbcLifecycleContract` 接收 `SqlExecutor` fixture，验证 acquire/release、prepare/bind/execute/read/map/cleanup、generated key、batch、cursor、interceptor 顺序和 cleanup failure。Standalone 直接创建 `SimpleConnectionHandleFactory`；Spring 使用 `SpringConnectionHandleFactory` 和 transaction-bound DataSource。
-
-- [ ] **Step 5: 验证 Spring 未复制 executor 生命周期**
-
-Run:
+Expected: 编译和 H2 运行测试 PASS；Docker 可用时 PostgreSQL/MySQL PASS，不可用时明确 skip。`docs/core-ga-contract.md` 记录 SQL 表示、null、精度、offset 语义和扩展点。
 
 ```bash
-rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-spring-boot-starter/src/main/java
-mvn -pl lite-orm-spring-boot-starter -am test
+git add lite-orm-core docs/core-ga-contract.md
+git commit -m "feat(core): define built-in jdbc type mappings"
 ```
 
-Expected: 第一条命令无输出；Starter 复用 `JdbcSqlExecutor`，仅替换 connection handle/transaction host。
+### Task 2B: 锁定宿主连接与事务边界
 
-- [ ] **Step 6: 更新数据库兼容性文档并提交**
+**Files:**
+- Modify: `docs/core-ga-contract.md`
+- Modify: `docs/extensions.md`
 
-在 `docs/core-ga-contract.md` 明确支持类型、null 行为、驱动差异和扩展点。
+- [ ] **Step 1: 复用现有 characterization 测试**
+
+不新建 `JdbcLifecycleContract`、`StandaloneJdbcLifecycleTest` 或 `SpringJdbcLifecycleTest`。`JdbcSqlExecutorTest`、`JdbcCursorExecutionTest`、`SimpleTransactionTest`、`SpringTransactionTest` 和 `LiteOrmAutoConfigurationTest` 已分别覆盖 executor、cursor、Standalone 事务、Spring connection participation 以及 Starter 复用 `JdbcSqlExecutor`。
+
+- [ ] **Step 2: 运行边界验证**
 
 ```bash
-git add lite-orm-core lite-orm-spring-boot-starter docs/core-ga-contract.md
-git commit -m "test: freeze jdbc type and lifecycle contracts"
+mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
+mvn -pl lite-orm-spring-boot-starter -am test
+rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-spring-boot-starter/src/main/java
+```
+
+Expected: Maven PASS；`rg` 无输出。失败表示 Task 1 尚未满足现有契约，应回到 Task 1 修正，不新增第二套共享生命周期框架。
+
+- [ ] **Step 3: 修正权威文档**
+
+`docs/core-ga-contract.md` 记录 Task 1 后的最终 cleanup/outcome 顺序；`docs/extensions.md` 明确 host 只提供 connection participation 和 transaction ownership，prepare/bind/execute/read/map/cleanup 始终属于 `JdbcSqlExecutor`。
+
+```bash
+git add docs/core-ga-contract.md docs/extensions.md
+git commit -m "docs: freeze jdbc host ownership boundaries"
 ```
 
 ### Task 3: 冻结 public API 并增加 binary compatibility gate
