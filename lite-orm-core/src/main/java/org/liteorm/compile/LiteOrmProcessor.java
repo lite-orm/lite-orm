@@ -18,6 +18,8 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.Writer;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -62,29 +64,39 @@ public class LiteOrmProcessor extends AbstractProcessor {
         
         try {
             processMapperAnnotations(roundEnv);
-            
-            messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing completed successfully");
-            
-        } catch (Exception e) {
-            messager.printMessage(Diagnostic.Kind.ERROR, 
-                "Error during processing: " + e.getMessage());
-            e.printStackTrace();
+            messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing completed");
+        } catch (RuntimeException exception) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "Unexpected LiteORM processor failure: " + exception.getClass().getSimpleName()
+                    + ": " + exception.getMessage());
         }
         
         return true;
     }
     
     
-    private void processMapperAnnotations(RoundEnvironment roundEnv) throws IOException {
+    private void processMapperAnnotations(RoundEnvironment roundEnv) {
         Set<? extends Element> mapperElements = roundEnv.getElementsAnnotatedWith(Mapper.class);
-        
-        for (Element element : mapperElements) {
-            if (element instanceof TypeElement) {
-                TypeElement typeElement = (TypeElement) element;
-                messager.printMessage(Diagnostic.Kind.NOTE, 
-                    "Processing Mapper: " + typeElement.getQualifiedName());
-                
+        List<TypeElement> mapperTypes = mapperElements.stream()
+            .filter(TypeElement.class::isInstance)
+            .map(TypeElement.class::cast)
+            .sorted(Comparator.comparing(type -> type.getQualifiedName().toString()))
+            .toList();
+
+        for (TypeElement typeElement : mapperTypes) {
+            messager.printMessage(Diagnostic.Kind.NOTE,
+                "Processing Mapper: " + typeElement.getQualifiedName());
+            try {
                 generateZeroReflectionMapperImpl(typeElement);
+            } catch (IOException exception) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Failed to write mapper implementation for " + typeElement.getQualifiedName()
+                        + ": " + exception.getMessage(), typeElement);
+            } catch (RuntimeException exception) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Unexpected compiler failure for Mapper " + typeElement.getQualifiedName()
+                        + ": " + exception.getClass().getSimpleName() + ": " + exception.getMessage(),
+                    typeElement);
             }
         }
     }

@@ -37,7 +37,11 @@ Supported SQL sources are:
 
 When XML and a SQL annotation define the same Mapper method, XML wins and javac reports a warning on that method. LiteORM does not load or reinterpret Mapper XML at runtime.
 
+Effective Mapper SQL methods cannot be overloaded. LiteORM reports all conflicting resolved signatures before parsing their SQL source so statement identity remains unambiguous.
+
 Supported dynamic SQL elements are `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`. Supported expressions are compiled to Java. Arbitrary OGNL, static method access, and unsupported method calls fail compilation. Unsafe `${...}` substitution is rejected; values use `#{...}` and exceptional SQL structure uses a typed provider.
+
+Mapper XML and annotation `<script>` content use one fail-closed parser configuration. `DOCTYPE`, external entities, external DTD loading, XInclude, and external schema access are disabled; failure to enforce the required parser controls rejects compilation. LiteORM does not resolve referenced external XML resources from the filesystem or network during SQL parsing.
 
 ### 2.2 Parameters
 
@@ -105,7 +109,7 @@ Generated Mapper methods currently emit default statement options; there is no M
 
 ### 2.7 Compile-Time Rejection
 
-Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation. Diagnostics are attached to the Mapper method when javac can represent the location. XML diagnostics retain statement and tag context even though javac cannot point directly into an XML resource.
+Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation or plain-text SQL. Diagnostics are attached to the Mapper method when javac can represent the location and include stable Mapper, resolved-method, source, and resource context known without guessing. One Mapper stops after its first deterministic rejection, while independent Mapper interfaces continue processing in the same javac invocation.
 
 ## 3. JDBC Execution Contract
 
@@ -114,7 +118,8 @@ Unsupported Mapper behavior fails compilation instead of falling back to runtime
 ```text
 validate -> before interceptors -> open handle -> acquire connection
 -> prepare -> apply statement options -> bind -> execute -> read/map
--> terminal interceptors -> close ResultSet -> close statement -> close handle
+-> deactivate cursor -> close ResultSet -> close statement -> close handle
+-> form final outcome -> terminal interceptors
 ```
 
 The sequence is not a pluggable phase chain. SQL structure, value binding, row mapping, observation, and host connection participation use their dedicated typed contracts.
@@ -122,10 +127,14 @@ The sequence is not a pluggable phase chain. SQL structure, value binding, row m
 Resource ownership rules:
 
 - each non-cursor execution closes its `ResultSet`, statement, and connection handle in reverse ownership order;
-- a cursor is valid only while its callback is executing and is closed before the Mapper method returns;
-- cleanup failures do not replace an earlier SQL failure; they are suppressed on the primary cause;
+- a cursor is valid only while its callback is executing and is deactivated before cleanup and terminal observation;
+- cleanup failures do not replace an earlier SQL or cursor callback failure; they are suppressed once on the primary cause in result-set, statement, and connection-handle order;
 - a cleanup failure after successful JDBC execution is reported as `SqlExecutionException` with phase `CLEANUP`;
-- terminal interceptor failures are logged and cannot convert a successful SQL execution into failure.
+- the final `ExecutionOutcome.failure()` is the same throwable delivered to the Mapper caller for ordinary runtime failures;
+- outcome duration includes execution cleanup but excludes terminal interceptor time;
+- terminal interceptor runtime failures are logged individually, do not mutate the final outcome, and do not prevent remaining terminal interceptors from running.
+
+An execution outcome covers the executor-owned lifecycle only. It includes `ConnectionHandle.close()` but does not claim that a standalone or Spring transaction committed or rolled back.
 
 ## 4. Failure Contract
 
@@ -140,7 +149,7 @@ All framework runtime failures derive from `LiteOrmException`. The main categori
 
 | State | Meaning |
 | --- | --- |
-| `NOT_EXECUTED` | JDBC execution was not attempted. |
+| `NOT_EXECUTED` | JDBC execution was not attempted, including an empty batch that performs no `executeBatch()` call. |
 | `OUTCOME_UNKNOWN` | The JDBC execute call was entered but threw before LiteORM received a result; retry safety depends on the operation and database. |
 | `EXECUTED` | JDBC returned and later result reading, mapping, observation, or cleanup failed. |
 

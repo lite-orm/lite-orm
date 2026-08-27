@@ -4,19 +4,12 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -66,7 +59,16 @@ final class XmlBasedSqlParser implements SqlContentParser {
         }
 
         ParseContext context = new ParseContext(xmlResource.fragments(), new ArrayDeque<>());
-        return parseSqlElement(sqlElement, method, context);
+        try {
+            return parseSqlElement(sqlElement, method, context);
+        } catch (RuntimeException exception) {
+            String namespace = xmlResource.document().getDocumentElement().getAttribute("namespace");
+            String parsedContext = namespace == null || namespace.isBlank()
+                ? " [statementId=" + methodName + "]"
+                : " [namespace=" + namespace + ", statementId=" + methodName + "]";
+            throw new IllegalArgumentException(
+                "XML resource " + xmlPath + parsedContext + ": " + exception.getMessage(), exception);
+        }
     }
     
     @Override
@@ -77,6 +79,19 @@ final class XmlBasedSqlParser implements SqlContentParser {
     public boolean hasMapperResource(ExecutableElement method) {
         String xmlPath = getXmlPath(method);
         return xmlPath != null && getXmlResource(xmlPath) != null;
+    }
+
+    boolean hasMapperResourceFile(ExecutableElement method) {
+        String xmlPath = getXmlPath(method);
+        if (xmlPath == null) {
+            return false;
+        }
+        try (InputStream input = openXmlStream(xmlPath)) {
+            return input != null;
+        } catch (IOException exception) {
+            throw new IllegalArgumentException(
+                "failed to inspect XML resource " + xmlPath + ": " + exception.getMessage(), exception);
+        }
     }
     
     @Override
@@ -114,17 +129,11 @@ final class XmlBasedSqlParser implements SqlContentParser {
                     return null;
                 }
                 
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-                factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-                DocumentBuilder builder = factory.newDocumentBuilder();
-                builder.setEntityResolver((publicId, systemId) -> new InputSource(new StringReader("")));
-                Document document = builder.parse(is);
+                Document document = SecureXml.parse(is, "XML resource " + path);
                 return new XmlResource(document, collectSqlFragments(document));
-            } catch (ParserConfigurationException | SAXException | IOException e) {
-                System.err.println("XML parsing failed: " + path + ", " + e.getMessage());
-                return null;
+            } catch (IOException e) {
+                throw new IllegalArgumentException(
+                    "failed to parse XML resource " + path + ": " + e.getMessage(), e);
             }
         });
     }

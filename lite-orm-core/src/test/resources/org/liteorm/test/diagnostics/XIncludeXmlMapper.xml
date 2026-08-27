@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.diagnostics.XIncludeXmlMapper"
+        xmlns:xi="http://www.w3.org/2001/XInclude">
+    <xi:include href="file:///etc/passwd" parse="text"/>
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT value FROM values_table
+    </select>
+</mapper>

@@ -9,14 +9,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
-
 import javax.lang.model.element.ExecutableElement;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -114,17 +107,11 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
      * Parses the dynamic SQL AST.
      */
     private AstNode parseAstNode(String sqlContent) {
-        try {
-            if (sqlContent.contains("<script>")) {
-                String scriptContent = extractScriptContent(sqlContent);
-                return parseXmlContent(scriptContent);
-            } else {
-                return parseXmlContent(sqlContent);
-            }
-        } catch (Exception e) {
-            System.err.println("AST parsing failed: " + e.getMessage());
-            return new AstNode.TextNode(sqlContent);
+        if (sqlContent.contains("<script>")) {
+            String scriptContent = extractScriptContent(sqlContent);
+            return parseXmlContent(scriptContent);
         }
+        return parseXmlContent(sqlContent);
     }
     
     /**
@@ -142,12 +129,9 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
     /**
      * Parses dynamic SQL XML content.
      */
-    private AstNode parseXmlContent(String xmlContent) throws Exception {
+    private AstNode parseXmlContent(String xmlContent) {
         String fullXml = "<root>" + xmlContent + "</root>";
-        
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document document = builder.parse(new ByteArrayInputStream(fullXml.getBytes()));
+        Document document = SecureXml.parse(fullXml, "annotation SQL script");
         
         Element root = document.getDocumentElement();
         return new AstNode.ContainerNode(parseChildren(root));
@@ -183,10 +167,8 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
             case "include":
                 return parseIncludeElement(element);
             default:
-                List<AstNode> children = parseChildren(element);
-                return children.isEmpty()
-                    ? new AstNode.TextNode(getTextContent(element))
-                    : new AstNode.ContainerNode(children);
+                throw new IllegalArgumentException(
+                    "Unsupported annotation SQL tag <" + tagName + ">");
         }
     }
     

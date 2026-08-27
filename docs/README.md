@@ -7,6 +7,7 @@ This index identifies the current source of truth for each project concern. Docu
 - [`../README.md`](../README.md): English project introduction and quick start.
 - [`../README_cn.md`](../README_cn.md): Chinese project introduction and quick start.
 - [`../Design-Philosophy.md`](../Design-Philosophy.md): durable product and architecture principles.
+- [`../CONTEXT.md`](../CONTEXT.md): canonical project terminology for compilation and execution ownership.
 - [`agent/project-context.md`](agent/project-context.md): fast repository context for contributors and coding agents.
 - [`agent/engineering-guide.md`](agent/engineering-guide.md): engineering, testing, documentation, and commit conventions.
 - [`agent/tooling.md`](agent/tooling.md): cross-agent rule discovery and the shared non-trivial-work workflow.
@@ -19,9 +20,14 @@ This index identifies the current source of truth for each project concern. Docu
 - [`migration-guide.md`](migration-guide.md): manual migration guidance.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible benchmark baseline and interpretation limits.
 
+## Architecture Decisions
+
+- [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md): explains why execution outcomes include cleanup but exclude transaction completion.
+
 ## Active Roadmap
 
 - [`superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md`](superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md): approved roadmap design.
+- [`superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md`](superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md): refined specification for final JDBC outcomes and deterministic compiler rejection.
 - [`superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md`](superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md): active implementation plan.
 
 ## Documentation Lifecycle

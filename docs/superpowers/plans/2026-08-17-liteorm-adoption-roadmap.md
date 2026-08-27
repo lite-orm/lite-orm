@@ -49,11 +49,15 @@
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcSqlExecutorTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/jdbc/JdbcCursorExecutionTest.java`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java`
-- Create: `lite-orm-core/src/test/java/org/liteorm/test/SecureXmlCompilationTest.java`
-- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/MalformedMapper.xml`
-- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ExternalEntityMapper.xml`
+- Create: `lite-orm-core/src/test/java/org/liteorm/compile/SecureXmlTest.java`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/MalformedXmlMapper.xml`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/DoctypeXmlMapper.xml`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ParameterEntityXmlMapper.xml`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ExternalDtdXmlMapper.xml`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/XIncludeXmlMapper.xml`
+- Create: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ExternalSchemaXmlMapper.xml`
 
-- [ ] **Step 1: 写 cleanup 后才发送 terminal callback 的失败测试**
+- [x] **Step 1: 写 cleanup 后才发送 terminal callback 的失败测试**
 
 在 `JdbcSqlExecutorTest` 和 `JdbcCursorExecutionTest` 中增加场景：执行成功但 `ResultSet.close()`、`PreparedStatement.close()` 或 `ConnectionHandle.close()` 失败时只收到一次 `afterFailure`；SQL 执行失败保持 primary，cleanup failure 位于 `getSuppressed()`；terminal interceptor 抛错不覆盖最终 SQL/cleanup failure。
 
@@ -64,7 +68,7 @@ assertEquals("execute failed", failure.getCause().getMessage());
 assertEquals("statement close failed", failure.getCause().getSuppressed()[0].getMessage());
 ```
 
-- [ ] **Step 2: 运行 JDBC 定向测试并确认 RED**
+- [x] **Step 2: 运行 JDBC 定向测试并确认 RED**
 
 Run:
 
@@ -74,7 +78,7 @@ mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest test
 
 Expected: 新增用例失败，现状会在 cleanup 前发送 `afterSuccess` 或产生错误的 primary/suppressed 关系。
 
-- [ ] **Step 3: 统一普通执行与 cursor 的 outcome finalization**
+- [x] **Step 3: 统一普通执行与 cursor 的 outcome finalization**
 
 在 `JdbcSqlExecutor` 中将资源关闭、最终 `ExecutionOutcome` 创建和 terminal callback 分成三个明确阶段；使用一个私有 helper 合并 primary/cleanup failure，并在 cleanup 完成后调用 `notifySuccess` 或 `notifyFailure`。callback 自身异常逐个记录但不改变业务结果。
 
@@ -90,7 +94,7 @@ private Throwable mergeFailure(Throwable primaryFailure, Throwable cleanupFailur
 }
 ```
 
-- [ ] **Step 4: 写 Mapper 方法重载与 XML parser 诊断测试**
+- [x] **Step 4: 写 Mapper 方法重载与 XML parser 诊断测试**
 
 增加 compile-testing fixture，覆盖同接口重载、继承同签名覆盖、Object/default 方法、XML malformed、namespace/statement 上下文和 XXE。重载错误必须同时包含 Mapper 全限定名及两个冲突签名；XML 错误必须包含资源路径、namespace、statement ID 和 parser 摘要。
 
@@ -102,7 +106,7 @@ assertFailure(result,
 assertFailure(result, "MalformedMapper.xml", "example.MalformedMapper", "find", "XML parse failed");
 ```
 
-- [ ] **Step 5: 引入单一安全 XML factory 并接入两种 parser**
+- [x] **Step 5: 引入单一安全 XML factory 并接入两种 parser**
 
 `SecureXml` 负责配置 `DocumentBuilderFactory`、关闭 XInclude、外部实体和外部 DTD，并拒绝非 LiteORM 本地 resolver 的网络资源。`XmlBasedSqlParser` 不再吞掉异常或返回伪装的 statement missing；`AnnotationBasedSqlParser` 的 `<script>` 同样通过 `SecureXml` 解析。
 
@@ -123,7 +127,7 @@ final class SecureXml {
 }
 ```
 
-- [ ] **Step 6: 通过 `Messager` 附着确定性诊断**
+- [x] **Step 6: 通过 `Messager` 附着确定性诊断**
 
 删除 `System.err.println(...)`、`printStackTrace()` 和无上下文 catch；让 parser 抛出包含 `resourcePath`、`namespace`、`statementId`、`tagOrAttribute` 的 package-private compile exception，由 `CompilePipeline` 在 Mapper method element 上调用 `messager.printMessage(Diagnostic.Kind.ERROR, message, method)`。
 
