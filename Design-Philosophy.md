@@ -156,8 +156,8 @@ Architecture and performance claims require executable evidence:
 
 - public contracts are protected by focused tests and API checks;
 - generated source is protected by golden and compilation tests;
-- JDBC behavior is tested with H2 and production drivers;
-- PostgreSQL and MySQL behavior is verified with Testcontainers;
+- JDBC behavior is tested against PostgreSQL and MySQL with Testcontainers;
+- database-free compiler, lifecycle, and wiring behavior is verified with narrow test doubles;
 - Spring behavior is verified through physical DataSources and transaction managers;
 - Maven and Gradle consumption is verified outside the reactor;
 - benchmark claims use equivalent transaction boundaries and reproducible commands.

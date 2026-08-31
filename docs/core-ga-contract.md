@@ -89,19 +89,21 @@ Generated scalar, record, and JavaBean mappings support numeric primitives and w
 
 The frozen cross-database representations are:
 
-| Java type | PostgreSQL and H2 | MySQL | Guaranteed semantics |
+| Java type | PostgreSQL | MySQL | Guaranteed semantics |
 | --- | --- | --- | --- |
 | `UUID` | Native UUID column | `CHAR(36)` | Canonical UUID value and null are preserved. MySQL uses the 36-character representation. `BINARY(16)` requires an explicit `ParameterBinder` and `RowMapper`. |
 | `LocalTime` | `TIME(p)` | `TIME(p)` | The value is preserved to the precision declared by the column. JDBC `TIME` columns are read through the JDBC 4.2 `LocalTime` contract so fractional seconds are not lost through `java.sql.Time`. |
 | `OffsetDateTime` | Time-zone-aware timestamp | `TIMESTAMP(p)` | The represented instant and column precision are preserved. The original offset is not preserved. MySQL connection and session time-zone configuration participates in its normal `TIMESTAMP` conversion. |
 
-Built-in parameters continue through the fixed executor binding path. UUID binding uses the native driver value for PostgreSQL and H2 and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
+Built-in parameters continue through the fixed executor binding path. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
 
 The executable type contract is verified by:
 
 ```bash
-mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,JdbcTypeRuntimeTest test
-mvn -pl lite-orm-core -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest test
+mvn -pl lite-orm-core -am -Dtest=JdbcTypeCompilationTest,ResultValueConvertersTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl lite-orm-core -am -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 ### 2.6 Generated Keys
@@ -222,7 +224,7 @@ The GA compatibility gate runs one shared contract against:
 | PostgreSQL | `postgres:16.4-alpine` | scalar/record/JavaBean mapping, dynamic SQL, local transactions, rollback-only, generated keys, batch, timeout, temporal values, identifier strings, binary values, cursor scope |
 | MySQL | `mysql:8.4.0` | the same shared contract, with vendor-specific fixture DDL and timeout SQL only |
 
-H2 remains an executable development and concurrency fixture, not the production compatibility claim.
+Database-backed Core compatibility, multi-DataSource, concurrency, and transaction contracts execute on both pinned engines. H2 is reserved for the separate JMH benchmark baseline and is not a functional compatibility fixture.
 
 ## 9. Explicit Non-Goals For Core GA
 

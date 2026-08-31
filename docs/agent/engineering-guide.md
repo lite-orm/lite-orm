@@ -57,12 +57,14 @@ Use the smallest test that proves the contract:
 
 Test categories:
 
-- H2: fast SQL, mapping, and transaction feedback;
-- PostgreSQL/MySQL Testcontainers: JDBC driver and metadata behavior;
+- database-free unit tests: compiler, lifecycle, validation, and wiring feedback;
+- PostgreSQL/MySQL Testcontainers: every schema-backed Mapper, JDBC driver, transaction, and metadata behavior;
 - Spring tests: IoC, physical DataSource binding, transaction participation, and domain mismatch;
 - golden source tests: deterministic generated Java;
 - Maven Invoker/Gradle fixtures: published annotation-processor consumption;
 - JMH: performance only after correctness gates pass.
+
+H2 is reserved for the controlled JMH benchmark fixture and must not be used for functional or integration behavior.
 
 ## Documentation Changes
 

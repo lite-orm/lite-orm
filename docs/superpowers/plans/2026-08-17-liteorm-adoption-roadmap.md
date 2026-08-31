@@ -162,11 +162,11 @@ git commit -m "fix: finalize jdbc outcomes after cleanup"
 
 - [x] **Step 1: 把支持范围写成可验证契约**
 
-内置支持 `UUID`、`LocalTime`、`OffsetDateTime`，但只承诺以下语义：PostgreSQL/H2 UUID 使用原生类型，MySQL UUID 使用 `CHAR(36)`，`BINARY(16)` 使用自定义 binder/mapper；`LocalTime` 按列精度保留；`OffsetDateTime` 只保证 instant 一致，不保证原 offset 一致。
+内置支持 `UUID`、`LocalTime`、`OffsetDateTime`，但只承诺以下语义：PostgreSQL UUID 使用原生类型，MySQL UUID 使用 `CHAR(36)`，`BINARY(16)` 使用自定义 binder/mapper；`LocalTime` 按列精度保留；`OffsetDateTime` 只保证 instant 一致，不保证原 offset 一致。
 
 - [x] **Step 2: 写最小 RED 矩阵**
 
-`JdbcTypeCompilationTest` 验证三种类型可生成 scalar/record/JavaBean 映射，不支持的结果类型仍要求 `RowMapper`，不支持的绑定值类型在编译期要求 `ParameterBinder`。`JdbcTypeRuntimeTest` 用 H2 快速验证读写、null，以及不得把缺少 instant/offset 的本地时间猜成 UTC。PostgreSQL/MySQL 共享 contract 用一个包含全部类型的对象验证驱动差异，不做“每种类型 × 每种返回形态”的重复组合。
+`JdbcTypeCompilationTest` 验证三种类型可生成 scalar/record/JavaBean 映射，不支持的结果类型仍要求 `RowMapper`，不支持的绑定值类型在编译期要求 `ParameterBinder`。PostgreSQL/MySQL 共享 contract 验证真实驱动的读写、null 和类型差异；`ResultValueConvertersTest` 单独验证不得把缺少 instant/offset 的本地时间猜成 UTC。不做“每种类型 × 每种返回形态”的重复组合。
 
 ```java
 assertEquals(expectedUuid, actual.uuid());
@@ -176,16 +176,16 @@ assertEquals(expectedOffsetDateTime.toInstant(), actual.offsetDateTime().toInsta
 
 - [x] **Step 3: 实现有证据的最小转换**
 
-不为 typed `getObject(type)` 扩展 `ExecutionPlan`。真实驱动测试证明 H2 的无类型 `getObject()` 会通过 `java.sql.Time` 丢失小数秒，因此 `JdbcSqlExecutor` 对 JDBC `TIME` 列使用 JDBC 4.2 `getObject(column, LocalTime.class)`；UUID 绑定按已验证的驱动契约处理 PostgreSQL/H2 原生 UUID 与 MySQL `CHAR(36)`。编译器按最终绑定表达式类型冻结内置参数矩阵，provider 继续使用 typed `BoundParameter`。`ResultValueConverters` 只增加测试驱动实际需要的 `UUID`、`LocalTime` 和 `OffsetDateTime` 转换，不增加推测性的通用字符串时间解析或无依据的时区假设。
+不为 typed `getObject(type)` 扩展 `ExecutionPlan`。`JdbcSqlExecutor` 对 JDBC `TIME` 列使用 JDBC 4.2 `getObject(column, LocalTime.class)` 以保留驱动支持的精度；UUID 绑定按已验证的驱动契约处理 PostgreSQL 原生 UUID 与 MySQL `CHAR(36)`。编译器按最终绑定表达式类型冻结内置参数矩阵，provider 继续使用 typed `BoundParameter`。`ResultValueConverters` 只增加真实驱动需要的 `UUID`、`LocalTime` 和 `OffsetDateTime` 转换，不增加推测性的通用字符串时间解析或无依据的时区假设。
 
 - [x] **Step 4: 验证并更新契约**
 
 ```bash
-mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,JdbcTypeRuntimeTest test
+mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,ResultValueConvertersTest test
 mvn -pl lite-orm-core -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest test
 ```
 
-Expected: 编译和 H2 运行测试 PASS；Docker 可用时 PostgreSQL/MySQL PASS，不可用时明确 skip。`docs/core-ga-contract.md` 记录 SQL 表示、null、精度、offset 语义和扩展点。
+Expected: 编译和数据库无关的转换测试 PASS；PostgreSQL/MySQL Testcontainers 测试 PASS 且零 skip。`docs/core-ga-contract.md` 记录 SQL 表示、null、精度、offset 语义和扩展点。
 
 ```bash
 git add lite-orm-core docs/core-ga-contract.md
@@ -465,41 +465,41 @@ git add pom.xml lite-orm-core lite-orm-processor lite-orm-spring-boot-starter li
 git commit -m "refactor: split runtime core from processor"
 ```
 
-### Task 6: 建立 MySQL Testcontainers 完整矩阵
+### Task 6: 建立 PostgreSQL/MySQL Testcontainers 完整矩阵
 
 **Files:**
 - Modify: `pom.xml`
 - Create: `lite-orm-test-support/pom.xml`
-- Create: `lite-orm-test-support/src/main/java/org/liteorm/testsupport/mysql/MySqlTestDatabase.java`
-- Create: `lite-orm-test-support/src/main/java/org/liteorm/testsupport/mysql/MySqlSchema.java`
-- Create: `lite-orm-test-support/src/test/java/org/liteorm/testsupport/mysql/MySqlTestDatabaseTest.java`
+- Create: `lite-orm-test-support/src/main/java/org/liteorm/testsupport/database/DatabaseEngine.java`
+- Create: `lite-orm-test-support/src/main/java/org/liteorm/testsupport/database/TestDatabase.java`
+- Create: `lite-orm-test-support/src/test/java/org/liteorm/testsupport/database/TestDatabaseTest.java`
 - Modify: `lite-orm-core/pom.xml`
 - Modify: `lite-orm-core/src/test/java/org/liteorm/test/database/MySqlCompatibilityTest.java`
-- Create: `lite-orm-core/src/test/java/org/liteorm/test/database/MySqlJdbcLifecycleTest.java`
+- Create: PostgreSQL/MySQL concrete compatibility, multi-DataSource, and concurrency contracts
 - Modify: `lite-orm-processor/pom.xml`
 - Create: `lite-orm-processor/src/test/java/org/liteorm/test/mysql/MySqlGeneratedMapperIntegrationTest.java`
 - Create: `lite-orm-processor/src/test/java/org/liteorm/test/mysql/MySqlAnnotationMapper.java`
 - Create: `lite-orm-processor/src/test/java/org/liteorm/test/mysql/MySqlXmlMapper.java`
 - Create: `lite-orm-processor/src/test/resources/org/liteorm/test/mysql/MySqlXmlMapper.xml`
 - Modify: `lite-orm-spring-boot-starter/pom.xml`
-- Create: `lite-orm-spring-boot-starter/src/test/java/org/liteorm/spring/boot/MySqlSpringTransactionTest.java`
-- Create: `.github/workflows/mysql-testcontainers.yml`
+- Create: PostgreSQL/MySQL concrete Spring execution and transaction contracts
+- Create: `.github/workflows/database-matrix.yml`
 - Modify: `docs/core-ga-contract.md`
 
-- [ ] **Step 1: 写共享 fixture RED 测试**
+- [x] **Step 1: 写共享 fixture RED 测试**
 
-`MySqlTestDatabaseTest` 验证固定 image、container 启动、DataSource、schema reset 和诊断信息。测试通过 system property 覆盖 image，但默认值固定为 parent POM 的 `mysql.testcontainer.image=mysql:8.4.0`。
+`TestDatabaseTest` 对 PostgreSQL 16.4 和 MySQL 8.4 验证固定 image、container 启动、真实 vendor DataSource 和逻辑数据库隔离。
 
 ```java
-try (MySqlTestDatabase database = MySqlTestDatabase.start()) {
-    assertTrue(database.dataSource().getConnection().isValid(5));
-    database.execute("CREATE TABLE fixture_check (id BIGINT PRIMARY KEY)");
-    database.resetSchema();
-    assertFalse(database.tableExists("fixture_check"));
-}
+TestDatabase database = TestDatabase.shared(engine);
+DataSource first = database.createDataSource();
+DataSource second = database.createDataSource();
+database.execute(first, "CREATE TABLE fixture_check (id BIGINT PRIMARY KEY)");
+assertTrue(first.getConnection().isValid(5));
+assertThrows(SQLException.class, () -> count(second, "fixture_check"));
 ```
 
-- [ ] **Step 2: 运行 test-support 测试并确认 RED**
+- [x] **Step 2: 运行 test-support 测试并确认 RED**
 
 Run:
 
@@ -509,34 +509,20 @@ mvn -pl lite-orm-test-support test
 
 Expected: 构建失败，提示 module/fixture 尚不存在。
 
-- [ ] **Step 3: 实现非发布 MySQL test-support module**
+- [x] **Step 3: 实现非发布双驱动 test-support module**
 
-module 使用普通 JAR 供其他模块以 test scope 依赖，并设置 `<maven.deploy.skip>true</maven.deploy.skip>`。`MySqlTestDatabase` 封装 `MySQLContainer`、`MysqlDataSource`、schema 清理和容器日志；不暴露给任何 production source set。
+module 使用普通 JAR 供其他模块以 test scope 依赖，并设置 `<maven.deploy.skip>true</maven.deploy.skip>`。`TestDatabase` 每个 JVM 懒启动一个 PostgreSQL container 和一个 MySQL container，并为每个测试创建隔离 schema/database；不暴露给任何 production source set。
 
 ```java
-public final class MySqlTestDatabase implements AutoCloseable {
-    private final MySQLContainer<?> container;
-
-    public static MySqlTestDatabase start() {
-        String image = System.getProperty("liteorm.mysql.image", "mysql:8.4.0");
-        MySQLContainer<?> container = new MySQLContainer<>(DockerImageName.parse(image));
-        container.start();
-        return new MySqlTestDatabase(container);
-    }
-
-    public DataSource dataSource() {
-        MysqlDataSource dataSource = new MysqlDataSource();
-        dataSource.setURL(container.getJdbcUrl());
-        dataSource.setUser(container.getUsername());
-        dataSource.setPassword(container.getPassword());
-        return dataSource;
-    }
+public enum DatabaseEngine {
+    POSTGRESQL("postgres:16.4-alpine"),
+    MYSQL("mysql:8.4.0");
 }
 ```
 
-- [ ] **Step 4: 迁移 core MySQL compatibility 并增加生命周期覆盖**
+- [x] **Step 4: 迁移 Core 数据库 contract 到双驱动**
 
-`MySqlCompatibilityTest` 使用共享 fixture，继续执行类型/record/JavaBean/generated key/batch/cursor/timeout contract；`MySqlJdbcLifecycleTest` 额外验证 transaction commit/rollback、connection release 和 cleanup failure 的最终 outcome。
+PostgreSQL/MySQL concrete tests 共享 compatibility、multi-DataSource 和 concurrency contract，继续执行类型/record/JavaBean/generated key/batch/cursor/timeout/transaction contract。纯 JDBC 生命周期测试使用窄 test double，不启动数据库。
 
 - [ ] **Step 5: 增加 processor annotation/XML MySQL integration**
 
@@ -547,28 +533,28 @@ assertEquals(1L, annotationMapper.insert("Alice"));
 assertEquals(List.of("Alice"), xmlMapper.findNames(List.of(1L)));
 ```
 
-- [ ] **Step 6: 增加 Starter physical MySQL transaction 测试**
+- [x] **Step 6: 增加 Starter 双驱动物理 transaction 测试**
 
-使用共享 DataSource 创建真实 `DataSourceTransactionManager`，验证 `@Transactional` commit/rollback、ordered interceptor 和 generated Mapper bean；测试禁止使用 H2 compatibility mode。
+使用每种引擎的隔离 DataSource 创建真实 `DataSourceTransactionManager`，验证 `@Transactional` commit/rollback、ordered interceptor 和 generated Mapper bean。
 
-- [ ] **Step 7: 建立独立 MySQL CI job**
+- [x] **Step 7: 建立双驱动 CI gate**
 
-workflow 在 Linux Docker runner 上运行：
+workflow 在 Linux Docker runner 上运行完整 reactor：
 
 ```bash
-mvn -pl lite-orm-core,lite-orm-processor,lite-orm-spring-boot-starter -am \
-  -Dtest='*MySql*Test' -DfailIfNoTests=false test
+mvn test
+scripts/verify-database-test-matrix.sh
 ```
 
-发布 workflow 必须依赖该 job；若测试因 Docker unavailable 被 skip，CI 增加 surefire XML 检查并使 job 失败。本地开发仍可由 `disabledWithoutDocker=true` 明确 skip。
+指定 PostgreSQL/MySQL suite 的 Surefire report 缺失、测试数为零或 skip 非零时 CI 失败。
 
-- [ ] **Step 8: 验证 test-only 依赖边界**
+- [x] **Step 8: 验证 test-only 依赖边界**
 
 Run:
 
 ```bash
-mvn -pl lite-orm-test-support,lite-orm-core,lite-orm-processor,lite-orm-spring-boot-starter -am test
-mvn -pl lite-orm-core,lite-orm-processor,lite-orm-spring-boot-starter dependency:tree -Dscope=runtime | rg 'testcontainers|lite-orm-test-support'
+mvn test
+mvn -pl lite-orm-core,lite-orm-spring-boot-starter,lite-orm-examples/basic-mapper dependency:tree -Dscope=runtime | rg 'testcontainers|lite-orm-test-support'
 ```
 
 Expected: 测试 PASS；runtime dependency tree 检查无输出。
@@ -878,7 +864,7 @@ https://lite-orm.github.io/lite-orm/dtd/liteorm-mapper-1.0.dtd
 
 - [ ] **Step 5: 创建 single DataSource Spring example**
 
-真实启动 H2 应用，使用 `mapper-bindings`、默认 Mapper bean 名、constructor injection、ordered interceptors 和 `@Transactional` rollback integration test。
+分别真实启动 PostgreSQL/MySQL Testcontainers 应用，使用 `mapper-bindings`、默认 Mapper bean 名、constructor injection、ordered interceptors 和 `@Transactional` rollback integration test。
 
 - [ ] **Step 6: 建立 MkDocs 站点和 Pages workflow**
 
@@ -1299,7 +1285,7 @@ git commit -m "release: prepare liteorm 1.0.0"
 
 配置包含 JDBC URL/credentials、schema、table include/exclude、record/bean、annotation/XML output、package、output dir、dry-run；table/column 始终按稳定名称排序。
 
-- [ ] **Step 2: 写 H2 golden 与 PostgreSQL/MySQL metadata tests**
+- [ ] **Step 2: 写 deterministic golden 与 PostgreSQL/MySQL metadata tests**
 
 覆盖 snake_case、PK、identity、nullable、UUID/temporal/numeric/binary 类型、include/exclude。`MySqlGeneratorTest` 必须复用 `lite-orm-test-support` 的真实 MySQL 8.4 container，而不是 mock `DatabaseMetaData`；两次生成必须 byte-for-byte 相同。
 
@@ -1327,7 +1313,7 @@ Run:
 mvn -pl lite-orm-generator -am test
 ```
 
-Expected: H2 PASS；Docker 可用时 PostgreSQL/MySQL PASS；golden deterministic/protection tests PASS。
+Expected: PostgreSQL/MySQL Testcontainers PASS 且零 skip；golden deterministic/protection tests PASS。
 
 ```bash
 git add pom.xml lite-orm-generator docs/site/generator.md mkdocs.yml

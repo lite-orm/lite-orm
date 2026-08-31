@@ -64,7 +64,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Use JUnit 5 for Java tests.
 - For a feature, bug fix, or behavior change, first run a focused test that fails for the expected reason, implement the minimum production change, then refactor only while the relevant tests remain green.
 - Start with the narrowest relevant test, then run the owning module, then the reactor when the change crosses module boundaries.
-- Use H2 for fast focused behavior, PostgreSQL/MySQL Testcontainers for driver contracts, and Spring integration tests for transaction participation.
+- Use database-free unit tests for focused compiler and lifecycle behavior. Every test that creates schema objects or executes generated Mapper SQL must run against PostgreSQL/MySQL Testcontainers. H2 is benchmark-only.
 - A release claim requires successful Maven/Gradle external-consumer checks and zero skipped database jobs in CI.
 - Do not claim success without fresh command output.
 

@@ -1,19 +1,21 @@
 package org.liteorm.example;
 
-import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.liteorm.JdbcAssembly;
 import org.liteorm.LiteOrm;
+import org.liteorm.testsupport.database.DatabaseEngine;
+import org.liteorm.testsupport.database.TestDatabase;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class StandaloneJdbcUsageTest {
+abstract class StandaloneJdbcUsageTest {
+
+    protected abstract DatabaseEngine databaseEngine();
 
     @Test
     void generatedMapperExecutesThroughStandaloneAssembly() throws SQLException {
@@ -43,16 +45,13 @@ class StandaloneJdbcUsageTest {
     }
 
     private DataSource dataSource() throws SQLException {
-        JdbcDataSource dataSource = new JdbcDataSource();
-        dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
-        try (var connection = dataSource.getConnection();
-             var statement = connection.createStatement()) {
-            statement.execute("CREATE TABLE users ("
+        TestDatabase database = TestDatabase.shared(databaseEngine());
+        DataSource dataSource = database.createDataSource();
+        database.execute(dataSource, "CREATE TABLE users ("
                 + "id BIGINT PRIMARY KEY, "
                 + "name VARCHAR(100), "
                 + "email VARCHAR(100), "
                 + "age INTEGER)");
-        }
         return dataSource;
     }
 }

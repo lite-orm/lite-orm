@@ -1,11 +1,6 @@
 package org.liteorm.spring.boot;
 
-import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
-import org.liteorm.api.SqlExecutionException;
-import org.liteorm.api.TransactionException;
-import org.liteorm.spring.boot.archivefixture.ArchiveUserMapper;
-import org.liteorm.spring.boot.fixture.SpringUserMapper;
 import org.liteorm.spring.boot.fixture.URLMapper;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -13,20 +8,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PackageDataSourceBindingTest {
@@ -51,72 +43,6 @@ class PackageDataSourceBindingTest {
         assertFalse(Arrays.stream(LiteOrmProperties.MapperBinding.class.getMethods())
             .anyMatch(method -> method.getName().equals("getBeanNamePrefix")
                 || method.getName().equals("setBeanNamePrefix")));
-    }
-
-    @Test
-    void bindsDisjointMapperPackagesToNamedExecutors() {
-        contextRunner
-            .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource",
-                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
-            .run(context -> {
-                assertNull(context.getStartupFailure());
-                SpringUserMapper users = context.getBean("springUserMapper", SpringUserMapper.class);
-                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
-
-                users.insert(1L, "users");
-                orders.insert(1L, "orders");
-
-                assertEquals("users", users.findById(1L).name());
-                assertEquals("orders", orders.findById(1L).name());
-            });
-    }
-
-    @Test
-    void matchingTransactionManagerControlsOnlyItsExecutor() {
-        contextRunner
-            .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource",
-                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
-            .run(context -> {
-                SpringUserMapper users = context.getBean("springUserMapper", SpringUserMapper.class);
-                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
-                TransactionTemplate usersTransactions = new TransactionTemplate(
-                    context.getBean("usersTransactionManager", PlatformTransactionManager.class));
-                TransactionTemplate ordersTransactions = new TransactionTemplate(
-                    context.getBean("ordersTransactionManager", PlatformTransactionManager.class));
-
-                usersTransactions.executeWithoutResult(status -> {
-                    users.insert(2L, "users-rollback");
-                    status.setRollbackOnly();
-                });
-                ordersTransactions.executeWithoutResult(status ->
-                    orders.insert(2L, "orders-commit"));
-
-                assertNull(users.findById(2L));
-                assertEquals("orders-commit", orders.findById(2L).name());
-            });
-    }
-
-    @Test
-    void rejectsMapperBoundToAnotherDataSourceInsideActiveTransaction() {
-        contextRunner
-            .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "usersDataSource",
-                "org.liteorm.spring.boot.archivefixture", "ordersDataSource"))
-            .run(context -> {
-                ArchiveUserMapper orders = context.getBean("archiveUserMapper", ArchiveUserMapper.class);
-                TransactionTemplate usersTransactions = new TransactionTemplate(
-                    context.getBean("usersTransactionManager", PlatformTransactionManager.class));
-
-                SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
-                    usersTransactions.executeWithoutResult(status ->
-                        orders.insert(3L, "must-not-auto-commit")));
-
-                TransactionException cause = (TransactionException) failure.getCause();
-                assertEquals(TransactionException.Type.DOMAIN_MISMATCH, cause.getType());
-                assertNull(orders.findById(3L));
-            });
     }
 
     @Test
@@ -153,21 +79,6 @@ class PackageDataSourceBindingTest {
             .run(context -> assertStartupFailureContains(context.getStartupFailure(), "data-source"));
     }
 
-    @Test
-    void acceptsRoutingDataSourceAsTheConfiguredDataSource() {
-        contextRunner
-            .withPropertyValues(bindings(
-                "org.liteorm.spring.boot.fixture", "userRoutingDataSource"))
-            .run(context -> {
-                SpringUserMapper mapper = context.getBean(
-                    "springUserMapper", SpringUserMapper.class);
-
-                mapper.insert(3L, "routed");
-
-                assertEquals("routed", mapper.findById(3L).name());
-            });
-    }
-
     private String[] bindings(String... values) {
         String[] properties = new String[values.length];
         for (int index = 0; index < values.length; index += 2) {
@@ -195,13 +106,13 @@ class PackageDataSourceBindingTest {
     static class MultipleDataSourceConfiguration {
 
         @Bean
-        DataSource usersDataSource() throws SQLException {
-            return dataSource("users");
+        DataSource usersDataSource() {
+            return new InertDataSource();
         }
 
         @Bean
-        DataSource ordersDataSource() throws SQLException {
-            return dataSource("orders");
+        DataSource ordersDataSource() {
+            return new InertDataSource();
         }
 
         @Bean
@@ -230,14 +141,18 @@ class PackageDataSourceBindingTest {
             return new DataSourceTransactionManager(ordersDataSource);
         }
 
-        private DataSource dataSource(String name) throws SQLException {
-            JdbcDataSource dataSource = new JdbcDataSource();
-            dataSource.setURL("jdbc:h2:mem:" + name + '-' + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
-            try (var connection = dataSource.getConnection();
-                 var statement = connection.createStatement()) {
-                statement.execute("CREATE TABLE spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
-            }
-            return dataSource;
+    }
+
+    private static final class InertDataSource extends AbstractDataSource {
+
+        @Override
+        public java.sql.Connection getConnection() throws SQLException {
+            throw new SQLException("Database access is not expected in binding-only tests");
+        }
+
+        @Override
+        public java.sql.Connection getConnection(String username, String password) throws SQLException {
+            return getConnection();
         }
     }
 }

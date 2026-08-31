@@ -161,7 +161,7 @@ LiteORM 自有 DTD 通过内置 resolver 离线解析。
 - JavaBean 返回；
 - PostgreSQL；
 - MySQL；
-- H2 development fixture。
+- PostgreSQL/MySQL Testcontainers fixtures。
 
 不支持类型必须在编译期要求显式 `ParameterBinder` 或 `RowMapper`。
 

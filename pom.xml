@@ -13,6 +13,7 @@
     <description>High-performance compile-time ORM for Java - Parent POM</description>
 
     <modules>
+        <module>lite-orm-test-support</module>
         <module>lite-orm-core</module>
         <module>lite-orm-spring-boot-starter</module>
         <module>lite-orm-examples/basic-mapper</module>
@@ -44,6 +45,12 @@
             <dependency>
                 <groupId>org.liteorm</groupId>
                 <artifactId>lite-orm-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.liteorm</groupId>
+                <artifactId>lite-orm-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

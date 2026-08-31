@@ -20,6 +20,8 @@ import org.liteorm.api.RowMapper;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.StatementOptions;
 import org.liteorm.api.TransactionException;
+import org.liteorm.testsupport.database.DatabaseEngine;
+import org.liteorm.testsupport.database.TestDatabase;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -39,6 +41,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -46,8 +49,9 @@ abstract class AbstractDatabaseCompatibilityTest {
 
     private JdbcAssembly assembly;
     private DatabaseCompatibilityMapper mapper;
+    private DataSource dataSource;
 
-    protected abstract DataSource dataSource();
+    protected abstract DatabaseEngine databaseEngine();
 
     protected abstract String identityDefinition();
 
@@ -63,8 +67,9 @@ abstract class AbstractDatabaseCompatibilityTest {
 
     @BeforeEach
     void resetDatabase() throws Exception {
+        dataSource = TestDatabase.shared(databaseEngine()).createDataSource();
         executeSchema();
-        assembly = LiteOrm.jdbc(dataSource()).domain(databaseName()).build();
+        assembly = LiteOrm.jdbc(dataSource).domain(databaseName()).build();
         mapper = new DatabaseCompatibilityMapperImpl(assembly.sqlExecutor());
     }
 
@@ -83,6 +88,22 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertEquals(expected.uuid(), mapper.findUuid(id));
         assertEquals(expected.localTime(), mapper.findLocalTime(id));
         assertEquals(expected.offsetDateTime().toInstant(), mapper.findOffsetDateTime(id).toInstant());
+    }
+
+    @Test
+    void preservesNullFrozenJdbcTypes() {
+        CompatibilityRecord expected = sample(null, "NullTypes");
+        long id = mapper.insert(
+            expected.name(), expected.active(), expected.businessDate(), expected.createdAt(),
+            expected.eventId(), null, null, null, expected.payload());
+
+        CompatibilityRecord actual = mapper.findRecord(id);
+        assertNull(actual.uuid());
+        assertNull(actual.localTime());
+        assertNull(actual.offsetDateTime());
+        assertNull(mapper.findUuid(id));
+        assertNull(mapper.findLocalTime(id));
+        assertNull(mapper.findOffsetDateTime(id));
     }
 
     @Test
@@ -193,7 +214,7 @@ abstract class AbstractDatabaseCompatibilityTest {
                 .replace("${localTime}", localTimeDefinition())
                 .replace("${offsetDateTime}", offsetDateTimeDefinition());
         }
-        try (var connection = dataSource().getConnection();
+        try (var connection = dataSource.getConnection();
              var statement = connection.createStatement()) {
             for (String sql : schema.split(";")) {
                 if (!sql.isBlank()) {
