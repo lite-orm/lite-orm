@@ -3,7 +3,9 @@ package org.liteorm.api;
 import java.util.Objects;
 
 /**
- * Immutable terminal state observed after one SQL execution attempt.
+ * Immutable terminal state observed after one SQL execution attempt and its executor-owned cleanup.
+ * The duration includes cleanup but excludes terminal interceptor callbacks. This outcome does not
+ * describe transaction commit or rollback.
  */
 public final class ExecutionOutcome {
 

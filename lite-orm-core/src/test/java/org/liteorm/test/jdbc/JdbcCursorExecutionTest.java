@@ -3,19 +3,28 @@ package org.liteorm.test.jdbc;
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.ConnectionHandleFactory;
+import org.liteorm.api.ExecutionInterceptor;
+import org.liteorm.api.ExecutionOutcome;
+import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.RowCursor;
+import org.liteorm.api.SqlExecutionException;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JdbcCursorExecutionTest {
@@ -57,6 +66,83 @@ class JdbcCursorExecutionTest {
     }
 
     @Test
+    void cleanupFailureProducesOneFinalCursorOutcomeAfterResourceRelease() {
+        List<String> events = new ArrayList<>();
+        SQLException closeFailure = new SQLException("statement close failed");
+        AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
+        ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+            @Override
+            public void beforeExecution(ExecutionPlan plan) {
+                events.add("before");
+            }
+
+            @Override
+            public void afterSuccess(ExecutionOutcome outcome) {
+                events.add("success");
+            }
+
+            @Override
+            public void afterFailure(ExecutionOutcome outcome) {
+                observedOutcome.set(outcome);
+                SqlExecutionException failure = assertInstanceOf(
+                    SqlExecutionException.class, outcome.failure());
+                events.add("failure:" + failure.getPhase());
+            }
+        };
+        JdbcSqlExecutor executor = executor(
+            events,
+            statement(events, rows(events, List.of("Alice")), closeFailure),
+            List.of(interceptor));
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            executor.queryCursor(plan(), (RowCursor<String> cursor) -> {
+                cursor.next();
+                return cursor.current();
+            }));
+
+        assertSame(failure, observedOutcome.get().failure());
+        assertSame(closeFailure, failure.getCause());
+        assertEquals(ExecutionPhase.CLEANUP, failure.getPhase());
+        assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
+        assertEquals(1, observedOutcome.get().resultCount());
+        assertEquals(List.of(
+            "before", "transaction.open", "transaction.connection", "connection.prepare",
+            "rows.next", "rows.close", "statement.close", "transaction.close", "failure:CLEANUP"
+        ), events);
+    }
+
+    @Test
+    void callbackRuntimeFailureRemainsPrimaryWhenCursorCleanupAlsoFails() {
+        List<String> events = new ArrayList<>();
+        IllegalArgumentException callbackFailure = new IllegalArgumentException("stop");
+        SQLException closeFailure = new SQLException("statement close failed");
+        AtomicReference<ExecutionOutcome> observedOutcome = new AtomicReference<>();
+        ExecutionInterceptor interceptor = new ExecutionInterceptor() {
+            @Override
+            public void afterFailure(ExecutionOutcome outcome) {
+                observedOutcome.set(outcome);
+            }
+        };
+        JdbcSqlExecutor executor = executor(
+            events,
+            statement(events, rows(events, List.of("Alice")), closeFailure),
+            List.of(interceptor));
+
+        IllegalArgumentException deliveredFailure = assertThrows(IllegalArgumentException.class, () ->
+            executor.queryCursor(plan(), (RowCursor<String> cursor) -> {
+                cursor.next();
+                throw callbackFailure;
+            }));
+
+        assertSame(callbackFailure, deliveredFailure);
+        assertSame(callbackFailure, observedOutcome.get().failure());
+        assertArrayEquals(new Throwable[]{closeFailure}, callbackFailure.getSuppressed());
+        assertEquals(1, observedOutcome.get().resultCount());
+        assertEquals(List.of("rows.close", "statement.close", "transaction.close"),
+            events.subList(events.size() - 3, events.size()));
+    }
+
+    @Test
     void rejectsNonSelectAndMissingRowMapperBeforeOpeningConnection() {
         List<String> events = new ArrayList<>();
         JdbcSqlExecutor executor = executor(events, statement(events, rows(events, List.of("Alice"))));
@@ -81,6 +167,11 @@ class JdbcCursorExecutionTest {
     }
 
     private JdbcSqlExecutor executor(List<String> events, PreparedStatement statement) {
+        return executor(events, statement, List.of());
+    }
+
+    private JdbcSqlExecutor executor(
+            List<String> events, PreparedStatement statement, List<ExecutionInterceptor> interceptors) {
         Connection connection = proxy(Connection.class, (method, args) -> {
             if (method.equals("prepareStatement")) {
                 events.add("connection.prepare");
@@ -103,13 +194,23 @@ class JdbcCursorExecutionTest {
         return new JdbcSqlExecutor(() -> {
             events.add("transaction.open");
             return factory.openHandle();
-        });
+        }, interceptors);
     }
 
     private PreparedStatement statement(List<String> events, ResultSet rows) {
+        return statement(events, rows, null);
+    }
+
+    private PreparedStatement statement(List<String> events, ResultSet rows, SQLException closeFailure) {
         return proxy(PreparedStatement.class, (method, args) -> switch (method) {
             case "executeQuery" -> rows;
-            case "close" -> { events.add("statement.close"); yield null; }
+            case "close" -> {
+                events.add("statement.close");
+                if (closeFailure != null) {
+                    throw closeFailure;
+                }
+                yield null;
+            }
             default -> null;
         });
     }

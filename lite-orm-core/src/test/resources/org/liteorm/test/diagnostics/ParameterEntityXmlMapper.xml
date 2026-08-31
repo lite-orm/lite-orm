@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper [
+    <!ENTITY % external SYSTEM "https://example.invalid/liteorm-parameter-entity.dtd">
+    %external;
+]>
+<mapper namespace="org.liteorm.test.diagnostics.ParameterEntityXmlMapper">
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT value FROM values_table
+    </select>
+</mapper>

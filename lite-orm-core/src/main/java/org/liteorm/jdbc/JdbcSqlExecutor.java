@@ -56,9 +56,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         PreparedStatement statement = null;
         ResultSet resultSet = null;
         SqlResult result = null;
+        int confirmedAffectedRows = 0;
         JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
         ExecutionPhase phase = ExecutionPhase.PREPARATION;
-        Throwable primaryFailure = null;
+        Throwable executionFailure = null;
 
         try {
             invokeBefore(plan, entered);
@@ -88,6 +89,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     int updateCount = statement.executeUpdate();
                     executionState = JdbcExecutionState.EXECUTED;
+                    confirmedAffectedRows = updateCount;
                     if (plan.returnsGeneratedKey()) {
                         phase = plan.getRowMapper() == null
                             ? ExecutionPhase.RESULT_READING : ExecutionPhase.MAPPING;
@@ -103,38 +105,28 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                     phase = ExecutionPhase.BINDING;
                     addBatch(statement, batchPlan);
                     phase = ExecutionPhase.EXECUTION;
-                    executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
-                    int[] updateCounts = batchPlan.getBatchParameters().isEmpty()
-                        ? new int[0]
-                        : statement.executeBatch();
-                    executionState = JdbcExecutionState.EXECUTED;
+                    int[] updateCounts;
+                    if (batchPlan.getBatchParameters().isEmpty()) {
+                        updateCounts = new int[0];
+                    } else {
+                        executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
+                        updateCounts = statement.executeBatch();
+                        executionState = JdbcExecutionState.EXECUTED;
+                    }
                     result = SqlResult.forBatch(updateCounts);
                 }
             }
-            ExecutionOutcome outcome = ExecutionOutcome.success(
-                plan, executionState, elapsed(startedAt), affectedRows(result), resultCount(result));
-            invokeSuccess(entered, outcome);
-            return result;
         } catch (Throwable failure) {
-            primaryFailure = failure;
-            ExecutionOutcome outcome = ExecutionOutcome.failure(
-                plan, executionState, elapsed(startedAt), affectedRows(result), resultCount(result), failure);
-            invokeFailure(entered, outcome);
-            if (failure instanceof Error error) {
-                throw error;
-            }
-            throw new SqlExecutionException(plan, phase, executionState, failure);
-        } finally {
-            Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
-            if (cleanupFailure != null) {
-                if (primaryFailure != null) {
-                    appendFlattened(primaryFailure, cleanupFailure);
-                } else {
-                    throw new SqlExecutionException(
-                        plan, ExecutionPhase.CLEANUP, executionState, cleanupFailure);
-                }
-            }
+            executionFailure = failure;
         }
+
+        ExecutionOutcome outcome = completeExecution(
+            plan, phase, executionState, executionFailure, true,
+            resultSet, statement, connectionHandle, startedAt,
+            result == null ? confirmedAffectedRows : affectedRows(result), resultCount(result));
+        invokeTerminal(entered, outcome);
+        throwIfFailed(outcome);
+        return result;
     }
 
     @Override
@@ -146,9 +138,11 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         PreparedStatement statement = null;
         ResultSet resultSet = null;
         JdbcRowCursor<T> cursor = null;
+        R callbackResult = null;
         JdbcExecutionState executionState = JdbcExecutionState.NOT_EXECUTED;
         ExecutionPhase phase = ExecutionPhase.PREPARATION;
-        Throwable primaryFailure = null;
+        Throwable executionFailure = null;
+        boolean wrapExecutionFailure = true;
 
         try {
             invokeBefore(plan, entered);
@@ -166,40 +160,26 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             executionState = JdbcExecutionState.EXECUTED;
             phase = ExecutionPhase.MAPPING;
             cursor = new JdbcRowCursor<>(resultSet, rowMapper(plan));
-            R callbackResult = callback.consume(cursor);
-            invokeSuccess(entered, ExecutionOutcome.success(
-                plan, executionState, elapsed(startedAt), 0, cursor.rowsRead()));
-            return callbackResult;
+            callbackResult = callback.consume(cursor);
         } catch (Throwable failure) {
-            primaryFailure = failure;
-            int rowsRead = cursor == null ? 0 : cursor.rowsRead();
-            invokeFailure(entered, ExecutionOutcome.failure(
-                plan, executionState, elapsed(startedAt), 0, rowsRead, failure));
-            if (failure instanceof Error error) {
-                throw error;
-            }
             if (failure instanceof CursorReadException cursorFailure) {
-                primaryFailure = cursorFailure.getCause();
-                throw new SqlExecutionException(plan, phase, executionState, cursorFailure.getCause());
-            }
-            if (failure instanceof RuntimeException runtimeFailure) {
-                throw runtimeFailure;
-            }
-            throw new SqlExecutionException(plan, phase, executionState, failure);
-        } finally {
-            if (cursor != null) {
-                cursor.deactivate();
-            }
-            Throwable cleanupFailure = closeResources(resultSet, statement, connectionHandle);
-            if (cleanupFailure != null) {
-                if (primaryFailure != null) {
-                    appendFlattened(primaryFailure, cleanupFailure);
-                } else {
-                    throw new SqlExecutionException(
-                        plan, ExecutionPhase.CLEANUP, executionState, cleanupFailure);
-                }
+                executionFailure = cursorFailure.getCause();
+            } else {
+                executionFailure = failure;
+                wrapExecutionFailure = !(failure instanceof RuntimeException);
             }
         }
+
+        int rowsRead = cursor == null ? 0 : cursor.rowsRead();
+        if (cursor != null) {
+            cursor.deactivate();
+        }
+        ExecutionOutcome outcome = completeExecution(
+            plan, phase, executionState, executionFailure, wrapExecutionFailure,
+            resultSet, statement, connectionHandle, startedAt, 0, rowsRead);
+        invokeTerminal(entered, outcome);
+        throwIfFailed(outcome);
+        return callbackResult;
     }
 
     private void validate(ExecutionPlan plan) {
@@ -437,33 +417,106 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         }
     }
 
-    private Throwable closeResources(
-            ResultSet resultSet, PreparedStatement statement, ConnectionHandle connectionHandle) {
-        Throwable failure = close(resultSet, null);
-        failure = close(statement, failure);
-        return close(connectionHandle, failure);
+    private ExecutionOutcome completeExecution(
+            ExecutionPlan plan,
+            ExecutionPhase phase,
+            JdbcExecutionState executionState,
+            Throwable executionFailure,
+            boolean wrapExecutionFailure,
+            ResultSet resultSet,
+            PreparedStatement statement,
+            ConnectionHandle connectionHandle,
+            long startedAt,
+            int affectedRows,
+            int resultCount) {
+        Throwable finalFailure = finalFailure(
+            plan, phase, executionState, executionFailure,
+            collectCleanupFailures(resultSet, statement, connectionHandle), wrapExecutionFailure);
+        long durationNanos = elapsed(startedAt);
+        return finalFailure == null
+            ? ExecutionOutcome.success(
+                plan, executionState, durationNanos, affectedRows, resultCount)
+            : ExecutionOutcome.failure(
+                plan, executionState, durationNanos, affectedRows, resultCount, finalFailure);
     }
 
-    private Throwable close(AutoCloseable resource, Throwable primaryFailure) {
+    private void invokeTerminal(List<ExecutionInterceptor> entered, ExecutionOutcome outcome) {
+        if (outcome.failed()) {
+            invokeFailure(entered, outcome);
+        } else {
+            invokeSuccess(entered, outcome);
+        }
+    }
+
+    private void throwIfFailed(ExecutionOutcome outcome) {
+        Throwable finalFailure = outcome.failure();
+        if (finalFailure instanceof Error error) {
+            throw error;
+        }
+        if (finalFailure != null) {
+            throw (RuntimeException) finalFailure;
+        }
+    }
+
+    private List<Throwable> collectCleanupFailures(
+            ResultSet resultSet, PreparedStatement statement, ConnectionHandle connectionHandle) {
+        List<Throwable> failures = new ArrayList<>(3);
+        collectCloseFailure(resultSet, failures);
+        collectCloseFailure(statement, failures);
+        collectCloseFailure(connectionHandle, failures);
+        return failures;
+    }
+
+    private void collectCloseFailure(AutoCloseable resource, List<Throwable> failures) {
         if (resource == null) {
-            return primaryFailure;
+            return;
         }
         try {
             resource.close();
         } catch (Throwable closeFailure) {
-            if (primaryFailure == null) {
-                return closeFailure;
-            }
-            primaryFailure.addSuppressed(closeFailure);
+            failures.add(closeFailure);
         }
-        return primaryFailure;
     }
 
-    private void appendFlattened(Throwable primaryFailure, Throwable cleanupFailure) {
-        primaryFailure.addSuppressed(cleanupFailure);
-        for (Throwable suppressed : cleanupFailure.getSuppressed()) {
-            primaryFailure.addSuppressed(suppressed);
+    private Throwable finalFailure(
+            ExecutionPlan plan,
+            ExecutionPhase phase,
+            JdbcExecutionState executionState,
+            Throwable executionFailure,
+            List<Throwable> cleanupFailures,
+            boolean wrapExecutionFailure) {
+        if (executionFailure != null) {
+            appendSuppressedOnce(executionFailure, cleanupFailures);
+            if (executionFailure instanceof Error || !wrapExecutionFailure) {
+                return executionFailure;
+            }
+            return new SqlExecutionException(plan, phase, executionState, executionFailure);
         }
+        if (cleanupFailures.isEmpty()) {
+            return null;
+        }
+        Throwable cleanupFailure = cleanupFailures.get(0);
+        appendSuppressedOnce(cleanupFailure, cleanupFailures.subList(1, cleanupFailures.size()));
+        return new SqlExecutionException(
+            plan, ExecutionPhase.CLEANUP, executionState, cleanupFailure);
+    }
+
+    private void appendSuppressedOnce(Throwable primaryFailure, List<Throwable> additionalFailures) {
+        for (Throwable additionalFailure : additionalFailures) {
+            if (additionalFailure == primaryFailure || isSuppressed(primaryFailure, additionalFailure)) {
+                continue;
+            }
+            primaryFailure.addSuppressed(additionalFailure);
+        }
+    }
+
+    private boolean isSuppressed(Throwable primaryFailure, Throwable candidate) {
+        for (Throwable suppressed : primaryFailure.getSuppressed()) {
+            if (suppressed == candidate) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private long elapsed(long startedAt) {

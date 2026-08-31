@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper SYSTEM "https://example.invalid/liteorm-external.dtd">
+<mapper namespace="org.liteorm.test.diagnostics.ExternalDtdXmlMapper">
+    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
+        SELECT value FROM values_table
+    </select>
+</mapper>
