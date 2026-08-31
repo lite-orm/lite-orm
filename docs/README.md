@@ -28,6 +28,7 @@ This index identifies the current source of truth for each project concern. Docu
 
 - [`superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md`](superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md): approved roadmap design.
 - [`superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md`](superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md): refined specification for final JDBC outcomes and deterministic compiler rejection.
+- [`superpowers/specs/2026-08-31-testcontainers-database-test-matrix-design.md`](superpowers/specs/2026-08-31-testcontainers-database-test-matrix-design.md): PostgreSQL/MySQL functional-test matrix with H2 retained only for benchmarks.
 - [`superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md`](superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md): active implementation plan.
 
 ## Documentation Lifecycle
