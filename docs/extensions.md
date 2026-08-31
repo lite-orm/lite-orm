@@ -39,6 +39,22 @@ lite-orm:
 - Binding happens during application startup. Mapper invocation still calls its final executor field directly and performs no package or bean lookup.
 - Each Spring transaction boundary must use the `PlatformTransactionManager` associated with the same DataSource as the selected executor.
 
+## Host Lifecycle Ownership
+
+A host integration may provide a `ConnectionHandleFactory` that participates in host-bound connections and may own transaction commit or rollback. These are the only lifecycle responsibilities replaced by the host.
+
+`JdbcSqlExecutor` always owns statement preparation, statement options, parameter binding, SQL execution, generated-key handling, result reading, result mapping, cursor deactivation, executor-owned cleanup, final outcome formation, and terminal interceptor delivery. Spring Starter assembles and reuses that core executor; it must not copy, wrap into a second phase lifecycle, or reimplement those JDBC operations.
+
+Closing a host-aware `ConnectionHandle` releases one executor participation. It does not claim that the physical connection was closed or that the host transaction committed or rolled back. Transaction completion remains outside `ExecutionOutcome`.
+
+The boundary is verified by the core JDBC, cursor, and standalone transaction tests plus the Spring Starter integration suite:
+
+```bash
+mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
+mvn -pl lite-orm-spring-boot-starter -am test
+rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-spring-boot-starter/src/main/java
+```
+
 ## Standalone Assembly And Transactions
 
 Create one immutable `JdbcAssembly` per DataSource domain:

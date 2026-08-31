@@ -22,9 +22,11 @@ import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +39,7 @@ import java.util.regex.Pattern;
 final class CompilePipeline {
 
     private static final Pattern DOLLAR_SUBSTITUTION_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
+    private static final Pattern HASH_PARAMETER_PATTERN = Pattern.compile("#\\{([^}]+)}");
     private static final Pattern METHOD_CALL_PATTERN = Pattern.compile("([a-zA-Z_][\\w.]*)\\s*\\(");
     
     private final List<SqlContentParser> sqlParsers;
@@ -296,6 +299,9 @@ final class CompilePipeline {
         AdapterBindings adapterBindings = analyzeAdapterBindings(
             mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
             methodParameters, parameterResult.bindings());
+        validateJdbcParameterTypes(
+            mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
+            methodParameters, parameterResult.bindings());
 
         // Build the normalized method model.
         String methodName = method.getSimpleName().toString();
@@ -465,6 +471,161 @@ final class CompilePipeline {
             }
         }
         return null;
+    }
+
+    private void validateJdbcParameterTypes(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod,
+            SqlContentParser.SqlParseResult sqlInfo,
+            ProviderBinding providerBinding,
+            List<SqlParameterParser.MethodParameter> methodParameters,
+            List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
+        if (providerBinding != null) {
+            return;
+        }
+
+        String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
+        Map<String, TypeMirror> parameterTypes = new LinkedHashMap<>();
+        Set<String> binderRoots = new HashSet<>();
+        int executionParameterIndex = 0;
+        for (int methodParameterIndex = 0; methodParameterIndex < method.getParameters().size(); methodParameterIndex++) {
+            if (cursorMethod != null && cursorMethod.parameterIndex() == methodParameterIndex) {
+                continue;
+            }
+            VariableElement parameter = method.getParameters().get(methodParameterIndex);
+            TypeMirror parameterType = resolvedMethodType.getParameterTypes().get(methodParameterIndex);
+            SqlParameterParser.MethodParameter description = methodParameters.get(executionParameterIndex++);
+            for (String alias : description.aliases()) {
+                parameterTypes.put(alias, parameterType);
+                if (findAnnotation(parameter, "org.liteorm.annotation.UseParameterBinder") != null) {
+                    binderRoots.add(alias);
+                }
+            }
+        }
+
+        if (sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
+            TypeMirror collectionType = parameterTypes.values().iterator().next();
+            TypeMirror itemType = collectionElementType(collectionType);
+            parameterTypes = new LinkedHashMap<>(Map.of("item", itemType));
+            binderRoots = Set.of();
+        }
+
+        if (sqlInfo.isDynamic()) {
+            validateDynamicJdbcParameterTypes(sqlInfo.astNode(), parameterTypes, binderRoots, location);
+            return;
+        }
+        for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
+            validateJdbcParameterExpression(binding.expression(), parameterTypes, binderRoots, location);
+        }
+    }
+
+    private void validateDynamicJdbcParameterTypes(
+            AstNode node,
+            Map<String, TypeMirror> visibleTypes,
+            Set<String> binderRoots,
+            String location) throws CompileException {
+        if (node instanceof AstNode.TextNode textNode) {
+            Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
+            while (matcher.find()) {
+                validateJdbcParameterExpression(matcher.group(1).trim(), visibleTypes, binderRoots, location);
+            }
+            return;
+        }
+        if (node instanceof AstNode.ForeachNode foreachNode) {
+            TypeMirror collectionType = resolveParameterExpressionType(foreachNode.collection(), visibleTypes);
+            Map<String, TypeMirror> foreachTypes = new LinkedHashMap<>(visibleTypes);
+            foreachTypes.put(foreachNode.item(), collectionElementType(collectionType));
+            for (AstNode child : foreachNode.children()) {
+                validateDynamicJdbcParameterTypes(child, foreachTypes, binderRoots, location);
+            }
+            return;
+        }
+
+        Map<String, TypeMirror> scopedTypes = new LinkedHashMap<>(visibleTypes);
+        for (AstNode child : node.getChildren()) {
+            validateDynamicJdbcParameterTypes(child, scopedTypes, binderRoots, location);
+            if (child instanceof AstNode.BindNode bindNode) {
+                scopedTypes.put(bindNode.name(), null);
+            }
+        }
+    }
+
+    private void validateJdbcParameterExpression(
+            String expression,
+            Map<String, TypeMirror> visibleTypes,
+            Set<String> binderRoots,
+            String location) throws CompileException {
+        String root = expression.split("\\.", 2)[0];
+        if (binderRoots.contains(root) && !expression.contains(".")) {
+            return;
+        }
+        TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
+        if (parameterType == null || isSupportedJdbcParameterType(parameterType)) {
+            return;
+        }
+        throw new CompileException(location + ": JDBC parameter expression " + expression + " has unsupported type "
+            + parameterType + " and requires @UseParameterBinder");
+    }
+
+    private TypeMirror resolveParameterExpressionType(String expression, Map<String, TypeMirror> visibleTypes) {
+        String[] parts = expression.split("\\.");
+        TypeMirror currentType = visibleTypes.get(parts[0]);
+        if (currentType == null) {
+            return null;
+        }
+        for (int index = 1; index < parts.length; index++) {
+            String property = parts[index];
+            if (currentType.getKind() == TypeKind.ARRAY && "length".equals(property)) {
+                return typeUtils.getPrimitiveType(TypeKind.INT);
+            }
+            if (!(currentType instanceof DeclaredType declaredType)) {
+                return null;
+            }
+            ExecutableElement accessor = declaredType.asElement().getEnclosedElements().stream()
+                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(method -> method.getSimpleName().contentEquals(property))
+                .filter(method -> method.getParameters().isEmpty())
+                .findFirst()
+                .orElse(null);
+            if (accessor == null) {
+                return null;
+            }
+            currentType = ((ExecutableType) typeUtils.asMemberOf(declaredType, accessor)).getReturnType();
+        }
+        return currentType;
+    }
+
+    private TypeMirror collectionElementType(TypeMirror collectionType) {
+        if (collectionType instanceof ArrayType arrayType) {
+            return arrayType.getComponentType();
+        }
+        if (collectionType instanceof DeclaredType declaredType && !declaredType.getTypeArguments().isEmpty()) {
+            return declaredType.getTypeArguments().get(0);
+        }
+        return elementUtils.getTypeElement("java.lang.Object").asType();
+    }
+
+    private boolean isSupportedJdbcParameterType(TypeMirror parameterType) {
+        if (parameterType.getKind().isPrimitive()) {
+            return true;
+        }
+        if (parameterType.getKind() == TypeKind.ARRAY) {
+            return ((ArrayType) parameterType).getComponentType().getKind() == TypeKind.BYTE;
+        }
+        if (parameterType instanceof DeclaredType declaredType
+                && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM) {
+            return true;
+        }
+        return switch (typeUtils.erasure(parameterType).toString()) {
+            case "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long",
+                "java.lang.Float", "java.lang.Double", "java.lang.Boolean", "java.lang.Character",
+                "java.lang.String", "java.math.BigDecimal", "java.time.LocalDate", "java.time.LocalDateTime",
+                "java.time.Instant", "java.util.UUID", "java.time.LocalTime", "java.time.OffsetDateTime" -> true;
+            default -> false;
+        };
     }
 
     private TypeElement validateAdapter(
@@ -1095,6 +1256,9 @@ final class CompilePipeline {
             case "java.time.LocalDate" -> "ResultValueConverters.toLocalDate(" + valueExpression + ")";
             case "java.time.LocalDateTime" -> "ResultValueConverters.toLocalDateTime(" + valueExpression + ")";
             case "java.time.Instant" -> "ResultValueConverters.toInstant(" + valueExpression + ")";
+            case "java.util.UUID" -> "ResultValueConverters.toUuid(" + valueExpression + ")";
+            case "java.time.LocalTime" -> "ResultValueConverters.toLocalTime(" + valueExpression + ")";
+            case "java.time.OffsetDateTime" -> "ResultValueConverters.toOffsetDateTime(" + valueExpression + ")";
             case "byte[]" -> "(byte[])" + valueExpression;
             default -> null;
         };
@@ -1225,7 +1389,7 @@ final class CompilePipeline {
     private CompileException unsupportedResultMapping(
             TypeElement mapperInterface, ExecutableElement method, String detail) {
         return new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-            + ": Unsupported result mapping: " + detail);
+            + ": Unsupported result mapping: " + detail + "; this result type requires @UseRowMapper");
     }
 
     private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {

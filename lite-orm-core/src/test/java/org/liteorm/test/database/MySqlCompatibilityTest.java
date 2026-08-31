@@ -35,6 +35,21 @@ class MySqlCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     }
 
     @Override
+    protected String uuidDefinition() {
+        return "CHAR(36)";
+    }
+
+    @Override
+    protected String localTimeDefinition() {
+        return "TIME(6)";
+    }
+
+    @Override
+    protected String offsetDateTimeDefinition() {
+        return "TIMESTAMP(6)";
+    }
+
+    @Override
     protected String sleepSql() {
         return "SELECT SLEEP(3)";
     }

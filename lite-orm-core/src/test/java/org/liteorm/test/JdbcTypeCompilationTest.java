@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JdbcTypeCompilationTest {
@@ -68,6 +69,102 @@ class JdbcTypeCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[resultColumnIndexes[5]])"), generated);
         assertTrue(generated.contains("Status.valueOf(resultRow[resultColumnIndexes[6]].toString())"), generated);
         assertTrue(generated.contains("(byte[])resultRow[resultColumnIndexes[7]]"), generated);
+    }
+
+    @Test
+    void generatesScalarRecordAndJavaBeanMappingsForFrozenJdbcTypes() throws Exception {
+        CompilationResult result = compile("FrozenJdbcTypeMapper", """
+            package org.liteorm.test.jdbctypefixture;
+
+            import java.time.LocalTime;
+            import java.time.OffsetDateTime;
+            import java.util.UUID;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+
+            record FrozenJdbcTypes(UUID uuid, LocalTime localTime, OffsetDateTime offsetDateTime) {}
+
+            class FrozenJdbcTypeBean {
+                private UUID uuid;
+                private LocalTime localTime;
+                private OffsetDateTime offsetDateTime;
+
+                FrozenJdbcTypeBean() {}
+
+                public void setUuid(UUID uuid) { this.uuid = uuid; }
+                public void setLocalTime(LocalTime localTime) { this.localTime = localTime; }
+                public void setOffsetDateTime(OffsetDateTime offsetDateTime) { this.offsetDateTime = offsetDateTime; }
+            }
+
+            @Mapper
+            interface FrozenJdbcTypeMapper {
+                @Select("SELECT uuid_value FROM jdbc_types")
+                UUID findUuid();
+
+                @Select("SELECT local_time_value FROM jdbc_types")
+                LocalTime findLocalTime();
+
+                @Select("SELECT offset_date_time_value FROM jdbc_types")
+                OffsetDateTime findOffsetDateTime();
+
+                @Select("SELECT uuid, local_time, offset_date_time FROM jdbc_types")
+                FrozenJdbcTypes findRecord();
+
+                @Select("SELECT uuid, local_time, offset_date_time FROM jdbc_types")
+                FrozenJdbcTypeBean findBean();
+            }
+            """);
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/jdbctypefixture/FrozenJdbcTypeMapperImpl.java"));
+        assertTrue(generated.contains("ResultValueConverters.toUuid(resultRow[0])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalTime(resultRow[0])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toOffsetDateTime(resultRow[0])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toUuid(row[resultColumnIndexes[0]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toLocalTime(row[resultColumnIndexes[1]])"), generated);
+        assertTrue(generated.contains("ResultValueConverters.toOffsetDateTime(row[resultColumnIndexes[2]])"), generated);
+    }
+
+    @Test
+    void rejectsUnsupportedJdbcResultTypeWithRowMapperGuidance() throws Exception {
+        CompilationResult result = compile("UnsupportedJdbcTypeMapper", """
+            package org.liteorm.test.jdbctypefixture;
+
+            import java.time.OffsetTime;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+
+            @Mapper
+            interface UnsupportedJdbcTypeMapper {
+                @Select("SELECT offset_time_value FROM jdbc_types")
+                OffsetTime findOffsetTime();
+            }
+            """);
+
+        assertFalse(result.succeeded(), result::diagnosticsText);
+        assertTrue(result.diagnosticsText().contains("requires @UseRowMapper"), result::diagnosticsText);
+    }
+
+    @Test
+    void rejectsUnsupportedJdbcParameterTypeWithBinderGuidance() throws Exception {
+        CompilationResult result = compile("UnsupportedJdbcParameterMapper", """
+            package org.liteorm.test.jdbctypefixture;
+
+            import java.time.OffsetTime;
+            import org.liteorm.annotation.Insert;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Param;
+
+            @Mapper
+            interface UnsupportedJdbcParameterMapper {
+                @Insert("INSERT INTO jdbc_types (offset_time_value) VALUES (#{value})")
+                int insertOffsetTime(@Param("value") OffsetTime value);
+            }
+            """);
+
+        assertFalse(result.succeeded(), result::diagnosticsText);
+        assertTrue(result.diagnosticsText().contains("requires @UseParameterBinder"), result::diagnosticsText);
     }
 
     private CompilationResult compile(String typeName, String source) throws Exception {

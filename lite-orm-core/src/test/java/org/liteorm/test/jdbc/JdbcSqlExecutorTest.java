@@ -752,8 +752,11 @@ class JdbcSqlExecutorTest {
 
     private ResultSet rows(List<String> events, List<Object[]> values) {
         int[] cursor = {-1};
-        ResultSetMetaData metadata = proxy(ResultSetMetaData.class,
-            (method, args) -> method.equals("getColumnCount") ? values.get(0).length : null);
+        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, args) -> switch (method) {
+            case "getColumnCount" -> values.get(0).length;
+            case "getColumnType" -> Types.OTHER;
+            default -> null;
+        });
         return proxy(ResultSet.class, (method, args) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> { boolean present = ++cursor[0] < values.size(); events.add("rows.next:" + present); yield present; }
@@ -771,6 +774,7 @@ class JdbcSqlExecutorTest {
                 events.add("metadata.getColumnLabel:" + args[0]);
                 yield labels.get((int) args[0] - 1);
             }
+            case "getColumnType" -> Types.OTHER;
             default -> null;
         });
         return proxy(ResultSet.class, (method, args) -> switch (method) {

@@ -35,6 +35,21 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     }
 
     @Override
+    protected String uuidDefinition() {
+        return "UUID";
+    }
+
+    @Override
+    protected String localTimeDefinition() {
+        return "TIME(6)";
+    }
+
+    @Override
+    protected String offsetDateTimeDefinition() {
+        return "TIMESTAMP(6) WITH TIME ZONE";
+    }
+
+    @Override
     protected String sleepSql() {
         return "SELECT pg_sleep(3)";
     }

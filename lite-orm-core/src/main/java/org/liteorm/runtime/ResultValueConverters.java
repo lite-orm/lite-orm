@@ -2,11 +2,15 @@ package org.liteorm.runtime;
 
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
 
 /**
  * Null-safe conversions from JDBC driver values to generated Mapper result types.
@@ -89,6 +93,28 @@ public final class ResultValueConverters {
         if (value instanceof Timestamp timestamp) return timestamp.toInstant();
         if (value instanceof OffsetDateTime offsetDateTime) return offsetDateTime.toInstant();
         throw unsupported(value, Instant.class);
+    }
+
+    public static UUID toUuid(Object value) {
+        if (value == null) return null;
+        if (value instanceof UUID uuid) return uuid;
+        if (value instanceof String string) return UUID.fromString(string);
+        throw unsupported(value, UUID.class);
+    }
+
+    public static LocalTime toLocalTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalTime localTime) return localTime;
+        if (value instanceof Time time) return time.toLocalTime();
+        throw unsupported(value, LocalTime.class);
+    }
+
+    public static OffsetDateTime toOffsetDateTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof OffsetDateTime offsetDateTime) return offsetDateTime;
+        if (value instanceof Instant instant) return instant.atOffset(ZoneOffset.UTC);
+        if (value instanceof Timestamp timestamp) return timestamp.toInstant().atOffset(ZoneOffset.UTC);
+        throw unsupported(value, OffsetDateTime.class);
     }
 
     private static IllegalArgumentException unsupported(Object value, Class<?> targetType) {

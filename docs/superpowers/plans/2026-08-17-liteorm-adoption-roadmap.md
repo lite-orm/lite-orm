@@ -160,13 +160,13 @@ git commit -m "fix: finalize jdbc outcomes after cleanup"
 - Modify: `lite-orm-core/src/test/resources/database/schema.sql`
 - Modify: `docs/core-ga-contract.md`
 
-- [ ] **Step 1: 把支持范围写成可验证契约**
+- [x] **Step 1: 把支持范围写成可验证契约**
 
 内置支持 `UUID`、`LocalTime`、`OffsetDateTime`，但只承诺以下语义：PostgreSQL/H2 UUID 使用原生类型，MySQL UUID 使用 `CHAR(36)`，`BINARY(16)` 使用自定义 binder/mapper；`LocalTime` 按列精度保留；`OffsetDateTime` 只保证 instant 一致，不保证原 offset 一致。
 
-- [ ] **Step 2: 写最小 RED 矩阵**
+- [x] **Step 2: 写最小 RED 矩阵**
 
-`JdbcTypeCompilationTest` 验证三种类型可生成 scalar/record/JavaBean 映射，且不支持的结果类型仍要求 `RowMapper`。`JdbcTypeRuntimeTest` 用 H2 快速验证读写与 null。PostgreSQL/MySQL 共享 contract 用一个包含全部类型的对象验证驱动差异，不做“每种类型 × 每种返回形态”的重复组合。
+`JdbcTypeCompilationTest` 验证三种类型可生成 scalar/record/JavaBean 映射，不支持的结果类型仍要求 `RowMapper`，不支持的绑定值类型在编译期要求 `ParameterBinder`。`JdbcTypeRuntimeTest` 用 H2 快速验证读写、null，以及不得把缺少 instant/offset 的本地时间猜成 UTC。PostgreSQL/MySQL 共享 contract 用一个包含全部类型的对象验证驱动差异，不做“每种类型 × 每种返回形态”的重复组合。
 
 ```java
 assertEquals(expectedUuid, actual.uuid());
@@ -174,11 +174,11 @@ assertEquals(expectedLocalTime, actual.localTime());
 assertEquals(expectedOffsetDateTime.toInstant(), actual.offsetDateTime().toInstant());
 ```
 
-- [ ] **Step 3: 实现有证据的最小转换**
+- [x] **Step 3: 实现有证据的最小转换**
 
-`JdbcSqlExecutor` 继续使用当前 `setObject`/`getObject`，不为 typed `getObject(type)` 扩展 `ExecutionPlan`。`ResultValueConverters` 只增加测试驱动实际需要的 `UUID`、`LocalTime` 和 `OffsetDateTime` 转换；不增加推测性的通用字符串时间解析。
+不为 typed `getObject(type)` 扩展 `ExecutionPlan`。真实驱动测试证明 H2 的无类型 `getObject()` 会通过 `java.sql.Time` 丢失小数秒，因此 `JdbcSqlExecutor` 对 JDBC `TIME` 列使用 JDBC 4.2 `getObject(column, LocalTime.class)`；UUID 绑定按已验证的驱动契约处理 PostgreSQL/H2 原生 UUID 与 MySQL `CHAR(36)`。编译器按最终绑定表达式类型冻结内置参数矩阵，provider 继续使用 typed `BoundParameter`。`ResultValueConverters` 只增加测试驱动实际需要的 `UUID`、`LocalTime` 和 `OffsetDateTime` 转换，不增加推测性的通用字符串时间解析或无依据的时区假设。
 
-- [ ] **Step 4: 验证并更新契约**
+- [x] **Step 4: 验证并更新契约**
 
 ```bash
 mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,JdbcTypeRuntimeTest test
@@ -198,11 +198,11 @@ git commit -m "feat(core): define built-in jdbc type mappings"
 - Modify: `docs/core-ga-contract.md`
 - Modify: `docs/extensions.md`
 
-- [ ] **Step 1: 复用现有 characterization 测试**
+- [x] **Step 1: 复用现有 characterization 测试**
 
 不新建 `JdbcLifecycleContract`、`StandaloneJdbcLifecycleTest` 或 `SpringJdbcLifecycleTest`。`JdbcSqlExecutorTest`、`JdbcCursorExecutionTest`、`SimpleTransactionTest`、`SpringTransactionTest` 和 `LiteOrmAutoConfigurationTest` 已分别覆盖 executor、cursor、Standalone 事务、Spring connection participation 以及 Starter 复用 `JdbcSqlExecutor`。
 
-- [ ] **Step 2: 运行边界验证**
+- [x] **Step 2: 运行边界验证**
 
 ```bash
 mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
@@ -212,7 +212,7 @@ rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-sp
 
 Expected: Maven PASS；`rg` 无输出。失败表示 Task 1 尚未满足现有契约，应回到 Task 1 修正，不新增第二套共享生命周期框架。
 
-- [ ] **Step 3: 修正权威文档**
+- [x] **Step 3: 修正权威文档**
 
 `docs/core-ga-contract.md` 记录 Task 1 后的最终 cleanup/outcome 顺序；`docs/extensions.md` 明确 host 只提供 connection participation 和 transaction ownership，prepare/bind/execute/read/map/cleanup 始终属于 `JdbcSqlExecutor`。
 

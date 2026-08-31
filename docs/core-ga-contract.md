@@ -1,6 +1,6 @@
 # LiteORM Core GA Contract
 
-Date: 2026-08-16
+Date: 2026-08-31
 
 This document defines the supported contract of `lite-orm-core` for the first GA release. It is intentionally narrower than MyBatis and narrower than the Spring Boot integration. Anything not listed here is unsupported unless another public contract explicitly says otherwise.
 
@@ -53,7 +53,7 @@ Additional parameter rules:
 - unresolved generic parameter types are rejected;
 - a provider method accepts zero or one Mapper argument; multiple inputs should be wrapped in a record or another value object;
 - a batch method requires exactly one `List<T>` argument and binds each item under `item`;
-- null values use JDBC `setNull`; a custom `ParameterBinder` is called only for non-null values;
+- null values bind JDBC `NULL`; a custom `ParameterBinder` is called only for non-null values;
 - provider parameters preserve explicit order through `BoundSql` and `BoundParameter`.
 
 ### 2.3 Return Shapes
@@ -83,7 +83,28 @@ Column labels are matched case-insensitively. `@Column` or XML result metadata m
 
 Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at compilation, instantiated once per generated Mapper instance, and invoked directly without reflection dispatch. They must be stateless, thread-safe, or externally synchronized.
 
-### 2.5 Generated Keys
+### 2.5 Built-In JDBC Types
+
+Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum values, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
+
+The frozen cross-database representations are:
+
+| Java type | PostgreSQL and H2 | MySQL | Guaranteed semantics |
+| --- | --- | --- | --- |
+| `UUID` | Native UUID column | `CHAR(36)` | Canonical UUID value and null are preserved. MySQL uses the 36-character representation. `BINARY(16)` requires an explicit `ParameterBinder` and `RowMapper`. |
+| `LocalTime` | `TIME(p)` | `TIME(p)` | The value is preserved to the precision declared by the column. JDBC `TIME` columns are read through the JDBC 4.2 `LocalTime` contract so fractional seconds are not lost through `java.sql.Time`. |
+| `OffsetDateTime` | Time-zone-aware timestamp | `TIMESTAMP(p)` | The represented instant and column precision are preserved. The original offset is not preserved. MySQL connection and session time-zone configuration participates in its normal `TIMESTAMP` conversion. |
+
+Built-in parameters continue through the fixed executor binding path. UUID binding uses the native driver value for PostgreSQL and H2 and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
+
+The executable type contract is verified by:
+
+```bash
+mvn -pl lite-orm-core -Dtest=JdbcTypeCompilationTest,JdbcTypeRuntimeTest test
+mvn -pl lite-orm-core -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest test
+```
+
+### 2.6 Generated Keys
 
 Generated keys require all of the following:
 
@@ -95,7 +116,7 @@ Generated keys require all of the following:
 
 Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. LiteORM prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
 
-### 2.6 Statement Options And Pagination
+### 2.7 Statement Options And Pagination
 
 `StatementOptions` supports JDBC query timeout, fetch size, and max rows on an `ExecutionPlan` or `BatchExecutionPlan`:
 
@@ -107,7 +128,7 @@ Generated Mapper methods currently emit default statement options; there is no M
 
 `maxRows` is a JDBC safety ceiling, not pagination. Real pagination must place dynamic limit/offset or equivalent dialect SQL in the final SQL text so the database performs bounded work.
 
-### 2.7 Compile-Time Rejection
+### 2.8 Compile-Time Rejection
 
 Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation or plain-text SQL. Diagnostics are attached to the Mapper method when javac can represent the location and include stable Mapper, resolved-method, source, and resource context known without guessing. One Mapper stops after its first deterministic rejection, while independent Mapper interfaces continue processing in the same javac invocation.
 
@@ -123,6 +144,8 @@ validate -> before interceptors -> open handle -> acquire connection
 ```
 
 The sequence is not a pluggable phase chain. SQL structure, value binding, row mapping, observation, and host connection participation use their dedicated typed contracts.
+
+Standalone and hosted integrations share this exact executor lifecycle. A host may supply connection participation and own transaction completion, but it does not prepare statements, bind values, execute SQL, read or map results, close executor-owned resources, or publish execution outcomes.
 
 Resource ownership rules:
 
