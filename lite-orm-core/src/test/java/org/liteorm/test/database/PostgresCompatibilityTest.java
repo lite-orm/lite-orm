@@ -1,27 +1,12 @@
 package org.liteorm.test.database;
 
-import org.postgresql.ds.PGSimpleDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
+import org.liteorm.testsupport.database.DatabaseEngine;
 
-import javax.sql.DataSource;
-
-@Testcontainers(disabledWithoutDocker = true)
 class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
 
-    @Container
-    private static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>(
-        DockerImageName.parse("postgres:16.4-alpine"));
-
     @Override
-    protected DataSource dataSource() {
-        PGSimpleDataSource dataSource = new PGSimpleDataSource();
-        dataSource.setURL(DATABASE.getJdbcUrl());
-        dataSource.setUser(DATABASE.getUsername());
-        dataSource.setPassword(DATABASE.getPassword());
-        return dataSource;
+    protected DatabaseEngine databaseEngine() {
+        return DatabaseEngine.POSTGRESQL;
     }
 
     @Override
@@ -32,6 +17,21 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     @Override
     protected String binaryDefinition() {
         return "BYTEA";
+    }
+
+    @Override
+    protected String uuidDefinition() {
+        return "UUID";
+    }
+
+    @Override
+    protected String localTimeDefinition() {
+        return "TIME(6)";
+    }
+
+    @Override
+    protected String offsetDateTimeDefinition() {
+        return "TIMESTAMP(6) WITH TIME ZONE";
     }
 
     @Override

@@ -39,6 +39,22 @@ lite-orm:
 - Binding happens during application startup. Mapper invocation still calls its final executor field directly and performs no package or bean lookup.
 - Each Spring transaction boundary must use the `PlatformTransactionManager` associated with the same DataSource as the selected executor.
 
+## Host Lifecycle Ownership
+
+A host integration may provide a `ConnectionHandleFactory` that participates in host-bound connections and may own transaction commit or rollback. These are the only lifecycle responsibilities replaced by the host.
+
+`JdbcSqlExecutor` always owns statement preparation, statement options, parameter binding, SQL execution, generated-key handling, result reading, result mapping, cursor deactivation, executor-owned cleanup, final outcome formation, and terminal interceptor delivery. Spring Starter assembles and reuses that core executor; it must not copy, wrap into a second phase lifecycle, or reimplement those JDBC operations.
+
+Closing a host-aware `ConnectionHandle` releases one executor participation. It does not claim that the physical connection was closed or that the host transaction committed or rolled back. Transaction completion remains outside `ExecutionOutcome`.
+
+The boundary is verified by the core JDBC, cursor, and standalone transaction tests plus the Spring Starter integration suite:
+
+```bash
+mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
+mvn -pl lite-orm-spring-boot-starter -am test
+rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-spring-boot-starter/src/main/java
+```
+
 ## Standalone Assembly And Transactions
 
 Create one immutable `JdbcAssembly` per DataSource domain:
@@ -77,6 +93,19 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 - Generated execution carries a direct binder reference; there is no global reflective type-handler lookup.
 - Null values bypass the custom binder and bind SQL `NULL`.
 - Dynamic SQL carries generated binder slots aligned with emitted parameters. Providers carry binder metadata through typed `BoundParameter` values.
+
+## JDBC Type Mappings
+
+A `JdbcTypeMappings` implementation declares the Java-to-JDBC value mappings for one database family. Each repeatable `@JdbcTypeMapping` entry identifies one Java type, one `JDBCType`, and one concrete `JdbcValueAdapter<T>`.
+
+- A mapping collection is a public final class that implements `JdbcTypeMappings`.
+- An adapter is public, concrete, independently constructible, and generic for the declared Java type.
+- Nested adapters are static and expose a public no-argument constructor.
+- Adapter instances are reused by generated Mappers and must be thread-safe.
+- LiteORM owns null parameter binding; `JdbcValueAdapter.setNonNull` receives only non-null values.
+- `JdbcValueAdapter.getNullable` reads one column from the current result row while JDBC resources remain active.
+- Duplicate Java-type and JDBC-type declarations fail compilation.
+- Mapping collections are declarative metadata and never use runtime discovery or a mutable registry.
 
 ## Row Mapper
 

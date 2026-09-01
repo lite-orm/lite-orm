@@ -14,12 +14,12 @@ The repository must remain buildable, testable, and maintainable without any age
 
 Claude Code, Cursor, Copilot, Gemini, Codex, and other clients should use their native plugin or skill manager when available. Each client's repository-specific adapter must remain thin and must point back to `AGENTS.md`.
 
-Whatever tooling a client provides, follow this workflow for non-trivial work:
+Matt Pocock's engineering skills are the primary workflow. Use the smallest applicable flow:
 
-1. clarify requirements before implementation;
-2. write a focused implementation plan for multi-step work;
-3. use a failing test before production behavior changes;
-4. debug from evidence rather than guesses;
-5. review the diff and run fresh verification before completion.
+1. use `grill-with-docs` when requirements or domain language are unresolved;
+2. use `to-spec` to publish the agreed behavior to GitHub Issues;
+3. use `to-tickets` for dependency-aware tracer bullets;
+4. use `implement` with `tdd` for behavior changes;
+5. use `diagnosing-bugs` for failures and `code-review` before delivery.
 
 Lack of a plugin never relaxes project architecture, testing, documentation, or commit requirements.

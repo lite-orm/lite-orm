@@ -20,6 +20,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -202,8 +203,11 @@ class LiteOrmAssemblyTest {
                 case "next" -> ++cursor[0] == 0;
                 case "getObject" -> 7L;
                 case "getMetaData" -> proxy(java.sql.ResultSetMetaData.class,
-                    (metadataMethod, metadataArguments) ->
-                        metadataMethod.equals("getColumnCount") ? 1 : null);
+                    (metadataMethod, metadataArguments) -> switch (metadataMethod) {
+                        case "getColumnCount" -> 1;
+                        case "getColumnType" -> Types.BIGINT;
+                        default -> null;
+                    });
                 case "close" -> null;
                 default -> null;
             });

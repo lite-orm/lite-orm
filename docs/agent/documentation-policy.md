@@ -4,7 +4,6 @@
 
 - English is required for source comments, Javadocs, diagnostics documentation, contributor documentation, architecture documents, and rule files.
 - Explicit translations such as `README_cn.md` may use their target language.
-- Files under `docs/superpowers/plans/` and `docs/superpowers/specs/` may use English or Chinese because they are working planning artifacts.
 
 ## Document Types
 
@@ -22,7 +21,7 @@ Records benchmark or compatibility results with reproducible commands, environme
 
 ### Active Plan
 
-Describes unfinished work. Active plans live under `docs/superpowers/` and are not product contracts.
+Describes unfinished work. Specifications and implementation tickets live in GitHub Issues and are not product contracts. `docs/roadmap.md` records strategic order only.
 
 ## Lifecycle Rules
 
@@ -41,7 +40,8 @@ Describes unfinished work. Active plans live under `docs/superpowers/` and are n
 - `docs/mybatis-compatibility.md` owns compatibility classification.
 - `docs/migration-guide.md` owns manual migration guidance.
 - `docs/benchmarks/` owns reproducible performance evidence.
-- `docs/superpowers/` owns active design and implementation planning.
+- `docs/roadmap.md` owns strategic delivery order.
+- GitHub Issues own active specifications, dependency edges, acceptance criteria, and implementation status.
 
 ## Review Checklist
 
@@ -50,9 +50,7 @@ Before merging documentation changes:
 ```bash
 git diff --check
 rg -n '[\p{Han}]' docs README.md 'Design-Philosophy.md' \
-  --glob '!README_cn.md' \
-  --glob '!docs/superpowers/plans/**' \
-  --glob '!docs/superpowers/specs/**'
+  --glob '!README_cn.md'
 ```
 
 Expected: `git diff --check` succeeds and the language scan has no output.

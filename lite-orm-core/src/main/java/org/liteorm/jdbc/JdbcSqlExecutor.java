@@ -24,9 +24,12 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Executes immutable plans through one fixed, non-configurable JDBC lifecycle.
@@ -302,11 +305,24 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         for (int index = 0; index < parameters.length; index++) {
             ParameterBinder<Object> binder = binderAt(binders, index);
             if (binder == null) {
-                statement.setObject(index + 1, parameters[index]);
+                bindDefault(statement, index + 1, parameters[index]);
             } else {
                 binder.bind(statement, index + 1, parameters[index]);
             }
         }
+    }
+
+    private void bindDefault(PreparedStatement statement, int index, Object value) throws SQLException {
+        if (value instanceof UUID uuid) {
+            String databaseProductName = statement.getConnection().getMetaData().getDatabaseProductName();
+            if ("MySQL".equals(databaseProductName)) {
+                statement.setString(index, uuid.toString());
+            } else {
+                statement.setObject(index, uuid);
+            }
+            return;
+        }
+        statement.setObject(index, value);
     }
 
     @SuppressWarnings("unchecked")
@@ -342,11 +358,19 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         while (resultSet.next()) {
             Object[] row = new Object[columnCount];
             for (int column = 1; column <= columnCount; column++) {
-                row[column - 1] = resultSet.getObject(column);
+                row[column - 1] = readColumnValue(resultSet, metadata, column);
             }
             rows.add(row);
         }
         return new QueryRows(columns, rows);
+    }
+
+    private Object readColumnValue(ResultSet resultSet, ResultSetMetaData metadata, int column)
+            throws SQLException {
+        if (metadata.getColumnType(column) == Types.TIME) {
+            return resultSet.getObject(column, LocalTime.class);
+        }
+        return resultSet.getObject(column);
     }
 
     private record QueryRows(List<ResultColumn> columns, List<Object[]> rows) {

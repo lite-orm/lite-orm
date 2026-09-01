@@ -39,3 +39,15 @@ _Avoid_: Parser stack trace, inferred XML declaration
 **Offline XML resolution**:
 XML resolution that permits only LiteORM-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
 _Avoid_: Best-effort XML parsing, remote DTD resolution
+
+**JDBC type declaration**:
+Compile-time Mapper metadata that explicitly selects the JDBC type used for a parameter or result value without inspecting a live database schema.
+_Avoid_: Schema discovery, runtime type guessing
+
+**JDBC value adapter**:
+A compile-time-selected typed mapping for one JDBC column value and one statement parameter. It does not map an entire result row and is never discovered through a runtime registry.
+_Avoid_: Row mapper, runtime type handler
+
+**JDBC type mappings**:
+An explicitly selected compile-time collection of Java-to-JDBC value mappings for one database family. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, routing, pagination, or generated-key policy.
+_Avoid_: Database dialect, JDBC plugin, type-handler registry

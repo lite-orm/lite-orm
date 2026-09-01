@@ -20,6 +20,8 @@ import org.liteorm.api.RowMapper;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.StatementOptions;
 import org.liteorm.api.TransactionException;
+import org.liteorm.testsupport.database.DatabaseEngine;
+import org.liteorm.testsupport.database.TestDatabase;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -30,12 +32,16 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,19 +49,27 @@ abstract class AbstractDatabaseCompatibilityTest {
 
     private JdbcAssembly assembly;
     private DatabaseCompatibilityMapper mapper;
+    private DataSource dataSource;
 
-    protected abstract DataSource dataSource();
+    protected abstract DatabaseEngine databaseEngine();
 
     protected abstract String identityDefinition();
 
     protected abstract String binaryDefinition();
 
+    protected abstract String uuidDefinition();
+
+    protected abstract String localTimeDefinition();
+
+    protected abstract String offsetDateTimeDefinition();
+
     protected abstract String sleepSql();
 
     @BeforeEach
     void resetDatabase() throws Exception {
+        dataSource = TestDatabase.shared(databaseEngine()).createDataSource();
         executeSchema();
-        assembly = LiteOrm.jdbc(dataSource()).domain(databaseName()).build();
+        assembly = LiteOrm.jdbc(dataSource).domain(databaseName()).build();
         mapper = new DatabaseCompatibilityMapperImpl(assembly.sqlExecutor());
     }
 
@@ -64,13 +78,32 @@ abstract class AbstractDatabaseCompatibilityTest {
         CompatibilityRecord expected = sample(null, "Alice");
         long id = mapper.insert(
             expected.name(), expected.active(), expected.businessDate(), expected.createdAt(),
-            expected.eventId(), expected.payload());
+            expected.eventId(), expected.uuid(), expected.localTime(), expected.offsetDateTime(), expected.payload());
 
         assertEquals(1L, id);
         assertEquals(1L, mapper.count());
         assertEquals("Alice", mapper.findName(id));
         assertRecord(expected, mapper.findRecord(id), id);
         assertBean(expected, mapper.findBean(id), id);
+        assertEquals(expected.uuid(), mapper.findUuid(id));
+        assertEquals(expected.localTime(), mapper.findLocalTime(id));
+        assertEquals(expected.offsetDateTime().toInstant(), mapper.findOffsetDateTime(id).toInstant());
+    }
+
+    @Test
+    void preservesNullFrozenJdbcTypes() {
+        CompatibilityRecord expected = sample(null, "NullTypes");
+        long id = mapper.insert(
+            expected.name(), expected.active(), expected.businessDate(), expected.createdAt(),
+            expected.eventId(), null, null, null, expected.payload());
+
+        CompatibilityRecord actual = mapper.findRecord(id);
+        assertNull(actual.uuid());
+        assertNull(actual.localTime());
+        assertNull(actual.offsetDateTime());
+        assertNull(mapper.findUuid(id));
+        assertNull(mapper.findLocalTime(id));
+        assertNull(mapper.findOffsetDateTime(id));
     }
 
     @Test
@@ -93,7 +126,7 @@ abstract class AbstractDatabaseCompatibilityTest {
         long committedId = assembly.transactionalExecutor().execute(() -> {
             CompatibilityRecord value = sample(null, "Committed");
             return mapper.insert(value.name(), value.active(), value.businessDate(), value.createdAt(),
-                value.eventId(), value.payload());
+                value.eventId(), value.uuid(), value.localTime(), value.offsetDateTime(), value.payload());
         });
         assertEquals("Committed", mapper.findName(committedId));
 
@@ -101,7 +134,7 @@ abstract class AbstractDatabaseCompatibilityTest {
             assembly.transactionalExecutor().execute(() -> {
                 CompatibilityRecord value = sample(null, "RolledBack");
                 mapper.insert(value.name(), value.active(), value.businessDate(), value.createdAt(),
-                    value.eventId(), value.payload());
+                    value.eventId(), value.uuid(), value.localTime(), value.offsetDateTime(), value.payload());
                 throw new IllegalStateException("rollback");
             }));
 
@@ -114,12 +147,12 @@ abstract class AbstractDatabaseCompatibilityTest {
             assembly.transactionalExecutor().execute(() -> {
                 CompatibilityRecord outer = sample(null, "Outer");
                 mapper.insert(outer.name(), outer.active(), outer.businessDate(), outer.createdAt(),
-                    outer.eventId(), outer.payload());
+                    outer.eventId(), outer.uuid(), outer.localTime(), outer.offsetDateTime(), outer.payload());
                 try {
                     assembly.transactionalExecutor().execute(() -> {
                         CompatibilityRecord nested = sample(null, "Nested");
                         mapper.insert(nested.name(), nested.active(), nested.businessDate(), nested.createdAt(),
-                            nested.eventId(), nested.payload());
+                            nested.eventId(), nested.uuid(), nested.localTime(), nested.offsetDateTime(), nested.payload());
                         throw new IllegalArgumentException("nested failure");
                     });
                 } catch (IllegalArgumentException ignored) {
@@ -176,9 +209,12 @@ abstract class AbstractDatabaseCompatibilityTest {
             }
             schema = new String(input.readAllBytes(), StandardCharsets.UTF_8)
                 .replace("${identity}", identityDefinition())
-                .replace("${binary}", binaryDefinition());
+                .replace("${binary}", binaryDefinition())
+                .replace("${uuid}", uuidDefinition())
+                .replace("${localTime}", localTimeDefinition())
+                .replace("${offsetDateTime}", offsetDateTimeDefinition());
         }
-        try (var connection = dataSource().getConnection();
+        try (var connection = dataSource.getConnection();
              var statement = connection.createStatement()) {
             for (String sql : schema.split(";")) {
                 if (!sql.isBlank()) {
@@ -196,6 +232,9 @@ abstract class AbstractDatabaseCompatibilityTest {
             LocalDate.of(2026, 8, 16),
             LocalDateTime.of(2026, 8, 16, 12, 34, 56, 123_456_000),
             UUID.nameUUIDFromBytes((databaseName() + name).getBytes(StandardCharsets.UTF_8)).toString(),
+            UUID.nameUUIDFromBytes((databaseName() + name + "uuid").getBytes(StandardCharsets.UTF_8)),
+            LocalTime.of(12, 34, 56, 123_456_000),
+            OffsetDateTime.of(2026, 8, 16, 12, 34, 56, 654_321_000, ZoneOffset.ofHours(8)),
             new byte[]{1, 2, 3, 4});
     }
 
@@ -206,6 +245,9 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertEquals(expected.businessDate(), actual.businessDate());
         assertEquals(expected.createdAt(), actual.createdAt());
         assertEquals(expected.eventId(), actual.eventId());
+        assertEquals(expected.uuid(), actual.uuid());
+        assertEquals(expected.localTime(), actual.localTime());
+        assertEquals(expected.offsetDateTime().toInstant(), actual.offsetDateTime().toInstant());
         assertArrayEquals(expected.payload(), actual.payload());
     }
 
@@ -216,6 +258,9 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertEquals(expected.businessDate(), actual.getBusinessDate());
         assertEquals(expected.createdAt(), actual.getCreatedAt());
         assertEquals(expected.eventId(), actual.getEventId());
+        assertEquals(expected.uuid(), actual.getUuid());
+        assertEquals(expected.localTime(), actual.getLocalTime());
+        assertEquals(expected.offsetDateTime().toInstant(), actual.getOffsetDateTime().toInstant());
         assertArrayEquals(expected.payload(), actual.getPayload());
     }
 
@@ -227,22 +272,29 @@ abstract class AbstractDatabaseCompatibilityTest {
 @Mapper
 interface DatabaseCompatibilityMapper {
 
-    String COLUMNS = "id, name, active, business_date, created_at, event_id, payload";
+    String COLUMNS = "id, name, active, business_date, created_at, event_id, "
+        + "uuid_value, local_time_value, offset_date_time_value, payload";
 
     @GeneratedKey("id")
-    @Insert("INSERT INTO compatibility_users (name, active, business_date, created_at, event_id, payload) "
-        + "VALUES (#{name}, #{active}, #{businessDate}, #{createdAt}, #{eventId}, #{payload})")
+    @Insert("INSERT INTO compatibility_users (name, active, business_date, created_at, event_id, "
+        + "uuid_value, local_time_value, offset_date_time_value, payload) "
+        + "VALUES (#{name}, #{active}, #{businessDate}, #{createdAt}, #{eventId}, #{uuid}, #{localTime}, "
+        + "#{offsetDateTime}, #{payload})")
     Long insert(
         @Param("name") String name,
         @Param("active") Boolean active,
         @Param("businessDate") LocalDate businessDate,
         @Param("createdAt") LocalDateTime createdAt,
         @Param("eventId") String eventId,
+        @Param("uuid") UUID uuid,
+        @Param("localTime") LocalTime localTime,
+        @Param("offsetDateTime") OffsetDateTime offsetDateTime,
         @Param("payload") byte[] payload);
 
-    @Batch("INSERT INTO compatibility_users (id, name, active, business_date, created_at, event_id, payload) "
+    @Batch("INSERT INTO compatibility_users (id, name, active, business_date, created_at, event_id, "
+        + "uuid_value, local_time_value, offset_date_time_value, payload) "
         + "VALUES (#{item.id}, #{item.name}, #{item.active}, #{item.businessDate}, #{item.createdAt}, "
-        + "#{item.eventId}, #{item.payload})")
+        + "#{item.eventId}, #{item.uuid}, #{item.localTime}, #{item.offsetDateTime}, #{item.payload})")
     int[] insertBatch(List<CompatibilityRecord> values);
 
     @Select("SELECT COUNT(*) FROM compatibility_users")
@@ -256,6 +308,15 @@ interface DatabaseCompatibilityMapper {
 
     @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id = #{id}")
     CompatibilityBean findBean(@Param("id") long id);
+
+    @Select("SELECT uuid_value FROM compatibility_users WHERE id = #{id}")
+    UUID findUuid(@Param("id") long id);
+
+    @Select("SELECT local_time_value FROM compatibility_users WHERE id = #{id}")
+    LocalTime findLocalTime(@Param("id") long id);
+
+    @Select("SELECT offset_date_time_value FROM compatibility_users WHERE id = #{id}")
+    OffsetDateTime findOffsetDateTime(@Param("id") long id);
 
     @Select({
         "<script>",
@@ -281,6 +342,9 @@ record CompatibilityRecord(
     @Column("business_date") LocalDate businessDate,
     @Column("created_at") LocalDateTime createdAt,
     @Column("event_id") String eventId,
+    @Column("uuid_value") UUID uuid,
+    @Column("local_time_value") LocalTime localTime,
+    @Column("offset_date_time_value") OffsetDateTime offsetDateTime,
     byte[] payload) {
 }
 
@@ -295,6 +359,12 @@ final class CompatibilityBean {
     private LocalDateTime createdAt;
     @Column("event_id")
     private String eventId;
+    @Column("uuid_value")
+    private UUID uuid;
+    @Column("local_time_value")
+    private LocalTime localTime;
+    @Column("offset_date_time_value")
+    private OffsetDateTime offsetDateTime;
     private byte[] payload;
 
     public CompatibilityBean() {
@@ -312,6 +382,12 @@ final class CompatibilityBean {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public String getEventId() { return eventId; }
     public void setEventId(String eventId) { this.eventId = eventId; }
+    public UUID getUuid() { return uuid; }
+    public void setUuid(UUID uuid) { this.uuid = uuid; }
+    public LocalTime getLocalTime() { return localTime; }
+    public void setLocalTime(LocalTime localTime) { this.localTime = localTime; }
+    public OffsetDateTime getOffsetDateTime() { return offsetDateTime; }
+    public void setOffsetDateTime(OffsetDateTime offsetDateTime) { this.offsetDateTime = offsetDateTime; }
     public byte[] getPayload() { return payload; }
     public void setPayload(byte[] payload) { this.payload = payload; }
 }
@@ -330,6 +406,9 @@ final class CompatibilityRecordRowMapper implements RowMapper<CompatibilityRecor
             resultSet.getObject("business_date", LocalDate.class),
             resultSet.getObject("created_at", LocalDateTime.class),
             resultSet.getString("event_id"),
+            UUID.fromString(resultSet.getString("uuid_value")),
+            resultSet.getObject("local_time_value", LocalTime.class),
+            resultSet.getObject("offset_date_time_value", OffsetDateTime.class),
             resultSet.getBytes("payload"));
     }
 }

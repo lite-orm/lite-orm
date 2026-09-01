@@ -37,45 +37,14 @@
         </dependency>
 
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <version>2.3.232</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>mysql</artifactId>
+            <groupId>org.liteorm</groupId>
+            <artifactId>lite-orm-test-support</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

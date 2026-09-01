@@ -1,6 +1,5 @@
 package org.liteorm.spring.boot;
 
-import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
@@ -9,11 +8,14 @@ import org.liteorm.api.SqlExecutor;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 import org.liteorm.spring.boot.fixture.SpringUser;
 import org.liteorm.spring.boot.fixture.SpringUserMapper;
+import org.liteorm.testsupport.database.DatabaseEngine;
+import org.liteorm.testsupport.database.TestDatabase;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -23,7 +25,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
@@ -32,19 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-class LiteOrmAutoConfigurationTest {
+abstract class LiteOrmAutoConfigurationTest {
 
-    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-        .withConfiguration(AutoConfigurations.of(LiteOrmAutoConfiguration.class))
-        .withUserConfiguration(TestConfiguration.class)
-        .withPropertyValues(
-            "lite-orm.mapper-bindings[0].package-name=org.liteorm.spring.boot.fixture",
-            "lite-orm.mapper-bindings[0].data-source=dataSource"
-        );
+    protected abstract DatabaseEngine databaseEngine();
 
     @Test
     void assemblesGeneratedMapperWithOrderedJdbcExecutorInterceptors() {
-        contextRunner.run(context -> {
+        contextRunner().run(context -> {
             SqlExecutor executor = context.getBean(SqlExecutor.class);
             SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
             EventLog events = context.getBean(EventLog.class);
@@ -62,7 +57,7 @@ class LiteOrmAutoConfigurationTest {
 
     @Test
     void generatedMapperJoinsSpringTransactionRollback() {
-        contextRunner.run(context -> {
+        contextRunner().run(context -> {
             SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
             TransactionTemplate transactions = new TransactionTemplate(
                 context.getBean(PlatformTransactionManager.class));
@@ -78,7 +73,7 @@ class LiteOrmAutoConfigurationTest {
 
     @Test
     void singletonMapperAndExecutorSupportConcurrentCalls() {
-        contextRunner.run(context -> {
+        contextRunner().run(context -> {
             SpringUserMapper mapper = context.getBean(SpringUserMapper.class);
             List<Callable<SpringUser>> calls = new ArrayList<>();
             for (long id = 10; id < 26; id++) {
@@ -111,17 +106,28 @@ class LiteOrmAutoConfigurationTest {
         });
     }
 
+    private ApplicationContextRunner contextRunner() {
+        return new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(LiteOrmAutoConfiguration.class))
+            .withUserConfiguration(TestConfiguration.class)
+            .withPropertyValues(
+                "liteorm.test-database-engine=" + databaseEngine(),
+                "lite-orm.mapper-bindings[0].package-name=org.liteorm.spring.boot.fixture",
+                "lite-orm.mapper-bindings[0].data-source=dataSource"
+            );
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class TestConfiguration {
 
         @Bean
-        DataSource dataSource() throws SQLException {
-            JdbcDataSource dataSource = new JdbcDataSource();
-            dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
-            try (var connection = dataSource.getConnection();
-                 var statement = connection.createStatement()) {
-                statement.execute("CREATE TABLE spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
-            }
+        DataSource dataSource(Environment environment) throws SQLException {
+            DatabaseEngine engine = DatabaseEngine.valueOf(
+                environment.getRequiredProperty("liteorm.test-database-engine"));
+            TestDatabase database = TestDatabase.shared(engine);
+            DataSource dataSource = database.createDataSource();
+            database.execute(dataSource,
+                "CREATE TABLE spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
             return dataSource;
         }
 

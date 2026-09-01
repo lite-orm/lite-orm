@@ -7,7 +7,7 @@ This module is an executable Maven consumer of `lite-orm-core`. It demonstrates:
 - direct SQL provider, parameter binder, and row mapper invocation;
 - annotation and XML JDBC batch plans;
 - generated-key, scalar, record, and JavaBean result shapes;
-- standalone `JdbcAssembly`, local transaction callbacks, rollback, and H2 execution.
+- standalone `JdbcAssembly`, local transaction callbacks, rollback, and real PostgreSQL/MySQL Testcontainers execution.
 
 Run it from the repository root:
 
