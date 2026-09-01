@@ -98,14 +98,29 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 
 A `JdbcTypeMappings` implementation declares the Java-to-JDBC value mappings for one database family. Each repeatable `@JdbcTypeMapping` entry identifies one Java type, one `JDBCType`, and one concrete `JdbcValueAdapter<T>`.
 
+Every package that directly contains a Mapper selects exactly one collection in its own `package-info.java`:
+
+```java
+@UseJdbcTypeMappings(ApplicationJdbcTypeMappings.class)
+package com.example.user.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+```
+
 - A mapping collection is a public final class that implements `JdbcTypeMappings`.
 - An adapter is public, concrete, independently constructible, and generic for the declared Java type.
 - Nested adapters are static and expose a public no-argument constructor.
-- Adapter instances are reused by generated Mappers and must be thread-safe.
+- Selection is exact-package only. It is not inherited from a parent or child package, and Mapper-level overrides are not supported.
+- Source and dependency-supplied collections and adapters receive the same compile-time validation.
+- Generated code creates one instance of each selected adapter used by a Mapper and reuses it for that Mapper instance. Adapters must therefore be stateless, thread-safe, or externally synchronized.
 - LiteORM owns null parameter binding; `JdbcValueAdapter.setNonNull` receives only non-null values.
+- Null parameters use the selected declaration's `JDBCType` vendor number. Non-null parameters call `setNonNull` directly, and supported scalar results call `getNullable` directly while the `ResultSet` remains active.
 - `JdbcValueAdapter.getNullable` reads one column from the current result row while JDBC resources remain active.
 - Duplicate Java-type and JDBC-type declarations fail compilation.
-- Mapping collections are declarative metadata and never use runtime discovery or a mutable registry.
+- Generated Mappers expose the selected collection identity through `JdbcTypeMappingsMetadata` without changing their single-`SqlExecutor` constructor.
+- Mapping collections are declarative metadata. Selection and adapter wiring use no runtime registry, discovery, reflection, `ServiceLoader`, or command-line profile.
+
+When a selected collection does not uniquely declare a mapping for a Java type, the existing built-in mapping contract remains in effect. The complete Java-type and `JDBCType` resolution policy is tracked separately from package selection.
 
 ## Row Mapper
 

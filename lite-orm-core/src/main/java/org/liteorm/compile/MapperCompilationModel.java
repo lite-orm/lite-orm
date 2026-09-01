@@ -15,6 +15,7 @@ record MapperCompilationModel(
     String interfaceName,
     String implementationName,
     String qualifiedInterfaceName,
+    String jdbcTypeMappingsClassName,
     List<MethodModel> methods
 ) {
 
@@ -37,6 +38,8 @@ record MapperCompilationModel(
         String providerFieldName,
         String providerArgumentExpression,
         List<AdapterField> adapterFields,
+        List<JdbcValueAdapterField> jdbcValueAdapterFields,
+        JdbcResultReader jdbcResultReader,
         List<String> parameterBinderFields,
         String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
@@ -67,6 +70,8 @@ record MapperCompilationModel(
             String providerFieldName,
             String providerArgumentExpression,
             List<AdapterField> adapterFields,
+            List<JdbcValueAdapterField> jdbcValueAdapterFields,
+            JdbcResultReader jdbcResultReader,
             List<String> parameterBinderFields,
             String rowMapperFieldName,
             List<SqlParameterParser.MethodParameter> methodParameters,
@@ -76,11 +81,30 @@ record MapperCompilationModel(
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
                 sourceType, sqlTemplate, dynamic, null, resultType, resultMappingCode,
                 resultMappingHelperCode, resultColumnLabels, providerClassName, providerFieldName, providerArgumentExpression,
-                adapterFields, parameterBinderFields, rowMapperFieldName, methodParameters, parameterBindings,
+                adapterFields, jdbcValueAdapterFields, jdbcResultReader,
+                parameterBinderFields, rowMapperFieldName,
+                methodParameters, parameterBindings,
                 astNode, parameterList, null);
         }
     }
 
     public record AdapterField(String typeName, String fieldName) {
+    }
+
+    public record JdbcValueAdapterField(
+        String typeName,
+        String javaTypeName,
+        String fieldName,
+        String binderFieldName,
+        String binderMethodName,
+        String jdbcType
+    ) {
+    }
+
+    public record JdbcResultReader(
+        String javaTypeName,
+        String adapterFieldName,
+        String methodName
+    ) {
     }
 }

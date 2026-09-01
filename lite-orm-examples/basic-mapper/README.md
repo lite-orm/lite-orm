@@ -5,6 +5,7 @@ This module is an executable Maven consumer of `lite-orm-core`. It demonstrates:
 - annotation and XML Mapper compilation;
 - native Java dynamic `where`, `choose`, `trim`, `set`, `foreach`, `bind`, and `include` rendering;
 - direct SQL provider, parameter binder, and row mapper invocation;
+- compile-time Mapper-package JDBC mapping selection;
 - annotation and XML JDBC batch plans;
 - generated-key, scalar, record, and JavaBean result shapes;
 - standalone `JdbcAssembly`, local transaction callbacks, rollback, and real PostgreSQL/MySQL Testcontainers execution.
@@ -20,6 +21,8 @@ Generated sources are written to:
 ```text
 lite-orm-examples/basic-mapper/target/generated-sources/annotations
 ```
+
+The Mapper package selects `ExampleJdbcTypeMappings` in its `package-info.java`. The generated implementation exposes that stable selection through `JdbcTypeMappingsMetadata`; adapter selection does not use a runtime registry or discovery step.
 
 ## Standalone Assembly
 

@@ -691,7 +691,8 @@ class UnsupportedMapperSignatureCompilationTest {
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
             Iterable<? extends JavaFileObject> compilationUnits =
-                fileManager.getJavaFileObjectsFromPaths(mapperSources);
+                fileManager.getJavaFileObjectsFromPaths(
+                    MapperCompilationTestSupport.withJdbcTypeMappingsSelection(mapperSources));
             List<String> options = List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

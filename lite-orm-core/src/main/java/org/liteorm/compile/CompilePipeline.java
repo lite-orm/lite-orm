@@ -48,6 +48,7 @@ final class CompilePipeline {
     private final Elements elementUtils;
     private final Types typeUtils;
     private final Messager messager;
+    private final JdbcTypeMappingsValidator jdbcTypeMappingsValidator;
     
     public CompilePipeline(Elements elementUtils, Types typeUtils) {
         this(elementUtils, typeUtils, null, null);
@@ -69,6 +70,7 @@ final class CompilePipeline {
 
         this.codeGenerator = new FreemarkerCodeGenerator();
         this.parameterParser = new SqlParameterParser();
+        this.jdbcTypeMappingsValidator = new JdbcTypeMappingsValidator(elementUtils, typeUtils, messager);
     }
     
     /**
@@ -97,7 +99,9 @@ final class CompilePipeline {
     }
 
     public MapperCompilationModel buildCompilationModel(TypeElement mapperInterface) throws CompileException {
-        List<MapperCompilationModel.MethodModel> methods = analyzeInterfaceMethods(mapperInterface);
+        JdbcTypeMappingsSelection jdbcTypeMappings = requireJdbcTypeMappingsSelection(mapperInterface);
+        List<MapperCompilationModel.MethodModel> methods = analyzeInterfaceMethods(
+            mapperInterface, jdbcTypeMappings);
         String packageName = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
         String interfaceName = mapperInterface.getSimpleName().toString();
         return new MapperCompilationModel(
@@ -105,8 +109,56 @@ final class CompilePipeline {
             interfaceName,
             interfaceName + "Impl",
             mapperInterface.getQualifiedName().toString(),
+            jdbcTypeMappings.type().getQualifiedName().toString(),
             methods
         );
+    }
+
+    private JdbcTypeMappingsSelection requireJdbcTypeMappingsSelection(TypeElement mapperInterface)
+            throws CompileException {
+        var mapperPackage = elementUtils.getPackageOf(mapperInterface);
+        List<? extends AnnotationMirror> selections = mapperPackage.getAnnotationMirrors().stream()
+            .filter(annotation -> annotation.getAnnotationType().toString()
+                .equals("org.liteorm.annotation.UseJdbcTypeMappings"))
+            .toList();
+        if (selections.size() != 1) {
+            throw new CompileException(
+                "Mapper package " + mapperPackage.getQualifiedName()
+                    + " must select exactly one JdbcTypeMappings collection in package-info.java"
+                    + " [Mapper=" + mapperInterface.getQualifiedName() + "]"
+            ).at(mapperInterface);
+        }
+        TypeMirror selectedType = annotationTypeValue(selections.getFirst(), "value");
+        TypeElement selectedMappings = (TypeElement) typeUtils.asElement(selectedType);
+        if (selectedMappings == null) {
+            throw invalidJdbcTypeMappingsSelection(
+                mapperInterface,
+                mapperPackage.getQualifiedName().toString(),
+                selectedType + " could not be resolved");
+        }
+        JdbcTypeMappingsValidator.ValidationResult validation =
+            jdbcTypeMappingsValidator.inspect(selectedMappings);
+        if (!validation.problems().isEmpty()) {
+            throw invalidJdbcTypeMappingsSelection(
+                mapperInterface,
+                mapperPackage.getQualifiedName().toString(),
+                validation.problems().getFirst().message());
+        }
+        return new JdbcTypeMappingsSelection(selectedMappings, validation.declarations());
+    }
+
+    private CompileException invalidJdbcTypeMappingsSelection(
+            TypeElement mapperInterface, String packageName, String detail) {
+        return new CompileException(
+            "Mapper package " + packageName + " selected invalid JdbcTypeMappings collection: "
+                + detail + " [Mapper=" + mapperInterface.getQualifiedName() + "]"
+        ).at(mapperInterface);
+    }
+
+    private record JdbcTypeMappingsSelection(
+        TypeElement type,
+        List<JdbcTypeMappingsValidator.MappingDeclaration> declarations
+    ) {
     }
     
     /**
@@ -126,7 +178,8 @@ final class CompilePipeline {
     /**
      * Analyzes inherited and declared Mapper methods.
      */
-    private List<MapperCompilationModel.MethodModel> analyzeInterfaceMethods(TypeElement mapperInterface)
+    private List<MapperCompilationModel.MethodModel> analyzeInterfaceMethods(
+            TypeElement mapperInterface, JdbcTypeMappingsSelection jdbcTypeMappings)
             throws CompileException {
         Map<String, MapperCompilationModel.MethodModel> methodInfos = new LinkedHashMap<>();
         List<ResolvedMapperMethod> resolvedMethods = new ArrayList<>();
@@ -144,7 +197,7 @@ final class CompilePipeline {
             ExecutableElement method = resolvedMethod.method();
             try {
                 MapperCompilationModel.MethodModel methodInfo = analyzeMethod(
-                    mapperInterface, method, resolvedMethod.type());
+                    mapperInterface, method, resolvedMethod.type(), jdbcTypeMappings);
                 if (methodInfo != null) {
                     methodInfos.putIfAbsent(methodKey(method, resolvedMethod.type()), methodInfo);
                 }
@@ -222,7 +275,10 @@ final class CompilePipeline {
      * Analyzes one Mapper method.
      */
     private MapperCompilationModel.MethodModel analyzeMethod(
-            TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType)
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            JdbcTypeMappingsSelection jdbcTypeMappings)
             throws CompileException {
         if (method.isDefault() && !hasExplicitSqlDeclaration(method)) {
             return null;
@@ -298,10 +354,12 @@ final class CompilePipeline {
 
         AdapterBindings adapterBindings = analyzeAdapterBindings(
             mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
-            methodParameters, parameterResult.bindings());
+            methodParameters, parameterResult.bindings(), jdbcTypeMappings);
         validateJdbcParameterTypes(
             mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
-            methodParameters, parameterResult.bindings());
+            methodParameters, parameterResult.bindings(), jdbcTypeMappings);
+        adapterBindings = addSelectedResultReader(
+            method, resolvedMethodType, cursorMethod, statementType, adapterBindings, jdbcTypeMappings);
 
         // Build the normalized method model.
         String methodName = method.getSimpleName().toString();
@@ -349,6 +407,8 @@ final class CompilePipeline {
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
             adapterBindings.adapterFields(),
+            adapterBindings.jdbcValueAdapterFields(),
+            adapterBindings.jdbcResultReader(),
             adapterBindings.parameterBinderFields(),
             adapterBindings.rowMapperFieldName(),
             methodParameters,
@@ -364,8 +424,10 @@ final class CompilePipeline {
             CursorMethod cursorMethod,
             SqlContentParser.SqlParseResult sqlInfo, ProviderBinding providerBinding,
             List<SqlParameterParser.MethodParameter> methodParameters,
-            List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
+            List<SqlParameterParser.ParameterBinding> parameterBindings,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         List<MapperCompilationModel.AdapterField> fields = new ArrayList<>();
+        List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields = new ArrayList<>();
         List<String> binderFields = new ArrayList<>();
         String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
 
@@ -400,30 +462,44 @@ final class CompilePipeline {
             addAdapterField(fields, binderElement, fieldName);
         }
 
+        Map<String, TypeMirror> visibleParameterTypes = resolvedParameterTypes(
+            method, resolvedMethodType, cursorMethod, methodParameters);
+        if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
+            TypeMirror collectionType = visibleParameterTypes.values().iterator().next();
+            visibleParameterTypes = new LinkedHashMap<>(Map.of(
+                "item", collectionElementType(collectionType)));
+        }
+
         if (sqlInfo != null && sqlInfo.isDynamic()) {
-            for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
-                if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
-                    continue;
-                }
-                VariableElement parameter = method.getParameters().get(parameterIndex);
-                MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
-                binderFields.add(adapterField == null ? null : adapterField.fieldName());
-            }
+            Map<String, MapperCompilationModel.AdapterField> parameterAdaptersByAlias =
+                parameterAdaptersByAlias(method, cursorMethod, methodParameters, parameterAdapters);
+            collectDynamicParameterBinders(
+                sqlInfo.astNode(), visibleParameterTypes, parameterAdaptersByAlias,
+                jdbcValueAdapterFields, binderFields, jdbcTypeMappings,
+                mapperInterface.getQualifiedName() + "." + method.getSimpleName());
         } else {
             for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
                 String root = binding.expression().split("\\.", 2)[0];
                 VariableElement parameter = findMethodParameter(method, methodParameters, root);
                 MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
-                if (adapterField == null) {
-                    binderFields.add(null);
-                    continue;
-                }
-                if (binding.expression().contains(".")) {
+                if (adapterField != null && binding.expression().contains(".")) {
                     throw new CompileException(methodLocation
                         + ": custom parameter binder must bind the whole Mapper parameter, not property "
                         + binding.expression());
                 }
-                binderFields.add(adapterField.fieldName());
+                if (adapterField != null) {
+                    binderFields.add(adapterField.fieldName());
+                    continue;
+                }
+                TypeMirror parameterType = resolveParameterExpressionType(
+                    binding.expression(), visibleParameterTypes);
+                JdbcTypeMappingsValidator.MappingDeclaration mapping =
+                    selectedMapping(parameterType, jdbcTypeMappings);
+                MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField =
+                    mapping == null ? null : jdbcValueAdapterField(mapping, jdbcTypeMappings);
+                addJdbcValueAdapterField(jdbcValueAdapterFields, jdbcValueAdapterField);
+                binderFields.add(jdbcValueAdapterField == null
+                    ? null : jdbcValueAdapterField.binderFieldName());
             }
         }
 
@@ -455,9 +531,99 @@ final class CompilePipeline {
         }
         return new AdapterBindings(
             List.copyOf(fields),
+            List.copyOf(jdbcValueAdapterFields),
+            null,
             java.util.Collections.unmodifiableList(new ArrayList<>(binderFields)),
             rowMapperField
         );
+    }
+
+    private Map<String, MapperCompilationModel.AdapterField> parameterAdaptersByAlias(
+            ExecutableElement method,
+            CursorMethod cursorMethod,
+            List<SqlParameterParser.MethodParameter> methodParameters,
+            Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters) {
+        Map<String, MapperCompilationModel.AdapterField> adaptersByAlias = new LinkedHashMap<>();
+        int executionParameterIndex = 0;
+        for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
+            if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
+                continue;
+            }
+            VariableElement parameter = method.getParameters().get(parameterIndex);
+            SqlParameterParser.MethodParameter description = methodParameters.get(executionParameterIndex++);
+            MapperCompilationModel.AdapterField adapter = parameterAdapters.get(parameter);
+            if (adapter != null) {
+                description.aliases().forEach(alias -> adaptersByAlias.put(alias, adapter));
+            }
+        }
+        return adaptersByAlias;
+    }
+
+    private void collectDynamicParameterBinders(
+            AstNode node,
+            Map<String, TypeMirror> visibleTypes,
+            Map<String, MapperCompilationModel.AdapterField> parameterAdapters,
+            List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields,
+            List<String> binderFields,
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            String location) throws CompileException {
+        if (node instanceof AstNode.TextNode textNode) {
+            Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
+            while (matcher.find()) {
+                String expression = matcher.group(1).trim();
+                String root = expression.split("\\.", 2)[0];
+                MapperCompilationModel.AdapterField parameterAdapter = parameterAdapters.get(root);
+                if (parameterAdapter != null) {
+                    if (expression.contains(".")) {
+                        throw new CompileException(location
+                            + ": custom parameter binder must bind the whole Mapper parameter, not property "
+                            + expression);
+                    }
+                    binderFields.add(parameterAdapter.fieldName());
+                    continue;
+                }
+                TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
+                JdbcTypeMappingsValidator.MappingDeclaration mapping =
+                    selectedMapping(parameterType, jdbcTypeMappings);
+                MapperCompilationModel.JdbcValueAdapterField field =
+                    mapping == null ? null : jdbcValueAdapterField(mapping, jdbcTypeMappings);
+                addJdbcValueAdapterField(jdbcValueAdapterFields, field);
+                binderFields.add(field == null ? null : field.binderFieldName());
+            }
+            return;
+        }
+        if (node instanceof AstNode.ForeachNode foreachNode) {
+            String collectionRoot = foreachNode.collection().split("\\.", 2)[0];
+            if (parameterAdapters.containsKey(collectionRoot)) {
+                throw new CompileException(location
+                    + ": collection parameter binder cannot bind foreach items; bind item values explicitly");
+            }
+            TypeMirror collectionType = resolveParameterExpressionType(foreachNode.collection(), visibleTypes);
+            Map<String, TypeMirror> foreachTypes = new LinkedHashMap<>(visibleTypes);
+            foreachTypes.put(foreachNode.item(), collectionElementType(collectionType));
+            Map<String, MapperCompilationModel.AdapterField> foreachAdapters =
+                new LinkedHashMap<>(parameterAdapters);
+            foreachAdapters.remove(foreachNode.item());
+            for (AstNode child : foreachNode.children()) {
+                collectDynamicParameterBinders(
+                    child, foreachTypes, foreachAdapters, jdbcValueAdapterFields,
+                    binderFields, jdbcTypeMappings, location);
+            }
+            return;
+        }
+
+        Map<String, TypeMirror> scopedTypes = new LinkedHashMap<>(visibleTypes);
+        Map<String, MapperCompilationModel.AdapterField> scopedAdapters =
+            new LinkedHashMap<>(parameterAdapters);
+        for (AstNode child : node.getChildren()) {
+            collectDynamicParameterBinders(
+                child, scopedTypes, scopedAdapters, jdbcValueAdapterFields,
+                binderFields, jdbcTypeMappings, location);
+            if (child instanceof AstNode.BindNode bindNode) {
+                scopedTypes.put(bindNode.name(), null);
+                scopedAdapters.remove(bindNode.name());
+            }
+        }
     }
 
     private VariableElement findMethodParameter(
@@ -473,6 +639,72 @@ final class CompilePipeline {
         return null;
     }
 
+    private AdapterBindings addSelectedResultReader(
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod,
+            ExecutionPlan.StatementType statementType,
+            AdapterBindings adapterBindings,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        if (statementType != ExecutionPlan.StatementType.SELECT
+                || cursorMethod != null
+                || adapterBindings.rowMapperFieldName() != null) {
+            return adapterBindings;
+        }
+        TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
+        JdbcTypeMappingsValidator.MappingDeclaration mapping =
+            selectedMapping(resultType, jdbcTypeMappings);
+        if (mapping == null) {
+            return adapterBindings;
+        }
+        MapperCompilationModel.JdbcValueAdapterField field = jdbcValueAdapterField(mapping, jdbcTypeMappings);
+        List<MapperCompilationModel.JdbcValueAdapterField> fields =
+            new ArrayList<>(adapterBindings.jdbcValueAdapterFields());
+        addJdbcValueAdapterField(fields, field);
+        String readerMethodName = "read" + capitalize(method.getSimpleName().toString()) + "Result";
+        return new AdapterBindings(
+            adapterBindings.adapterFields(),
+            List.copyOf(fields),
+            new MapperCompilationModel.JdbcResultReader(
+                resultType.toString(), field.fieldName(), readerMethodName),
+            adapterBindings.parameterBinderFields(),
+            "this::" + readerMethodName
+        );
+    }
+
+    private TypeMirror mappedResultType(TypeMirror returnType) {
+        if (returnType instanceof DeclaredType declaredType
+                && declaredType.getTypeArguments().size() == 1) {
+            String rawType = typeUtils.erasure(returnType).toString();
+            if (rawType.equals("java.util.List") || rawType.equals("java.util.Optional")) {
+                return declaredType.getTypeArguments().getFirst();
+            }
+        }
+        return returnType;
+    }
+
+    private Map<String, TypeMirror> resolvedParameterTypes(
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod,
+            List<SqlParameterParser.MethodParameter> methodParameters) {
+        Map<String, TypeMirror> parameterTypes = new LinkedHashMap<>();
+        int executionParameterIndex = 0;
+        for (int methodParameterIndex = 0;
+                methodParameterIndex < method.getParameters().size();
+                methodParameterIndex++) {
+            if (cursorMethod != null && cursorMethod.parameterIndex() == methodParameterIndex) {
+                continue;
+            }
+            TypeMirror parameterType = resolvedMethodType.getParameterTypes().get(methodParameterIndex);
+            SqlParameterParser.MethodParameter description = methodParameters.get(executionParameterIndex++);
+            for (String alias : description.aliases()) {
+                parameterTypes.put(alias, parameterType);
+            }
+        }
+        return parameterTypes;
+    }
+
     private void validateJdbcParameterTypes(
             TypeElement mapperInterface,
             ExecutableElement method,
@@ -481,7 +713,8 @@ final class CompilePipeline {
             SqlContentParser.SqlParseResult sqlInfo,
             ProviderBinding providerBinding,
             List<SqlParameterParser.MethodParameter> methodParameters,
-            List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
+            List<SqlParameterParser.ParameterBinding> parameterBindings,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         if (providerBinding != null) {
             return;
         }
@@ -513,11 +746,13 @@ final class CompilePipeline {
         }
 
         if (sqlInfo.isDynamic()) {
-            validateDynamicJdbcParameterTypes(sqlInfo.astNode(), parameterTypes, binderRoots, location);
+            validateDynamicJdbcParameterTypes(
+                sqlInfo.astNode(), parameterTypes, binderRoots, location, jdbcTypeMappings);
             return;
         }
         for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
-            validateJdbcParameterExpression(binding.expression(), parameterTypes, binderRoots, location);
+            validateJdbcParameterExpression(
+                binding.expression(), parameterTypes, binderRoots, location, jdbcTypeMappings);
         }
     }
 
@@ -525,11 +760,13 @@ final class CompilePipeline {
             AstNode node,
             Map<String, TypeMirror> visibleTypes,
             Set<String> binderRoots,
-            String location) throws CompileException {
+            String location,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         if (node instanceof AstNode.TextNode textNode) {
             Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
             while (matcher.find()) {
-                validateJdbcParameterExpression(matcher.group(1).trim(), visibleTypes, binderRoots, location);
+                validateJdbcParameterExpression(
+                    matcher.group(1).trim(), visibleTypes, binderRoots, location, jdbcTypeMappings);
             }
             return;
         }
@@ -538,14 +775,16 @@ final class CompilePipeline {
             Map<String, TypeMirror> foreachTypes = new LinkedHashMap<>(visibleTypes);
             foreachTypes.put(foreachNode.item(), collectionElementType(collectionType));
             for (AstNode child : foreachNode.children()) {
-                validateDynamicJdbcParameterTypes(child, foreachTypes, binderRoots, location);
+                validateDynamicJdbcParameterTypes(
+                    child, foreachTypes, binderRoots, location, jdbcTypeMappings);
             }
             return;
         }
 
         Map<String, TypeMirror> scopedTypes = new LinkedHashMap<>(visibleTypes);
         for (AstNode child : node.getChildren()) {
-            validateDynamicJdbcParameterTypes(child, scopedTypes, binderRoots, location);
+            validateDynamicJdbcParameterTypes(
+                child, scopedTypes, binderRoots, location, jdbcTypeMappings);
             if (child instanceof AstNode.BindNode bindNode) {
                 scopedTypes.put(bindNode.name(), null);
             }
@@ -556,13 +795,15 @@ final class CompilePipeline {
             String expression,
             Map<String, TypeMirror> visibleTypes,
             Set<String> binderRoots,
-            String location) throws CompileException {
+            String location,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         String root = expression.split("\\.", 2)[0];
         if (binderRoots.contains(root) && !expression.contains(".")) {
             return;
         }
         TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
-        if (parameterType == null || isSupportedJdbcParameterType(parameterType)) {
+        if (parameterType == null || isSupportedJdbcParameterType(parameterType)
+                || selectedMapping(parameterType, jdbcTypeMappings) != null) {
             return;
         }
         throw new CompileException(location + ": JDBC parameter expression " + expression + " has unsupported type "
@@ -626,6 +867,43 @@ final class CompilePipeline {
                 "java.time.Instant", "java.util.UUID", "java.time.LocalTime", "java.time.OffsetDateTime" -> true;
             default -> false;
         };
+    }
+
+    private JdbcTypeMappingsValidator.MappingDeclaration selectedMapping(
+            TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
+        if (javaType == null) {
+            return null;
+        }
+        List<JdbcTypeMappingsValidator.MappingDeclaration> matches = jdbcTypeMappings.declarations().stream()
+            .filter(mapping -> mapping.javaType() != null)
+            .filter(mapping -> typeUtils.isSameType(
+                typeUtils.erasure(mapping.javaType()), typeUtils.erasure(javaType)))
+            .toList();
+        return matches.size() == 1 ? matches.getFirst() : null;
+    }
+
+    private MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField(
+            JdbcTypeMappingsValidator.MappingDeclaration mapping,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        TypeElement adapterElement = (TypeElement) typeUtils.asElement(mapping.adapterType());
+        String javaTypeName = mapping.javaType().toString();
+        int declarationId = jdbcTypeMappings.declarations().indexOf(mapping) + 1;
+        return new MapperCompilationModel.JdbcValueAdapterField(
+            adapterElement.getQualifiedName().toString(),
+            javaTypeName,
+            "jdbcValueAdapter" + declarationId,
+            "jdbcValueParameterBinder" + declarationId,
+            "bindJdbcValue" + declarationId,
+            mapping.jdbcType()
+        );
+    }
+
+    private void addJdbcValueAdapterField(
+            List<MapperCompilationModel.JdbcValueAdapterField> fields,
+            MapperCompilationModel.JdbcValueAdapterField field) {
+        if (field != null && fields.stream().noneMatch(existing -> existing.fieldName().equals(field.fieldName()))) {
+            fields.add(field);
+        }
     }
 
     private TypeElement validateAdapter(
@@ -711,6 +989,8 @@ final class CompilePipeline {
 
     private record AdapterBindings(
         List<MapperCompilationModel.AdapterField> adapterFields,
+        List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields,
+        MapperCompilationModel.JdbcResultReader jdbcResultReader,
         List<String> parameterBinderFields,
         String rowMapperFieldName) {
     }
