@@ -167,6 +167,6 @@ See:
 - [Extension contracts](docs/extensions.md)
 - [Migration guide](docs/migration-guide.md)
 - [MyBatis compatibility matrix](docs/mybatis-compatibility.md)
-- [Active adoption roadmap](docs/superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md)
+- [Product roadmap](docs/roadmap.md)
 - [Executable basic Mapper example](lite-orm-examples/basic-mapper/README.md)
 - [Core GA benchmark baseline](docs/benchmarks/core-ga-baseline.md)

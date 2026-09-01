@@ -2,6 +2,25 @@
 
 LiteORM targets the common Mapper subset that can be validated and emitted as static Java during compilation. It is not a drop-in replacement for every MyBatis runtime feature.
 
+## JDBC Type Compatibility Baseline
+
+MyBatis 3.5.19 built-in TypeHandlers are the comparison baseline for deterministic JDBC value mappings. LiteORM preserves its compile-time architecture: each Mapper package explicitly selects one `JdbcTypeMappings` collection, concrete `JdbcValueAdapter` implementations are selected during compilation and referenced directly, and unknown Java values never fall through to a runtime `UnknownTypeHandler` equivalent.
+
+The current built-in matrix supports numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum names, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. PostgreSQL and MySQL execute the shared compatibility contract with zero skipped database jobs in CI.
+
+Parity is not complete. The remaining deterministic MyBatis categories include:
+
+- `BigInteger`, boxed-byte arrays, enum ordinal mapping, and legacy JDBC/date values;
+- `OffsetTime`, `Year`, `Month`, `YearMonth`, `ZonedDateTime`, and `JapaneseDate`;
+- national-character, SQLXML, JDBC array, Blob, Clob, stream, and reader handlers;
+- package-scoped PostgreSQL and MySQL mapping collections plus the compile-time contracts required for user and third-party collections.
+
+Connection-bound resources require lifecycle-safe semantics. LiteORM closes the result set, statement, and connection handle before a normal Mapper result escapes. Ordinary mappings materialize Blob values as `byte[]`, Clob and SQLXML values as `String`, and JDBC arrays as Java arrays. Streams and readers are consumed through an existing callback-scoped mapping path and never escape after cleanup.
+
+The planned mapping contracts have deliberately separate roles: `JdbcTypeMappings` is a database-family collection, repeatable `@JdbcTypeMapping` declarations associate one Java type and JDBC type with one `JdbcValueAdapter`, and `@UseJdbcTypeMappings` selects the collection in a Mapper package's `package-info.java`. Selection is explicit; there is no command-line profile, classpath auto-detection, global registry, ServiceLoader lookup, or Mapper-level override. LiteORM initially ships only PostgreSQL and MySQL collections. Additional collections may be delivered through normal Maven or Gradle dependencies.
+
+`ObjectTypeHandler` and `UnknownTypeHandler` behavior is deliberately not a parity target. Unsupported values fail compilation with guidance to use an explicit typed extension.
+
 ## Supported Annotation Patterns
 
 All Mapper annotations are LiteORM-owned APIs in `org.liteorm.annotation`. LiteORM does not define compatibility classes under `org.apache.ibatis.annotations`.

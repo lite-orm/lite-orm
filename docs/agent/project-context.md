@@ -37,10 +37,13 @@ Provides executable annotation/XML, mapping, provider, binder, cursor, transacti
 
 Compares Direct JDBC, LiteORM, and MyBatis under controlled JMH fixtures. Benchmark results are evidence about the measured setup, not general production latency claims.
 
+### `lite-orm-test-support`
+
+Provides non-published PostgreSQL and MySQL Testcontainers fixtures for database-backed tests. It is consumed only with test scope and must not enter user runtime dependency trees.
+
 ## Planned Modules
 
 - `lite-orm-processor`: compiler and JDK-only source generation.
-- `lite-orm-test-support`: non-published Testcontainers fixtures.
 - `lite-orm-migration`: MyBatis scanner and deterministic rewriter.
 - `lite-orm-generator`: DB metadata to model/Mapper skeleton generation.
 
@@ -63,8 +66,8 @@ Mapper source
 - Core contract: `docs/core-ga-contract.md`
 - Extensions and Spring boundaries: `docs/extensions.md`
 - Migration boundary: `docs/mybatis-compatibility.md` and `docs/migration-guide.md`
-- Active work: `docs/superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md`
-- Task sequence: `docs/superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md`
+- Strategic direction: `docs/roadmap.md`
+- Active specifications and task sequence: GitHub Issues, configured by `docs/agents/issue-tracker.md`
 - Documentation ownership: `docs/agent/documentation-policy.md`
 
 ## Common Commands
@@ -86,11 +89,11 @@ The active delivery order is:
 
 ```text
 correctness
+  -> MyBatis deterministic JDBC type parity
   -> API freeze
   -> replace FreeMarker
   -> split processor
   -> external Maven/Gradle verification
-  -> MySQL/PostgreSQL and Spring gates
   -> public preview
   -> migration tooling
   -> optional DB generator

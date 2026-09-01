@@ -15,6 +15,20 @@ Read these files before making non-trivial changes:
 
 For contract or roadmap work, also read the relevant source of truth listed in `docs/README.md`.
 
+## Agent skills
+
+### Issue tracker
+
+Specifications and implementation tickets are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Issue triage uses the standard Matt Pocock skill roles. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+LiteORM uses one root domain context with repository-wide ADRs. See `docs/agents/domain.md`.
+
 ## Project Mission
 
 LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper validation, dynamic SQL compilation, parameter planning, and result-mapping generation to javac while keeping runtime execution explicit and JDBC-based.
@@ -34,6 +48,8 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - `AGENTS.md` is the only canonical project rule file; tool-specific instruction files must remain thin adapters.
 - Agent plugins and skills define workflow, not LiteORM architecture; repository rules always remain authoritative.
 - Agent plugins and developer-global configuration must never become build or CI dependencies.
+- Use the Matt Pocock engineering skills as the primary workflow for specification, ticketing, implementation, TDD, diagnosis, and review.
+- Keep durable facts in repository documentation and transient delivery state in the configured issue tracker.
 
 ## Working Rules
 
@@ -56,7 +72,6 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 
 - Source comments, Javadocs, diagnostics documentation, user documentation, rule files, and commit messages must be written in English.
 - Localized files such as `README_cn.md` may use their target language.
-- Planning artifacts under `docs/superpowers/plans/` and `docs/superpowers/specs/` may use English or Chinese.
 - Existing non-English comments are migration debt. Translate them when the owning file is modified; do not add new non-English comments.
 
 ## Testing Policy
@@ -73,7 +88,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Maintain one authoritative owner for each project fact.
 - Update documentation in the same change as the contract it describes.
 - Delete completed implementation plans and superseded architecture snapshots instead of presenting them as current guidance.
-- Keep active roadmap specs and plans under `docs/superpowers/` only while they guide unfinished work.
+- Keep `docs/roadmap.md` strategic and free of implementation checklists. Track specifications, dependencies, and completion state in GitHub Issues.
 - Update `docs/README.md` when adding, moving, replacing, or deleting documentation.
 
 ## Commit Policy

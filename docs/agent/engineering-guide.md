@@ -70,9 +70,9 @@ H2 is reserved for the controlled JMH benchmark fixture and must not be used for
 
 - Write user and contributor documentation in English.
 - `README_cn.md` and other explicitly localized files may use their target language.
-- Roadmap planning artifacts under `docs/superpowers/` may use English or Chinese.
 - Update the owning contract, not several copies of the same fact.
 - Delete superseded plans and reviews after their durable conclusions move into a contract or philosophy document.
+- Keep roadmap direction in `docs/roadmap.md` and delivery state in GitHub Issues.
 - Run the link and language checks documented in `docs/agent/documentation-policy.md`.
 
 ## Commit Messages
@@ -109,7 +109,8 @@ Run `scripts/setup-git-hooks.sh` once per clone. CI validates all pull-request c
 ## Agent Workflow
 
 - Treat `AGENTS.md` as the canonical project policy across all agent clients.
-- Use your client's native tooling as the workflow layer for planning, TDD, debugging, review, and delivery.
+- Use the Matt Pocock engineering skills as the primary workflow layer for specification, ticketing, TDD, debugging, review, and delivery.
+- Publish active specifications and tracer-bullet tickets to GitHub Issues; promote only durable conclusions into contracts, ADRs, or `CONTEXT.md`.
 - Follow `docs/agent/tooling.md` for the shared workflow and thin-adapter expectations.
 
 ## Completion Standard

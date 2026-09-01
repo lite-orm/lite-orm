@@ -8,7 +8,7 @@
 
 LiteORM exists to provide a smaller and more predictable SQL Mapper for Java teams that value explicit SQL, compile-time feedback, readable generated code, and direct JDBC behavior.
 
-The project does not measure success by copying the MyBatis API surface. It succeeds when a team can adopt LiteORM through normal Maven or Gradle dependencies, migrate common Mapper code with limited friction, understand generated behavior, and diagnose failures without framework internals.
+MyBatis 3.5.x is LiteORM's compatibility baseline for deterministic SQL Mapper behavior and JDBC value types. LiteORM does not copy MyBatis runtime architecture, but a migration should not lose a deterministic mapping merely because LiteORM omitted the corresponding built-in type. Success means teams can adopt LiteORM through normal Maven or Gradle dependencies, migrate supported Mapper code with limited friction, understand generated behavior, and diagnose failures without framework internals.
 
 ## Core Model
 
@@ -123,6 +123,8 @@ Spring may provide IoC, transaction managers, physical DataSources, and ordered 
 ## Compatibility Philosophy
 
 LiteORM supports common SQL Mapper work directly, converts some MyBatis patterns into static LiteORM forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
+
+Deterministic MyBatis JDBC type handlers are a compatibility target. LiteORM implements equivalent value semantics through generated code and package-selected JDBC type mappings rather than a runtime type-handler registry. Mapping collections may be supplied by LiteORM, users, or third-party artifacts, but every concrete value adapter remains compile-time selected and directly referenced. Unknown-object fallback and resource values that cannot survive the fixed JDBC cleanup boundary require an explicit, documented alternative instead of runtime guessing.
 
 Direct support focuses on:
 

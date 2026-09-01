@@ -11,6 +11,9 @@ This index identifies the current source of truth for each project concern. Docu
 - [`agent/project-context.md`](agent/project-context.md): fast repository context for contributors and coding agents.
 - [`agent/engineering-guide.md`](agent/engineering-guide.md): engineering, testing, documentation, and commit conventions.
 - [`agent/tooling.md`](agent/tooling.md): cross-agent rule discovery and the shared non-trivial-work workflow.
+- [`agents/issue-tracker.md`](agents/issue-tracker.md): GitHub Issues conventions for specifications and implementation tickets.
+- [`agents/triage-labels.md`](agents/triage-labels.md): triage role to GitHub label mapping.
+- [`agents/domain.md`](agents/domain.md): rules for consuming `CONTEXT.md` and ADRs.
 
 ## Current Contracts
 
@@ -23,19 +26,17 @@ This index identifies the current source of truth for each project concern. Docu
 ## Architecture Decisions
 
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md): explains why execution outcomes include cleanup but exclude transaction completion.
+- [`adr/0002-select-jdbc-type-mappings-per-mapper-package.md`](adr/0002-select-jdbc-type-mappings-per-mapper-package.md): explains compile-time database-family mapping selection without a runtime registry.
 
 ## Active Roadmap
 
-- [`superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md`](superpowers/specs/2026-08-17-liteorm-adoption-roadmap-design.md): approved roadmap design.
-- [`superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md`](superpowers/specs/2026-08-24-jdbc-outcome-compiler-failure-semantics.md): refined specification for final JDBC outcomes and deterministic compiler rejection.
-- [`superpowers/specs/2026-08-31-testcontainers-database-test-matrix-design.md`](superpowers/specs/2026-08-31-testcontainers-database-test-matrix-design.md): PostgreSQL/MySQL functional-test matrix with H2 retained only for benchmarks.
-- [`superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md`](superpowers/plans/2026-08-17-liteorm-adoption-roadmap.md): active implementation plan.
+- [`roadmap.md`](roadmap.md): strategic delivery order and compatibility priorities. GitHub Issues own specifications and implementation status.
 
 ## Documentation Lifecycle
 
 - Contracts describe behavior users and modules may rely on.
 - Guides explain how to use or migrate to those contracts.
 - Benchmarks record reproducible evidence and its limits.
-- Active plans describe unfinished work and may use English or Chinese.
+- GitHub Issues describe unfinished specifications, tickets, dependencies, and delivery state.
 - Completed plans and superseded architecture snapshots are deleted; Git history preserves them.
 - Every new document must be linked from this index or from a module README with a clear owner.
