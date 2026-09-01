@@ -65,6 +65,28 @@ Generated `*MapperImpl` classes:
 - contain native Java dynamic SQL, binding, and result mapping;
 - contain no Spring annotations, runtime Mapper proxy, reflection-based dispatch, runtime XML parser, or runtime expression engine.
 
+Every package that directly contains a Mapper selects one JDBC mapping collection at compilation. A minimal collection may rely entirely on the built-in mappings:
+
+```java
+package com.example.user.mapper;
+
+import org.liteorm.api.JdbcTypeMappings;
+
+public final class ApplicationJdbcTypeMappings implements JdbcTypeMappings {
+}
+```
+
+Select it from the same package's `package-info.java`:
+
+```java
+@UseJdbcTypeMappings(ApplicationJdbcTypeMappings.class)
+package com.example.user.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+```
+
+The generated Mapper exposes this stable selection through `JdbcTypeMappingsMetadata` while retaining its single `SqlExecutor` constructor. Custom `@JdbcTypeMapping` declarations are validated and wired into generated binding and supported scalar result reading without runtime lookup.
+
 `LiteOrmProcessor` is the only public type in `org.liteorm.compile`. Parser, AST, compilation-model, and code-generator types are internal implementation details rather than application extension APIs.
 
 The core compatibility suite runs the same generated Mapper, local transaction, batch, cursor, timeout, temporal, identifier, binary, and generated-key contracts against pinned PostgreSQL 16.4 and MySQL 8.4.0 containers. Generated keys name their column explicitly so JDBC requests only that column on drivers such as PostgreSQL that otherwise return the inserted row.

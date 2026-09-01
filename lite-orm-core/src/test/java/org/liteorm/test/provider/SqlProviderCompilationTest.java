@@ -198,7 +198,8 @@ class SqlProviderCompilationTest {
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
-            var units = manager.getJavaFileObjectsFromPaths(List.of(file));
+            var units = manager.getJavaFileObjectsFromPaths(
+                org.liteorm.test.MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(file)));
             var task = compiler.getTask(null, manager, diagnostics, List.of("--release", "21", "-classpath",
                 System.getProperty("java.class.path"), "-d", classes.toString(), "-s", generated.toString()), null, units);
             task.setProcessors(List.of(new LiteOrmProcessor()));

@@ -47,7 +47,31 @@ mvn -DskipTests install
 </plugin>
 ```
 
-### 2. 定义结果类型和 Mapper
+### 2. 选择 Mapper 包的 JDBC 类型映射
+
+每个直接包含 Mapper 的包都必须在自己的 `package-info.java` 中选择一个 JDBC 类型映射集合。最小集合可以完全沿用内建映射：
+
+```java
+package com.example.user.mapper;
+
+import org.liteorm.api.JdbcTypeMappings;
+
+public final class ApplicationJdbcTypeMappings implements JdbcTypeMappings {
+}
+```
+
+在同包的 `package-info.java` 中选择它：
+
+```java
+@UseJdbcTypeMappings(ApplicationJdbcTypeMappings.class)
+package com.example.user.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+```
+
+选择只作用于当前包，不从父包或子包继承。生成 Mapper 通过 `JdbcTypeMappingsMetadata` 暴露稳定的集合类型，但构造器仍然只接收一个 `SqlExecutor`。
+
+### 3. 定义结果类型和 Mapper
 
 ```java
 package com.example.user.mapper;
@@ -89,7 +113,7 @@ target/generated-sources/annotations/com/example/user/mapper/UserMapperImpl.java
 
 `UserMapperImpl` 是普通 Java 类，直接实现 `UserMapper`，构造器只接收一个 `SqlExecutor`。生成类不包含 `@Component`、`@Autowired` 或其他 Spring 注解。
 
-### 3. 显式绑定 Mapper 包和 DataSource
+### 4. 显式绑定 Mapper 包和 DataSource
 
 ```yaml
 lite-orm:
@@ -104,7 +128,7 @@ lite-orm:
 
 Starter 会扫描该包中的生成实现，使用 Mapper 接口的默认 JavaBeans 名称注册 Bean。例如 `UserMapper` 注册为 `userMapper`，`URLMapper` 保持为 `URLMapper`。
 
-### 4. 注入并调用 Mapper
+### 5. 注入并调用 Mapper
 
 ```java
 @Service

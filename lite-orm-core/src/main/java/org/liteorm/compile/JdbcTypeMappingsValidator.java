@@ -50,8 +50,27 @@ final class JdbcTypeMappingsValidator {
 
     void validate(RoundEnvironment roundEnvironment) {
         for (TypeElement mappingsElement : mappingCollections(roundEnvironment)) {
-            validateCollection(mappingsElement);
+            ValidationResult result = inspect(mappingsElement);
+            for (ValidationProblem problem : result.problems()) {
+                if (problem.annotation() == null) {
+                    messager.printMessage(Diagnostic.Kind.ERROR, problem.message(), mappingsElement);
+                } else if (problem.value() == null) {
+                    messager.printMessage(
+                        Diagnostic.Kind.ERROR, problem.message(), mappingsElement, problem.annotation());
+                } else {
+                    messager.printMessage(
+                        Diagnostic.Kind.ERROR, problem.message(), mappingsElement,
+                        problem.annotation(), problem.value());
+                }
+            }
         }
+    }
+
+    ValidationResult inspect(TypeElement mappingsElement) {
+        List<ValidationProblem> problems = new ArrayList<>();
+        List<MappingDeclaration> declarations = new ArrayList<>();
+        validateCollection(mappingsElement, declarations, problems);
+        return new ValidationResult(List.copyOf(declarations), List.copyOf(problems));
     }
 
     private Set<TypeElement> mappingCollections(RoundEnvironment roundEnvironment) {
@@ -73,30 +92,38 @@ final class JdbcTypeMappingsValidator {
             .forEach(collections::add);
     }
 
-    private void validateCollection(TypeElement mappingsElement) {
+    private void validateCollection(
+            TypeElement mappingsElement,
+            List<MappingDeclaration> declarations,
+            List<ValidationProblem> problems) {
         String mappingsName = mappingsElement.getQualifiedName().toString();
         if (!types.isAssignable(types.erasure(mappingsElement.asType()), types.erasure(mappingsType))) {
-            error(mappingsElement, mappingsName + " must implement JdbcTypeMappings");
+            problems.add(new ValidationProblem(
+                null, null, mappingsName + " must implement JdbcTypeMappings"));
             return;
         }
         if (!mappingsElement.getModifiers().contains(Modifier.PUBLIC)
                 || !mappingsElement.getModifiers().contains(Modifier.FINAL)) {
-            error(mappingsElement, mappingsName + " must be a public final JDBC type mappings class");
+            problems.add(new ValidationProblem(
+                null, null, mappingsName + " must be a public final JDBC type mappings class"));
         }
         if (!hasPublicEnclosingTypes(mappingsElement)) {
-            error(mappingsElement, mappingsName
-                + " JDBC type mappings class must be enclosed only by public types");
+            problems.add(new ValidationProblem(null, null, mappingsName
+                + " JDBC type mappings class must be enclosed only by public types"));
         }
         Set<String> declaredMappings = new LinkedHashSet<>();
         for (AnnotationMirror mapping : mappingAnnotations(mappingsElement)) {
             TypeMirror javaType = typeValue(mapping, "javaType");
             String jdbcType = enumValue(mapping, "jdbcType");
+            TypeMirror adapterType = typeValue(mapping, "adapter");
+            declarations.add(new MappingDeclaration(javaType, jdbcType, adapterType));
             String mappingKey = javaType + " + " + jdbcType;
             if (!declaredMappings.add(mappingKey)) {
-                error(mappingsElement, mapping, "duplicate JDBC type mapping for " + mappingKey);
+                problems.add(new ValidationProblem(
+                    mapping, null, "duplicate JDBC type mapping for " + mappingKey));
                 continue;
             }
-            validateMapping(mappingsElement, mapping);
+            validateMapping(mapping, problems);
         }
     }
 
@@ -121,35 +148,40 @@ final class JdbcTypeMappingsValidator {
         return mappings;
     }
 
-    private void validateMapping(TypeElement mappingsElement, AnnotationMirror mapping) {
+    private void validateMapping(AnnotationMirror mapping, List<ValidationProblem> problems) {
         TypeMirror javaType = typeValue(mapping, "javaType");
         TypeMirror declaredAdapterType = typeValue(mapping, "adapter");
         if (javaType == null || declaredAdapterType == null) {
-            error(mappingsElement, mapping, "JDBC type mapping must declare javaType and adapter");
+            problems.add(new ValidationProblem(
+                mapping, null, "JDBC type mapping must declare javaType and adapter"));
             return;
         }
         TypeElement adapterElement = (TypeElement) types.asElement(declaredAdapterType);
         if (adapterElement == null
                 || !types.isAssignable(types.erasure(declaredAdapterType), types.erasure(adapterType))) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " must implement JdbcValueAdapter");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " must implement JdbcValueAdapter"));
             return;
         }
         if (!adapterElement.getModifiers().contains(Modifier.PUBLIC)
                 || adapterElement.getModifiers().contains(Modifier.ABSTRACT)) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " must be a public concrete JDBC value adapter");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " must be a public concrete JDBC value adapter"));
             return;
         }
         if (!hasPublicEnclosingTypes(adapterElement)) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " must be enclosed only by public types");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " must be enclosed only by public types"));
             return;
         }
         if (adapterElement.getNestingKind() == NestingKind.MEMBER
                 && !adapterElement.getModifiers().contains(Modifier.STATIC)) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " nested JDBC value adapter must be static");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " nested JDBC value adapter must be static"));
             return;
         }
         boolean hasPublicNoArgConstructor = adapterElement.getEnclosedElements().stream()
@@ -158,19 +190,23 @@ final class JdbcTypeMappingsValidator {
             .anyMatch(constructor -> constructor.getParameters().isEmpty()
                 && constructor.getModifiers().contains(Modifier.PUBLIC));
         if (!hasPublicNoArgConstructor) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " must declare a public no-argument constructor");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " must declare a public no-argument constructor"));
             return;
         }
         TypeMirror targetType = adapterTarget(declaredAdapterType);
         if (targetType == null || !isConcreteType(targetType)) {
-            error(mappingsElement, mapping, "adapter",
-                declaredAdapterType + " must declare a concrete JdbcValueAdapter target type");
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                declaredAdapterType + " must declare a concrete JdbcValueAdapter target type"));
             return;
         }
         if (!types.isSameType(types.erasure(javaType), types.erasure(targetType))) {
-            error(mappingsElement, mapping, "adapter", "JDBC value adapter target type " + targetType
-                + " does not match declared Java type " + javaType);
+            problems.add(new ValidationProblem(
+                mapping, value(mapping, "adapter"),
+                "JDBC value adapter target type " + targetType
+                    + " does not match declared Java type " + javaType));
         }
     }
 
@@ -231,15 +267,19 @@ final class JdbcTypeMappingsValidator {
         return null;
     }
 
-    private void error(Element element, String message) {
-        messager.printMessage(Diagnostic.Kind.ERROR, message, element);
+    record ValidationResult(
+        List<MappingDeclaration> declarations,
+        List<ValidationProblem> problems
+    ) {
     }
 
-    private void error(Element element, AnnotationMirror annotation, String message) {
-        messager.printMessage(Diagnostic.Kind.ERROR, message, element, annotation);
+    record MappingDeclaration(TypeMirror javaType, String jdbcType, TypeMirror adapterType) {
     }
 
-    private void error(Element element, AnnotationMirror annotation, String memberName, String message) {
-        messager.printMessage(Diagnostic.Kind.ERROR, message, element, annotation, value(annotation, memberName));
+    record ValidationProblem(
+        AnnotationMirror annotation,
+        AnnotationValue value,
+        String message
+    ) {
     }
 }

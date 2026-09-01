@@ -198,7 +198,8 @@ class GeneratedKeyCompilationTest {
         boolean succeeded;
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
-            Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromPaths(List.of(sourceFile));
+            Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromPaths(
+                MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(sourceFile)));
             List<String> options = List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

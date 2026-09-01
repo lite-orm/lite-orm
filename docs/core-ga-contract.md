@@ -83,7 +83,29 @@ Column labels are matched case-insensitively. `@Column` or XML result metadata m
 
 Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at compilation, instantiated once per generated Mapper instance, and invoked directly without reflection dispatch. They must be stateless, thread-safe, or externally synchronized.
 
-### 2.5 Built-In JDBC Types
+### 2.5 Mapper-Package JDBC Type Mappings
+
+Every package that directly contains a Mapper must declare exactly one `@UseJdbcTypeMappings` selection in that package's `package-info.java`. Selection is exact-package only: parent-package inheritance, child-package inheritance, Mapper-level overrides, compiler profiles, classpath auto-detection, registries, reflection lookup, and `ServiceLoader` discovery are not supported.
+
+The selected public final `JdbcTypeMappings` collection and every declared `JdbcValueAdapter<T>` are resolved and validated during compilation, whether supplied as current sources or ordinary dependencies. A generated Mapper:
+
+- still exposes only its public `SqlExecutor` constructor;
+- exposes the stable selected collection class through `JdbcTypeMappingsMetadata`;
+- creates at most one instance of each selected adapter it uses and reuses that instance;
+- binds null with the resolved `JDBCType` vendor number;
+- calls `setNonNull` directly for non-null selected parameters;
+- calls `getNullable` directly for supported selected scalar results.
+
+Adapters reused by generated Mapper instances must be stateless, thread-safe, or externally synchronized. Java types without one uniquely selected declaration continue through the built-in mapping contract. The complete Java-type and `JDBCType` resolution policy is owned by the JDBC type compatibility work rather than package selection.
+
+The package selection contract is verified by:
+
+```bash
+mvn -pl lite-orm-core -am -Dtest=JdbcTypeMappingsSelectionCompilationTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+### 2.6 Built-In JDBC Types
 
 Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum values, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
 
@@ -106,7 +128,7 @@ mvn -pl lite-orm-core -am -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTes
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-### 2.6 Generated Keys
+### 2.7 Generated Keys
 
 Generated keys require all of the following:
 
@@ -118,7 +140,7 @@ Generated keys require all of the following:
 
 Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. LiteORM prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
 
-### 2.7 Statement Options And Pagination
+### 2.8 Statement Options And Pagination
 
 `StatementOptions` supports JDBC query timeout, fetch size, and max rows on an `ExecutionPlan` or `BatchExecutionPlan`:
 
@@ -130,7 +152,7 @@ Generated Mapper methods currently emit default statement options; there is no M
 
 `maxRows` is a JDBC safety ceiling, not pagination. Real pagination must place dynamic limit/offset or equivalent dialect SQL in the final SQL text so the database performs bounded work.
 
-### 2.8 Compile-Time Rejection
+### 2.9 Compile-Time Rejection
 
 Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation or plain-text SQL. Diagnostics are attached to the Mapper method when javac can represent the location and include stable Mapper, resolved-method, source, and resource context known without guessing. One Mapper stops after its first deterministic rejection, while independent Mapper interfaces continue processing in the same javac invocation.
 

@@ -31,7 +31,8 @@ import java.util.Set;
 @SupportedAnnotationTypes({
     "org.liteorm.annotation.Mapper",
     "org.liteorm.annotation.JdbcTypeMapping",
-    "org.liteorm.annotation.JdbcTypeMapping.List"
+    "org.liteorm.annotation.JdbcTypeMapping.List",
+    "org.liteorm.annotation.UseJdbcTypeMappings"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class LiteOrmProcessor extends AbstractProcessor {
