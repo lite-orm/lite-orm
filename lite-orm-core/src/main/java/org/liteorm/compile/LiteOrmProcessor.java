@@ -29,7 +29,9 @@ import java.util.Set;
  * @since 2024/09/29
  */
 @SupportedAnnotationTypes({
-    "org.liteorm.annotation.Mapper"
+    "org.liteorm.annotation.Mapper",
+    "org.liteorm.annotation.JdbcTypeMapping",
+    "org.liteorm.annotation.JdbcTypeMapping.List"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class LiteOrmProcessor extends AbstractProcessor {
@@ -40,6 +42,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
     private Types typeUtils;
     
     private CompilePipeline compilePipeline;
+    private JdbcTypeMappingsValidator jdbcTypeMappingsValidator;
     
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -50,6 +53,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
         this.typeUtils = processingEnv.getTypeUtils();
         
         this.compilePipeline = new CompilePipeline(elementUtils, typeUtils, messager, filer);
+        this.jdbcTypeMappingsValidator = new JdbcTypeMappingsValidator(elementUtils, typeUtils, messager);
         
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processor initialized");
     }
@@ -63,6 +67,7 @@ public class LiteOrmProcessor extends AbstractProcessor {
         messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing started...");
         
         try {
+            jdbcTypeMappingsValidator.validate(roundEnv);
             processMapperAnnotations(roundEnv);
             messager.printMessage(Diagnostic.Kind.NOTE, "LiteORM Processing completed");
         } catch (RuntimeException exception) {

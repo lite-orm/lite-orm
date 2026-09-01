@@ -94,6 +94,19 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 - Null values bypass the custom binder and bind SQL `NULL`.
 - Dynamic SQL carries generated binder slots aligned with emitted parameters. Providers carry binder metadata through typed `BoundParameter` values.
 
+## JDBC Type Mappings
+
+A `JdbcTypeMappings` implementation declares the Java-to-JDBC value mappings for one database family. Each repeatable `@JdbcTypeMapping` entry identifies one Java type, one `JDBCType`, and one concrete `JdbcValueAdapter<T>`.
+
+- A mapping collection is a public final class that implements `JdbcTypeMappings`.
+- An adapter is public, concrete, independently constructible, and generic for the declared Java type.
+- Nested adapters are static and expose a public no-argument constructor.
+- Adapter instances are reused by generated Mappers and must be thread-safe.
+- LiteORM owns null parameter binding; `JdbcValueAdapter.setNonNull` receives only non-null values.
+- `JdbcValueAdapter.getNullable` reads one column from the current result row while JDBC resources remain active.
+- Duplicate Java-type and JDBC-type declarations fail compilation.
+- Mapping collections are declarative metadata and never use runtime discovery or a mutable registry.
+
 ## Row Mapper
 
 Use `@UseRowMapper` on a query method with a concrete `RowMapper<T>`.
