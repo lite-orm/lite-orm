@@ -24,7 +24,7 @@ forbidden_dependencies=(
 )
 
 for dependency in "${forbidden_dependencies[@]}"; do
-  if rg -F "$dependency" "$report_file" >/dev/null; then
+  if grep -F "$dependency" "$report_file" >/dev/null; then
     echo "Forbidden PostgreSQL types runtime dependency: $dependency" >&2
     exit 1
   fi
@@ -34,7 +34,11 @@ artifact_name="$(mvn --quiet -pl lite-orm-postgresql-types \
   help:evaluate -Dexpression=project.build.finalName -DforceStdout)"
 jar_file="lite-orm-postgresql-types/target/${artifact_name}.jar"
 if [[ ! -f "$jar_file" ]]; then
-  mvn --batch-mode --no-transfer-progress -pl lite-orm-postgresql-types -DskipTests package
+  mvn --batch-mode --no-transfer-progress \
+    -pl lite-orm-postgresql-types \
+    -am \
+    -DskipTests \
+    package
 fi
 
 jar_listing="$(jar tf "$jar_file")"
