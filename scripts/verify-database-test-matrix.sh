@@ -9,6 +9,10 @@ suites=(
   org.liteorm.test.database.MySqlCoreConcurrencySoakTest
   org.liteorm.test.multidatasource.PostgresMultiDataSourceExecutionTest
   org.liteorm.test.multidatasource.MySqlMultiDataSourceExecutionTest
+  org.liteorm.types.postgresql.PostgreSqlUuidMappingTest
+  org.liteorm.types.postgresql.PostgreSqlLocalTimeMappingTest
+  org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeMappingTest
+  org.liteorm.types.postgresql.PostgreSqlCompositeMappingTest
   org.liteorm.spring.boot.PostgresPackageDataSourceExecutionTest
   org.liteorm.spring.boot.MySqlPackageDataSourceExecutionTest
   org.liteorm.spring.boot.PostgresLiteOrmAutoConfigurationTest

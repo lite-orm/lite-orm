@@ -122,6 +122,18 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 
 When a selected collection does not uniquely declare a mapping for a Java type, the existing built-in mapping contract remains in effect. The complete Java-type and `JDBCType` resolution policy is tracked separately from package selection.
 
+PostgreSQL applications can use the official `lite-orm-postgresql-types` artifact and select its collection explicitly:
+
+```java
+@UseJdbcTypeMappings(PostgreSqlJdbcTypeMappings.class)
+package com.example.postgresql.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+import org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings;
+```
+
+The application supplies the PostgreSQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-ga-contract.md#26-official-postgresql-type-mappings) owns the supported mapping set and exact semantic guarantees.
+
 ## Row Mapper
 
 Use `@UseRowMapper` on a query method with a concrete `RowMapper<T>`.
