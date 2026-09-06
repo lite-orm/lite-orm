@@ -134,6 +134,18 @@ import org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings;
 
 The application supplies the PostgreSQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-ga-contract.md#26-official-postgresql-type-mappings) owns the supported mapping set and exact semantic guarantees.
 
+MySQL applications can use the official `lite-orm-mysql-types` artifact and select its collection explicitly:
+
+```java
+@UseJdbcTypeMappings(MySqlJdbcTypeMappings.class)
+package com.example.mysql.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+import org.liteorm.types.mysql.MySqlJdbcTypeMappings;
+```
+
+The application supplies the MySQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-ga-contract.md#27-official-mysql-type-mappings) owns the supported mapping set and exact semantic guarantees.
+
 ## Row Mapper
 
 Use `@UseRowMapper` on a query method with a concrete `RowMapper<T>`.

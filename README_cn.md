@@ -73,6 +73,8 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 
 PostgreSQL 应用可以添加 `lite-orm-postgresql-types` 依赖，并在每个 PostgreSQL Mapper 包的 `package-info.java` 中显式选择 `PostgreSqlJdbcTypeMappings`。该官方集合当前覆盖原生 UUID、`LocalTime` 和 `OffsetDateTime`；应用仍需自行提供 PostgreSQL JDBC 驱动。LiteORM 不会根据类路径自动发现该集合，也不会通过运行期注册表选择适配器。精确的 JDBC 类型和语义保证见 [Core GA 契约](docs/core-ga-contract.md#26-official-postgresql-type-mappings)，使用方式见[模块说明](lite-orm-postgresql-types/README.md)。
 
+MySQL 应用可以添加 `lite-orm-mysql-types` 依赖，并在每个 MySQL Mapper 包的 `package-info.java` 中显式选择 `MySqlJdbcTypeMappings`。该官方集合覆盖使用 `CHAR(36)` 的 UUID、`LocalTime` 和保持瞬时时间点的 `OffsetDateTime`；应用仍需自行提供 MySQL JDBC 驱动。使用方式见[模块说明](lite-orm-mysql-types/README.md)。
+
 ### 3. 定义结果类型和 Mapper
 
 ```java

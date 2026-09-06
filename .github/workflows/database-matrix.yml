@@ -20,3 +20,5 @@ jobs:
         run: scripts/verify-database-test-matrix.sh
       - name: Verify PostgreSQL types artifact boundaries
         run: scripts/verify-postgresql-types-dependencies.sh
+      - name: Verify MySQL types artifact boundaries
+        run: scripts/verify-mysql-types-dependencies.sh

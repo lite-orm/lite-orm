@@ -129,7 +129,31 @@ mvn -pl lite-orm-examples/basic-mapper -am \
 scripts/verify-postgresql-types-dependencies.sh
 ```
 
-### 2.7 Built-In JDBC Types
+### 2.7 Official MySQL Type Mappings
+
+`lite-orm-mysql-types` is the official MySQL mapping artifact. Applications add it alongside Core, provide their chosen MySQL JDBC driver, and explicitly select `MySqlJdbcTypeMappings` from every package that directly contains MySQL Mappers. Adding the artifact to the classpath alone has no effect.
+
+The current collection declares exactly these mappings:
+
+| Java type | JDBC type | MySQL representation | Guaranteed semantics |
+| --- | --- | --- | --- |
+| `UUID` | `CHAR` | `CHAR(36)` | The canonical UUID value and null are preserved. `BINARY(16)` remains an explicit custom mapping. |
+| `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
+| `OffsetDateTime` | `TIMESTAMP` | `timestamp(p)` | The represented instant and column precision are preserved. The original offset is not preserved; normal MySQL connection and session time-zone conversion applies. |
+
+The collection and adapters are ordinary compile-time dependencies. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Remaining deterministic non-resource types and complete Java-type/JDBC-type resolution belong to the follow-up compatibility contract. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+
+The artifact contract is verified by:
+
+```bash
+mvn -pl lite-orm-mysql-types -am test
+mvn -pl lite-orm-examples/basic-mapper -am \
+  -Dtest=MySqlTypesArtifactConsumptionTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+scripts/verify-mysql-types-dependencies.sh
+```
+
+### 2.8 Built-In JDBC Types
 
 Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum values, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
 

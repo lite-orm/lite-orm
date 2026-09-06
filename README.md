@@ -90,6 +90,8 @@ The generated Mapper exposes this stable selection through `JdbcTypeMappingsMeta
 
 PostgreSQL applications may depend on `lite-orm-postgresql-types` and select `PostgreSqlJdbcTypeMappings` directly from each PostgreSQL Mapper package's `package-info.java`. The official collection currently covers native UUID, `LocalTime`, and `OffsetDateTime`; applications still provide the PostgreSQL JDBC driver. Selection is explicit and compile-time only, with no classpath auto-discovery or runtime registry. See the [module guide](lite-orm-postgresql-types/README.md).
 
+MySQL applications may depend on `lite-orm-mysql-types` and select `MySqlJdbcTypeMappings` directly from each MySQL Mapper package's `package-info.java`. The official collection covers UUID as `CHAR(36)`, `LocalTime`, and instant-preserving `OffsetDateTime`; applications still provide the MySQL JDBC driver. See the [module guide](lite-orm-mysql-types/README.md).
+
 `LiteOrmProcessor` is the only public type in `org.liteorm.compile`. Parser, AST, compilation-model, and code-generator types are internal implementation details rather than application extension APIs.
 
 The core compatibility suite runs the same generated Mapper, local transaction, batch, cursor, timeout, temporal, identifier, binary, and generated-key contracts against pinned PostgreSQL 16.4 and MySQL 8.4.0 containers. Generated keys name their column explicitly so JDBC requests only that column on drivers such as PostgreSQL that otherwise return the inserted row.
