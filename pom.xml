@@ -16,6 +16,7 @@
         <module>lite-orm-test-support</module>
         <module>lite-orm-core</module>
         <module>lite-orm-postgresql-types</module>
+        <module>lite-orm-mysql-types</module>
         <module>lite-orm-spring-boot-starter</module>
         <module>lite-orm-examples/basic-mapper</module>
         <module>lite-orm-benchmarks</module>
@@ -52,6 +53,12 @@
             <dependency>
                 <groupId>org.liteorm</groupId>
                 <artifactId>lite-orm-postgresql-types</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.liteorm</groupId>
+                <artifactId>lite-orm-mysql-types</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

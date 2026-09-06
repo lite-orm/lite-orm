@@ -21,6 +21,7 @@ This index identifies the current source of truth for each project concern. Docu
 - [`extensions.md`](extensions.md): Spring binding and typed extension contracts.
 - [`mybatis-compatibility.md`](mybatis-compatibility.md): current MyBatis compatibility boundary.
 - [`migration-guide.md`](migration-guide.md): manual migration guidance.
+- [`../lite-orm-mysql-types/README.md`](../lite-orm-mysql-types/README.md): official MySQL JDBC type mappings usage and verification.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible benchmark baseline and interpretation limits.
 
 ## Architecture Decisions

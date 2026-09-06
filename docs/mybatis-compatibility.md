@@ -13,13 +13,13 @@ Parity is not complete. The remaining deterministic MyBatis categories include:
 - `BigInteger`, boxed-byte arrays, enum ordinal mapping, and legacy JDBC/date values;
 - `OffsetTime`, `Year`, `Month`, `YearMonth`, `ZonedDateTime`, and `JapaneseDate`;
 - national-character, SQLXML, JDBC array, Blob, Clob, stream, and reader handlers;
-- the official MySQL mapping collection and the remaining deterministic Java-type and `JDBCType` resolution policy.
+- the remaining deterministic Java-type and `JDBCType` resolution policy beyond the initial official database collections.
 
 Connection-bound resources require lifecycle-safe semantics. LiteORM closes the result set, statement, and connection handle before a normal Mapper result escapes. Ordinary mappings materialize Blob values as `byte[]`, Clob and SQLXML values as `String`, and JDBC arrays as Java arrays. Streams and readers are consumed through an existing callback-scoped mapping path and never escape after cleanup.
 
 `JdbcTypeMappings` is the database-family collection contract. Repeatable `@JdbcTypeMapping` declarations associate one Java type and JDBC type with one `JdbcValueAdapter` and are validated at compilation. `@UseJdbcTypeMappings` selects exactly one collection from each Mapper package's `package-info.java`; source and dependency-supplied collections use the same validation path. Generated Mappers expose the selected collection through `JdbcTypeMappingsMetadata`, instantiate each used adapter once, and invoke it directly for binding and supported scalar result reading. The design excludes command-line profiles, classpath auto-detection, global registries, ServiceLoader lookup, and Mapper-level overrides.
 
-The official `lite-orm-postgresql-types` artifact supplies `PostgreSqlJdbcTypeMappings` for native UUID, `LocalTime`, and `OffsetDateTime`. Applications select it explicitly per PostgreSQL Mapper package and provide the PostgreSQL JDBC driver. The [Core GA contract](core-ga-contract.md#26-official-postgresql-type-mappings) owns the exact PostgreSQL guarantees. The remaining deterministic handler inventory and complete Java-type/JDBC-type policy, lifecycle-bound values, and the official MySQL collection remain follow-up work.
+The official `lite-orm-postgresql-types` and `lite-orm-mysql-types` artifacts supply database-family mappings for UUID, `LocalTime`, and `OffsetDateTime`. Applications select the matching collection explicitly per Mapper package and provide the database driver. The [Core GA contract](core-ga-contract.md#26-official-postgresql-type-mappings) owns the exact PostgreSQL guarantees and the [MySQL contract](core-ga-contract.md#27-official-mysql-type-mappings) owns the exact MySQL guarantees. The remaining deterministic handler inventory, complete Java-type/JDBC-type policy, and lifecycle-bound values remain follow-up work.
 
 `ObjectTypeHandler` and `UnknownTypeHandler` behavior is deliberately not a parity target. Unsupported values fail compilation with guidance to use an explicit typed extension.
 
