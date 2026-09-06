@@ -29,6 +29,10 @@ Current compiler responsibilities:
 
 Registers generated Mapper implementations, binds Mapper packages to physical DataSources, supplies Spring-aware connection handles, and participates in Spring transactions. It must depend only on runtime core at runtime.
 
+### `lite-orm-postgresql-types`
+
+Provides the official compile-time PostgreSQL mapping collection for UUID, `LocalTime`, and `OffsetDateTime`. Mapper packages select `PostgreSqlJdbcTypeMappings` explicitly. The artifact does not supply the PostgreSQL driver and must not introduce processor, MyBatis, Testcontainers, test-support, discovery, or runtime-registry dependencies.
+
 ### `lite-orm-examples/basic-mapper`
 
 Provides executable annotation/XML, mapping, provider, binder, cursor, transaction, generated-key, batch, and pagination examples.
@@ -76,9 +80,11 @@ Mapper source
 mvn test
 mvn -pl lite-orm-core test
 mvn -pl lite-orm-spring-boot-starter -am test
+mvn -pl lite-orm-postgresql-types -am test
 mvn -pl lite-orm-examples/basic-mapper -am test
 mvn -pl lite-orm-benchmarks -am test
 git diff --check
+scripts/verify-postgresql-types-dependencies.sh
 ```
 
 Database compatibility tests use Docker and may skip locally when Docker is unavailable. Release CI must execute them without skips.

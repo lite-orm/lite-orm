@@ -105,7 +105,31 @@ mvn -pl lite-orm-core -am -Dtest=JdbcTypeMappingsSelectionCompilationTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-### 2.6 Built-In JDBC Types
+### 2.6 Official PostgreSQL Type Mappings
+
+`lite-orm-postgresql-types` is the official PostgreSQL mapping artifact. Applications add it alongside Core, provide their chosen PostgreSQL JDBC driver, and explicitly select `PostgreSqlJdbcTypeMappings` from every package that directly contains PostgreSQL Mappers. Adding the artifact to the classpath alone has no effect.
+
+The current collection declares exactly these mappings:
+
+| Java type | JDBC type | PostgreSQL representation | Guaranteed semantics |
+| --- | --- | --- | --- |
+| `UUID` | `OTHER` | Native `uuid` | The UUID value and null are preserved. |
+| `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
+| `OffsetDateTime` | `TIMESTAMP_WITH_TIMEZONE` | `timestamp(p) with time zone` | The represented instant and column precision are preserved. The original offset is not preserved. |
+
+The collection and adapters are ordinary compile-time dependencies. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Remaining deterministic non-resource types and complete Java-type/JDBC-type resolution belong to the follow-up compatibility contract. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+
+The artifact contract is verified by:
+
+```bash
+mvn -pl lite-orm-postgresql-types -am test
+mvn -pl lite-orm-examples/basic-mapper -am \
+  -Dtest=PostgreSqlTypesArtifactConsumptionTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+scripts/verify-postgresql-types-dependencies.sh
+```
+
+### 2.7 Built-In JDBC Types
 
 Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum values, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
 
@@ -128,7 +152,7 @@ mvn -pl lite-orm-core -am -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTes
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-### 2.7 Generated Keys
+### 2.8 Generated Keys
 
 Generated keys require all of the following:
 
@@ -140,7 +164,7 @@ Generated keys require all of the following:
 
 Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. LiteORM prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
 
-### 2.8 Statement Options And Pagination
+### 2.9 Statement Options And Pagination
 
 `StatementOptions` supports JDBC query timeout, fetch size, and max rows on an `ExecutionPlan` or `BatchExecutionPlan`:
 
@@ -152,7 +176,7 @@ Generated Mapper methods currently emit default statement options; there is no M
 
 `maxRows` is a JDBC safety ceiling, not pagination. Real pagination must place dynamic limit/offset or equivalent dialect SQL in the final SQL text so the database performs bounded work.
 
-### 2.9 Compile-Time Rejection
+### 2.10 Compile-Time Rejection
 
 Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation or plain-text SQL. Diagnostics are attached to the Mapper method when javac can represent the location and include stable Mapper, resolved-method, source, and resource context known without guessing. One Mapper stops after its first deterministic rejection, while independent Mapper interfaces continue processing in the same javac invocation.
 

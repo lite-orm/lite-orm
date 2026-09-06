@@ -9,6 +9,7 @@ The supported first-GA boundary is defined in [Core GA contract](docs/core-ga-co
 ## Modules
 
 - `lite-orm-core`: annotations, annotation processor, SQL/XML compiler, generated Mapper source, execution contracts, standalone JDBC assembly, and local transactions.
+- `lite-orm-postgresql-types`: official compile-time PostgreSQL mappings for UUID, LocalTime, and OffsetDateTime; applications provide the PostgreSQL JDBC driver.
 - `lite-orm-spring-boot-starter`: explicit Mapper-package registration, Spring-aware connection participation, and generated Mapper bean definitions.
 - `lite-orm-examples/basic-mapper`: executable annotation/XML, provider, binder, row-mapper, batch, generated-key, and standalone PostgreSQL/MySQL Testcontainers fixtures.
 - `lite-orm-benchmarks`: JMH comparison of Direct JDBC, generated LiteORM Mappers, and MyBatis; compiled during normal builds but executed only by explicit benchmark commands.
@@ -86,6 +87,8 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 ```
 
 The generated Mapper exposes this stable selection through `JdbcTypeMappingsMetadata` while retaining its single `SqlExecutor` constructor. Custom `@JdbcTypeMapping` declarations are validated and wired into generated binding and supported scalar result reading without runtime lookup.
+
+PostgreSQL applications may depend on `lite-orm-postgresql-types` and select `PostgreSqlJdbcTypeMappings` directly from each PostgreSQL Mapper package's `package-info.java`. The official collection currently covers native UUID, `LocalTime`, and `OffsetDateTime`; applications still provide the PostgreSQL JDBC driver. Selection is explicit and compile-time only, with no classpath auto-discovery or runtime registry. See the [module guide](lite-orm-postgresql-types/README.md).
 
 `LiteOrmProcessor` is the only public type in `org.liteorm.compile`. Parser, AST, compilation-model, and code-generator types are internal implementation details rather than application extension APIs.
 

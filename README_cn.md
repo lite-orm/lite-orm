@@ -71,6 +71,8 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 
 选择只作用于当前包，不从父包或子包继承。生成 Mapper 通过 `JdbcTypeMappingsMetadata` 暴露稳定的集合类型，但构造器仍然只接收一个 `SqlExecutor`。
 
+PostgreSQL 应用可以添加 `lite-orm-postgresql-types` 依赖，并在每个 PostgreSQL Mapper 包的 `package-info.java` 中显式选择 `PostgreSqlJdbcTypeMappings`。该官方集合当前覆盖原生 UUID、`LocalTime` 和 `OffsetDateTime`；应用仍需自行提供 PostgreSQL JDBC 驱动。LiteORM 不会根据类路径自动发现该集合，也不会通过运行期注册表选择适配器。精确的 JDBC 类型和语义保证见 [Core GA 契约](docs/core-ga-contract.md#26-official-postgresql-type-mappings)，使用方式见[模块说明](lite-orm-postgresql-types/README.md)。
+
 ### 3. 定义结果类型和 Mapper
 
 ```java
