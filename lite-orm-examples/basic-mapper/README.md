@@ -22,7 +22,7 @@ Generated sources are written to:
 lite-orm-examples/basic-mapper/target/generated-sources/annotations
 ```
 
-The Mapper package selects `ExampleJdbcTypeMappings` in its `package-info.java`. The generated implementation exposes that stable selection through `JdbcTypeMappingsMetadata`; adapter selection does not use a runtime registry or discovery step.
+The Mapper package selects `ExampleJdbcTypeMappings` in its `package-info.java`. The generated implementation exposes that stable selection through `JdbcTypeMappingsMetadata`; type-handler selection does not use a runtime registry or discovery step.
 
 ## Standalone Assembly
 

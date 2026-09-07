@@ -1,6 +1,6 @@
 package org.liteorm.types.postgresql;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -11,12 +11,12 @@ import java.util.UUID;
 /**
  * Preserves PostgreSQL native UUID values through the JDBC 4.2 object contract.
  */
-public final class PostgreSqlUuidJdbcValueAdapter implements JdbcValueAdapter<UUID> {
+public final class PostgreSqlUuidTypeHandler implements TypeHandler<UUID> {
 
     /**
-     * Creates a stateless UUID adapter.
+     * Creates a stateless UUID type handler.
      */
-    public PostgreSqlUuidJdbcValueAdapter() {
+    public PostgreSqlUuidTypeHandler() {
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class PostgreSqlUuidJdbcValueAdapter implements JdbcValueAdapter<UU
     }
 
     @Override
-    public UUID getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+    public UUID getResult(ResultSet resultSet, int columnIndex) throws SQLException {
         return resultSet.getObject(columnIndex, UUID.class);
     }
 }

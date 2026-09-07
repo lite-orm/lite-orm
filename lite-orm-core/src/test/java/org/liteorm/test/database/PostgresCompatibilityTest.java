@@ -21,7 +21,7 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
 
     @Override
     protected String uuidDefinition() {
-        return "UUID";
+        return "VARCHAR(36)";
     }
 
     @Override

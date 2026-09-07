@@ -203,7 +203,8 @@ final class CompilePipeline {
         return first.javaType() != null
             && second.javaType() != null
             && typeUtils.isSameType(typeUtils.erasure(first.javaType()), typeUtils.erasure(second.javaType()))
-            && first.jdbcType().equals(second.jdbcType());
+            && first.jdbcType().equals(second.jdbcType())
+            && first.vendorTypeName().equalsIgnoreCase(second.vendorTypeName());
     }
 
     private CompileException invalidJdbcTypeMappingsSelection(
@@ -385,11 +386,6 @@ final class CompilePipeline {
         ExecutionPlan.StatementType statementType = providerBinding == null
             ? mapStatementType(sqlInfo.sqlType())
             : providerBinding.statementType();
-        if (declaredResultJdbcType(method) != null
-                && statementType != ExecutionPlan.StatementType.SELECT) {
-            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-                + ": @ResultJdbcType requires a SELECT statement");
-        }
         CursorMethod cursorMethod = analyzeCursorMethod(
             mapperInterface, method, resolvedMethodType, statementType);
 
@@ -417,9 +413,9 @@ final class CompilePipeline {
             }
         }
 
-        AdapterBindings adapterBindings;
+        ExtensionBindings extensionBindings;
         try {
-            adapterBindings = analyzeAdapterBindings(
+            extensionBindings = analyzeExtensionBindings(
                 mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
                 methodParameters, parameterResult.bindings(), jdbcTypeMappings);
             validateJdbcParameterTypes(
@@ -430,17 +426,6 @@ final class CompilePipeline {
                 + mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": "
                 + exception.getMessage(), exception);
         }
-        if (declaredResultJdbcType(method) != null
-                && (cursorMethod != null || adapterBindings.rowMapperFieldName() != null)) {
-            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-                + ": @ResultJdbcType requires a direct scalar result");
-        }
-        adapterBindings = addSelectedResultReader(
-            method, resolvedMethodType, cursorMethod, statementType, adapterBindings, jdbcTypeMappings);
-        adapterBindings = addGeneratedCompositeResultReader(
-            mapperInterface, method, resolvedMethodType, cursorMethod,
-            statementType, adapterBindings, jdbcTypeMappings);
-
         // Build the normalized method model.
         String methodName = method.getSimpleName().toString();
         String returnType = resolvedMethodType.getReturnType().toString();
@@ -455,7 +440,7 @@ final class CompilePipeline {
         if (generatedKey) {
             validateGeneratedKeyMethod(
                 mapperInterface, method, returnType, statementType, sqlInfo, providerBinding,
-                adapterBindings.rowMapperFieldName() != null, generatedKeyColumn);
+                extensionBindings.rowMapperFieldName() != null, generatedKeyColumn);
         }
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
@@ -464,9 +449,13 @@ final class CompilePipeline {
             ? new ResultMapping("", "", List.of())
             : cursorMethod != null
                 ? new ResultMapping("", "", List.of())
-            : adapterBindings.rowMapperFieldName() == null
-                ? generateResultMapping(mapperInterface, method, returnType)
+            : extensionBindings.rowMapperFieldName() == null
+                ? generateResultMapping(mapperInterface, method, returnType, jdbcTypeMappings)
                 : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
+        extensionBindings = addDefaultResultEnumHandlers(
+            resolvedMethodType.getReturnType(), statementType,
+            cursorMethod != null || extensionBindings.rowMapperFieldName() != null,
+            generatedKey, jdbcTypeMappings, extensionBindings);
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -483,14 +472,17 @@ final class CompilePipeline {
             resultMapping.expression(),
             resultMapping.helperCode(),
             resultMapping.columnLabels(),
+            resultRoutingTypes(
+                resolvedMethodType.getReturnType(), statementType,
+                cursorMethod != null || extensionBindings.rowMapperFieldName() != null,
+                generatedKey, jdbcTypeMappings),
             providerBinding == null ? null : providerBinding.providerClassName(),
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
-            adapterBindings.adapterFields(),
-            adapterBindings.jdbcValueAdapterFields(),
-            adapterBindings.jdbcResultReader(),
-            adapterBindings.parameterBinderFields(),
-            adapterBindings.rowMapperFieldName(),
+            extensionBindings.extensionFields(),
+            extensionBindings.typeHandlerFields(),
+            extensionBindings.parameterBinderFields(),
+            extensionBindings.rowMapperFieldName(),
             methodParameters,
             parameterResult.bindings(),
             sqlInfo == null ? null : sqlInfo.astNode(),
@@ -499,15 +491,17 @@ final class CompilePipeline {
         );
     }
 
-    private AdapterBindings analyzeAdapterBindings(
+    private ExtensionBindings analyzeExtensionBindings(
             TypeElement mapperInterface, ExecutableElement method, ExecutableType resolvedMethodType,
             CursorMethod cursorMethod,
             SqlContentParser.SqlParseResult sqlInfo, ProviderBinding providerBinding,
             List<SqlParameterParser.MethodParameter> methodParameters,
             List<SqlParameterParser.ParameterBinding> parameterBindings,
             JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        List<MapperCompilationModel.AdapterField> fields = new ArrayList<>();
-        List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields = new ArrayList<>();
+        List<MapperCompilationModel.ExtensionField> fields = new ArrayList<>();
+        List<MapperCompilationModel.TypeHandlerField> typeHandlerFields = jdbcTypeMappings.declarations().stream()
+            .map(mapping -> typeHandlerField(mapping, jdbcTypeMappings))
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         List<String> binderFields = new ArrayList<>();
         String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
 
@@ -518,7 +512,7 @@ final class CompilePipeline {
                 + ": provider parameter binders require the typed BoundParameter contract");
         }
 
-        java.util.Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters =
+        java.util.Map<VariableElement, MapperCompilationModel.ExtensionField> parameterBinders =
             new java.util.LinkedHashMap<>();
         for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
             if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
@@ -530,16 +524,16 @@ final class CompilePipeline {
             if (annotation == null) {
                 continue;
             }
-            TypeElement binderElement = validateAdapter(
+            TypeElement binderElement = validateExtensionContract(
                 mapperInterface, method, annotationTypeValue(annotation, "value"),
                 "org.liteorm.api.ParameterBinder", resolvedMethodType.getParameterTypes().get(parameterIndex),
-                "parameter binder target type");
+                "parameter binder", "parameter binder target type");
             String fieldName = method.getSimpleName() + capitalize(parameter.getSimpleName().toString())
                 + "ParameterBinder";
-            MapperCompilationModel.AdapterField adapterField = new MapperCompilationModel.AdapterField(
+            MapperCompilationModel.ExtensionField extensionField = new MapperCompilationModel.ExtensionField(
                 binderElement.getQualifiedName().toString(), fieldName);
-            parameterAdapters.put(parameter, adapterField);
-            addAdapterField(fields, binderElement, fieldName);
+            parameterBinders.put(parameter, extensionField);
+            addExtensionField(fields, binderElement, fieldName);
         }
 
         Map<String, TypeMirror> visibleParameterTypes = resolvedParameterTypes(
@@ -551,37 +545,34 @@ final class CompilePipeline {
         }
 
         if (sqlInfo != null && sqlInfo.isDynamic()) {
-            Map<String, MapperCompilationModel.AdapterField> parameterAdaptersByAlias =
-                parameterAdaptersByAlias(method, cursorMethod, methodParameters, parameterAdapters);
+            Map<String, MapperCompilationModel.ExtensionField> parameterBindersByAlias =
+                parameterBindersByAlias(method, cursorMethod, methodParameters, parameterBinders);
             collectDynamicParameterBinders(
-                sqlInfo.astNode(), visibleParameterTypes, parameterAdaptersByAlias,
-                jdbcValueAdapterFields, binderFields, jdbcTypeMappings,
+                sqlInfo.astNode(), visibleParameterTypes, parameterBindersByAlias,
+                typeHandlerFields, binderFields, jdbcTypeMappings,
                 mapperInterface.getQualifiedName() + "." + method.getSimpleName());
         } else {
             for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
                 String root = binding.expression().split("\\.", 2)[0];
                 VariableElement parameter = findMethodParameter(method, methodParameters, root);
-                MapperCompilationModel.AdapterField adapterField = parameterAdapters.get(parameter);
-                if (adapterField != null && binding.expression().contains(".")) {
+                MapperCompilationModel.ExtensionField extensionField = parameterBinders.get(parameter);
+                if (extensionField != null && binding.expression().contains(".")) {
                     throw new CompileException(methodLocation
                         + ": custom parameter binder must bind the whole Mapper parameter, not property "
                         + binding.expression());
                 }
-                if (adapterField != null) {
-                    binderFields.add(adapterField.fieldName());
+                if (extensionField != null) {
+                    binderFields.add(extensionField.fieldName());
                     continue;
                 }
                 TypeMirror parameterType = resolveParameterExpressionType(
                     binding.expression(), visibleParameterTypes);
-                JdbcTypeMappingsValidator.MappingDeclaration mapping =
-                    selectedMapping(parameterType, binding.jdbcType(), jdbcTypeMappings);
-                MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField =
-                    mapping == null
-                        ? enumJdbcValueAdapterField(parameterType, binding.jdbcType())
-                        : jdbcValueAdapterField(mapping, jdbcTypeMappings);
-                addJdbcValueAdapterField(jdbcValueAdapterFields, jdbcValueAdapterField);
-                binderFields.add(jdbcValueAdapterField == null
-                    ? null : jdbcValueAdapterField.binderFieldName());
+                if (selectedMapping(parameterType, binding.jdbcType(), jdbcTypeMappings) == null) {
+                    addTypeHandlerField(
+                        typeHandlerFields, enumTypeHandlerField(parameterType, binding.jdbcType()));
+                }
+                binderFields.add(routerBinderExpression(
+                    parameterType, binding.jdbcType(), jdbcTypeMappings));
             }
         }
 
@@ -602,30 +593,30 @@ final class CompilePipeline {
             TypeMirror mappedTypeMirror = mappedTypeElement == null
                 ? cursorMethod == null ? resolvedMethodType.getReturnType() : cursorMethod.rowType()
                 : mappedTypeElement.asType();
-            TypeElement rowMapperElement = validateAdapter(
+            TypeElement rowMapperElement = validateExtensionContract(
                 mapperInterface, method, annotationTypeValue(rowMapperAnnotation, "value"),
-                "org.liteorm.api.RowMapper", mappedTypeMirror, "row mapper target type");
+                "org.liteorm.api.RowMapper", mappedTypeMirror,
+                "row mapper", "row mapper target type");
             rowMapperField = method.getSimpleName() + "RowMapper";
-            addAdapterField(fields, rowMapperElement, rowMapperField);
+            addExtensionField(fields, rowMapperElement, rowMapperField);
         }
         if (cursorMethod != null && rowMapperField == null) {
             throw new CompileException(methodLocation + ": cursor methods require @UseRowMapper");
         }
-        return new AdapterBindings(
+        return new ExtensionBindings(
             List.copyOf(fields),
-            List.copyOf(jdbcValueAdapterFields),
-            null,
+            List.copyOf(typeHandlerFields),
             java.util.Collections.unmodifiableList(new ArrayList<>(binderFields)),
             rowMapperField
         );
     }
 
-    private Map<String, MapperCompilationModel.AdapterField> parameterAdaptersByAlias(
+    private Map<String, MapperCompilationModel.ExtensionField> parameterBindersByAlias(
             ExecutableElement method,
             CursorMethod cursorMethod,
             List<SqlParameterParser.MethodParameter> methodParameters,
-            Map<VariableElement, MapperCompilationModel.AdapterField> parameterAdapters) {
-        Map<String, MapperCompilationModel.AdapterField> adaptersByAlias = new LinkedHashMap<>();
+            Map<VariableElement, MapperCompilationModel.ExtensionField> parameterBinders) {
+        Map<String, MapperCompilationModel.ExtensionField> bindersByAlias = new LinkedHashMap<>();
         int executionParameterIndex = 0;
         for (int parameterIndex = 0; parameterIndex < method.getParameters().size(); parameterIndex++) {
             if (cursorMethod != null && cursorMethod.parameterIndex() == parameterIndex) {
@@ -633,19 +624,19 @@ final class CompilePipeline {
             }
             VariableElement parameter = method.getParameters().get(parameterIndex);
             SqlParameterParser.MethodParameter description = methodParameters.get(executionParameterIndex++);
-            MapperCompilationModel.AdapterField adapter = parameterAdapters.get(parameter);
-            if (adapter != null) {
-                description.aliases().forEach(alias -> adaptersByAlias.put(alias, adapter));
+            MapperCompilationModel.ExtensionField binder = parameterBinders.get(parameter);
+            if (binder != null) {
+                description.aliases().forEach(alias -> bindersByAlias.put(alias, binder));
             }
         }
-        return adaptersByAlias;
+        return bindersByAlias;
     }
 
     private void collectDynamicParameterBinders(
             AstNode node,
             Map<String, TypeMirror> visibleTypes,
-            Map<String, MapperCompilationModel.AdapterField> parameterAdapters,
-            List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields,
+            Map<String, MapperCompilationModel.ExtensionField> parameterBinders,
+            List<MapperCompilationModel.TypeHandlerField> typeHandlerFields,
             List<String> binderFields,
             JdbcTypeMappingsSelection jdbcTypeMappings,
             String location) throws CompileException {
@@ -656,58 +647,58 @@ final class CompilePipeline {
                     SqlParameterParser.parseParameterExpression(matcher.group(1));
                 String expression = parameterExpression.expression();
                 String root = expression.split("\\.", 2)[0];
-                MapperCompilationModel.AdapterField parameterAdapter = parameterAdapters.get(root);
-                if (parameterAdapter != null) {
+                MapperCompilationModel.ExtensionField parameterBinder = parameterBinders.get(root);
+                if (parameterBinder != null) {
                     if (expression.contains(".")) {
                         throw new CompileException(location
                             + ": custom parameter binder must bind the whole Mapper parameter, not property "
                             + expression);
                     }
-                    binderFields.add(parameterAdapter.fieldName());
+                    binderFields.add(parameterBinder.fieldName());
                     continue;
                 }
                 TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
-                JdbcTypeMappingsValidator.MappingDeclaration mapping =
-                    selectedMapping(parameterType, parameterExpression.jdbcType(), jdbcTypeMappings);
-                MapperCompilationModel.JdbcValueAdapterField field =
-                    mapping == null
-                        ? enumJdbcValueAdapterField(parameterType, parameterExpression.jdbcType())
-                        : jdbcValueAdapterField(mapping, jdbcTypeMappings);
-                addJdbcValueAdapterField(jdbcValueAdapterFields, field);
-                binderFields.add(field == null ? null : field.binderFieldName());
+                if (selectedMapping(
+                        parameterType, parameterExpression.jdbcType(), jdbcTypeMappings) == null) {
+                    addTypeHandlerField(
+                        typeHandlerFields,
+                        enumTypeHandlerField(parameterType, parameterExpression.jdbcType()));
+                }
+                binderFields.add(routerBinderExpression(
+                    parameterType, parameterExpression.jdbcType(), jdbcTypeMappings));
             }
             return;
         }
         if (node instanceof AstNode.ForeachNode foreachNode) {
             String collectionRoot = foreachNode.collection().split("\\.", 2)[0];
-            if (parameterAdapters.containsKey(collectionRoot)) {
+            if (parameterBinders.containsKey(collectionRoot)) {
                 throw new CompileException(location
                     + ": collection parameter binder cannot bind foreach items; bind item values explicitly");
             }
             TypeMirror collectionType = resolveParameterExpressionType(foreachNode.collection(), visibleTypes);
             Map<String, TypeMirror> foreachTypes = new LinkedHashMap<>(visibleTypes);
             foreachTypes.put(foreachNode.item(), collectionElementType(collectionType));
-            Map<String, MapperCompilationModel.AdapterField> foreachAdapters =
-                new LinkedHashMap<>(parameterAdapters);
-            foreachAdapters.remove(foreachNode.item());
+            Map<String, MapperCompilationModel.ExtensionField> foreachBinders =
+                new LinkedHashMap<>(parameterBinders);
+            foreachBinders.remove(foreachNode.item());
             for (AstNode child : foreachNode.children()) {
                 collectDynamicParameterBinders(
-                    child, foreachTypes, foreachAdapters, jdbcValueAdapterFields,
+                    child, foreachTypes, foreachBinders, typeHandlerFields,
                     binderFields, jdbcTypeMappings, location);
             }
             return;
         }
 
         Map<String, TypeMirror> scopedTypes = new LinkedHashMap<>(visibleTypes);
-        Map<String, MapperCompilationModel.AdapterField> scopedAdapters =
-            new LinkedHashMap<>(parameterAdapters);
+        Map<String, MapperCompilationModel.ExtensionField> scopedBinders =
+            new LinkedHashMap<>(parameterBinders);
         for (AstNode child : node.getChildren()) {
             collectDynamicParameterBinders(
-                child, scopedTypes, scopedAdapters, jdbcValueAdapterFields,
+                child, scopedTypes, scopedBinders, typeHandlerFields,
                 binderFields, jdbcTypeMappings, location);
             if (child instanceof AstNode.BindNode bindNode) {
                 scopedTypes.put(bindNode.name(), null);
-                scopedAdapters.remove(bindNode.name());
+                scopedBinders.remove(bindNode.name());
             }
         }
     }
@@ -723,256 +714,6 @@ final class CompilePipeline {
             }
         }
         return null;
-    }
-
-    private AdapterBindings addSelectedResultReader(
-            ExecutableElement method,
-            ExecutableType resolvedMethodType,
-            CursorMethod cursorMethod,
-            ExecutionPlan.StatementType statementType,
-            AdapterBindings adapterBindings,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        if (statementType != ExecutionPlan.StatementType.SELECT
-                || cursorMethod != null
-                || adapterBindings.rowMapperFieldName() != null) {
-            return adapterBindings;
-        }
-        TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
-        String declaredJdbcType = declaredResultJdbcType(method);
-        JdbcTypeMappingsValidator.MappingDeclaration mapping =
-            selectedMapping(resultType, declaredJdbcType, jdbcTypeMappings);
-        MapperCompilationModel.JdbcValueAdapterField field = mapping == null
-            ? enumJdbcValueAdapterField(resultType, declaredJdbcType)
-            : jdbcValueAdapterField(mapping, jdbcTypeMappings);
-        if (declaredJdbcType != null && field == null) {
-            throw new CompileException(method + ": no JDBC type mapping exists for "
-                + resultType + " + " + declaredJdbcType);
-        }
-        if (field == null) {
-            return adapterBindings;
-        }
-        List<MapperCompilationModel.JdbcValueAdapterField> fields =
-            new ArrayList<>(adapterBindings.jdbcValueAdapterFields());
-        addJdbcValueAdapterField(fields, field);
-        String readerMethodName = "read" + capitalize(method.getSimpleName().toString()) + "Result";
-        return new AdapterBindings(
-            adapterBindings.adapterFields(),
-            List.copyOf(fields),
-            new MapperCompilationModel.JdbcResultReader(
-                resultType.toString(), readerMethodName,
-                "return " + field.fieldName() + ".getNullable(resultSet, 1);\n"),
-            adapterBindings.parameterBinderFields(),
-            "this::" + readerMethodName
-        );
-    }
-
-    private AdapterBindings addGeneratedCompositeResultReader(
-            TypeElement mapperInterface,
-            ExecutableElement method,
-            ExecutableType resolvedMethodType,
-            CursorMethod cursorMethod,
-            ExecutionPlan.StatementType statementType,
-            AdapterBindings adapterBindings,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        if (statementType != ExecutionPlan.StatementType.SELECT
-                || cursorMethod != null
-                || adapterBindings.rowMapperFieldName() != null) {
-            return adapterBindings;
-        }
-        TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
-        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
-        if (resultElement == null) {
-            return adapterBindings;
-        }
-
-        List<MapperCompilationModel.JdbcValueAdapterField> fields =
-            new ArrayList<>(adapterBindings.jdbcValueAdapterFields());
-        GeneratedCompositeReader reader = resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD
-            ? generateRecordJdbcResultReader(
-                mapperInterface, method, resultElement, resultType.toString(), fields, jdbcTypeMappings)
-            : generateJavaBeanJdbcResultReader(
-                mapperInterface, method, resultElement, resultType.toString(), fields, jdbcTypeMappings);
-        if (reader == null) {
-            return adapterBindings;
-        }
-        String readerMethodName = "read" + capitalize(method.getSimpleName().toString()) + "Result";
-        return new AdapterBindings(
-            adapterBindings.adapterFields(),
-            List.copyOf(fields),
-            new MapperCompilationModel.JdbcResultReader(
-                resultType.toString(), readerMethodName, reader.body()),
-            adapterBindings.parameterBinderFields(),
-            "this::" + readerMethodName
-        );
-    }
-
-    private GeneratedCompositeReader generateRecordJdbcResultReader(
-            TypeElement mapperInterface,
-            ExecutableElement mapperMethod,
-            TypeElement resultElement,
-            String resultType,
-            List<MapperCompilationModel.JdbcValueAdapterField> fields,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        List<? extends javax.lang.model.element.RecordComponentElement> components =
-            resultElement.getRecordComponents();
-        List<String> labels = new ArrayList<>(components.size());
-        List<String> values = new ArrayList<>(components.size());
-        boolean usesAdapter = false;
-        for (int index = 0; index < components.size(); index++) {
-            var component = components.get(index);
-            labels.add(resultColumnLabel(component, component.getSimpleName().toString()));
-            MappingValue mappingValue = generatedJdbcResultValue(
-                mapperInterface, mapperMethod,
-                "nested record component " + resultType + "." + component.getSimpleName(),
-                component.asType(), component, index, fields, jdbcTypeMappings);
-            values.add(mappingValue.expression());
-            usesAdapter |= mappingValue.usesAdapter();
-        }
-        if (!usesAdapter) {
-            return null;
-        }
-        String body = generateResultColumnResolution(labels)
-            + "return new " + resultType + "(" + String.join(", ", values) + ");\n";
-        return new GeneratedCompositeReader(body);
-    }
-
-    private GeneratedCompositeReader generateJavaBeanJdbcResultReader(
-            TypeElement mapperInterface,
-            ExecutableElement mapperMethod,
-            TypeElement resultElement,
-            String resultType,
-            List<MapperCompilationModel.JdbcValueAdapterField> fields,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        boolean hasAccessibleNoArgConstructor = resultElement.getEnclosedElements().stream()
-            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
-            .map(ExecutableElement.class::cast)
-            .anyMatch(constructor -> constructor.getParameters().isEmpty()
-                && !constructor.getModifiers().contains(Modifier.PRIVATE));
-        if (!hasAccessibleNoArgConstructor) {
-            return null;
-        }
-        List<VariableElement> beanFields = resultElement.getEnclosedElements().stream()
-            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
-            .map(VariableElement.class::cast)
-            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
-            .toList();
-        if (beanFields.isEmpty()) {
-            return null;
-        }
-
-        List<String> labels = new ArrayList<>(beanFields.size());
-        List<String> assignments = new ArrayList<>(beanFields.size());
-        boolean usesAdapter = false;
-        for (int index = 0; index < beanFields.size(); index++) {
-            VariableElement field = beanFields.get(index);
-            String fieldName = field.getSimpleName().toString();
-            String setterName = "set" + capitalize(fieldName);
-            ExecutableElement setter = resultElement.getEnclosedElements().stream()
-                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
-                .map(ExecutableElement.class::cast)
-                .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
-                .filter(candidate -> candidate.getModifiers().contains(Modifier.PUBLIC))
-                .filter(candidate -> candidate.getParameters().size() == 1)
-                .findFirst()
-                .orElse(null);
-            if (setter == null) {
-                return null;
-            }
-            TypeMirror parameterType = setter.getParameters().getFirst().asType();
-            labels.add(resultColumnLabel(field, fieldName));
-            MappingValue mappingValue = generatedJdbcResultValue(
-                mapperInterface, mapperMethod,
-                "nested object property " + resultType + "." + fieldName,
-                parameterType, field, index, fields, jdbcTypeMappings);
-            assignments.add("mapped." + setterName + "(" + mappingValue.expression() + ");\n");
-            usesAdapter |= mappingValue.usesAdapter();
-        }
-        if (!usesAdapter) {
-            return null;
-        }
-        String body = generateResultColumnResolution(labels)
-            + resultType + " mapped = new " + resultType + "();\n"
-            + String.join("", assignments)
-            + "return mapped;\n";
-        return new GeneratedCompositeReader(body);
-    }
-
-    private MappingValue generatedJdbcResultValue(
-            TypeElement mapperInterface,
-            ExecutableElement mapperMethod,
-            String location,
-            TypeMirror javaType,
-            Element declaration,
-            int columnIndex,
-            List<MapperCompilationModel.JdbcValueAdapterField> fields,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
-        String declaredJdbcType = declaredResultJdbcType(declaration);
-        JdbcTypeMappingsValidator.MappingDeclaration mapping =
-            selectedMapping(javaType, declaredJdbcType, jdbcTypeMappings);
-        if (mapping != null) {
-            MapperCompilationModel.JdbcValueAdapterField adapterField =
-                jdbcValueAdapterField(mapping, jdbcTypeMappings);
-            addJdbcValueAdapterField(fields, adapterField);
-            return new MappingValue(
-                adapterField.fieldName() + ".getNullable(resultSet, resultColumnIndexes["
-                    + columnIndex + "])",
-                true);
-        }
-        String expression = generateValueMapping(
-            javaType.toString(),
-            "resultSet.getObject(resultColumnIndexes[" + columnIndex + "])",
-            declaredJdbcType);
-        if (expression == null) {
-            throw unsupportedResultMapping(
-                mapperInterface, mapperMethod, location + " (" + javaType + ")");
-        }
-        return new MappingValue(expression, false);
-    }
-
-    private String generateResultColumnResolution(List<String> labels) {
-        StringBuilder code = new StringBuilder();
-        code.append("int[] resultColumnIndexes = new int[").append(labels.size()).append("];\n");
-        code.append("java.sql.ResultSetMetaData resultMetadata = resultSet.getMetaData();\n");
-        code.append("for (int columnIndex = 1; columnIndex <= resultMetadata.getColumnCount(); columnIndex++) {\n");
-        code.append("    String columnLabel = resultMetadata.getColumnLabel(columnIndex);\n");
-        code.append("    if (columnLabel == null || columnLabel.isBlank()) {\n");
-        code.append("        columnLabel = resultMetadata.getColumnName(columnIndex);\n");
-        code.append("    }\n");
-        for (int index = 0; index < labels.size(); index++) {
-            String condition = index == 0 ? "if" : "else if";
-            code.append("    ").append(condition).append(" (")
-                .append(javaStringLiteral(labels.get(index))).append(".equalsIgnoreCase(columnLabel)) {\n");
-            code.append("        if (resultColumnIndexes[").append(index).append("] != 0) {\n");
-            code.append("            throw new java.sql.SQLException(")
-                .append(javaStringLiteral("Duplicate result column label: " + labels.get(index)))
-                .append(");\n");
-            code.append("        }\n");
-            code.append("        resultColumnIndexes[").append(index).append("] = columnIndex;\n");
-            code.append("    }\n");
-        }
-        code.append("}\n");
-        for (int index = 0; index < labels.size(); index++) {
-            code.append("if (resultColumnIndexes[").append(index).append("] == 0) {\n");
-            code.append("    throw new java.sql.SQLException(")
-                .append(javaStringLiteral("Required result column is missing: " + labels.get(index)))
-                .append(");\n");
-            code.append("}\n");
-        }
-        return code.toString();
-    }
-
-    private String javaStringLiteral(String value) {
-        return "\"" + value
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t") + "\"";
-    }
-
-    private String declaredResultJdbcType(Element element) {
-        AnnotationMirror annotation = findAnnotation(element, "org.liteorm.annotation.ResultJdbcType");
-        return annotation == null ? null : annotationEnumValue(annotation, "value");
     }
 
     private TypeMirror mappedResultType(TypeMirror returnType) {
@@ -1115,7 +856,7 @@ final class CompilePipeline {
             selectedMapping(parameterType, declaredJdbcType, jdbcTypeMappings);
         if (declaredJdbcType != null
                 && selectedMapping == null
-                && enumJdbcValueAdapterField(parameterType, declaredJdbcType) == null) {
+                && enumTypeHandlerField(parameterType, declaredJdbcType) == null) {
             throw new CompileException(location + ": no JDBC type mapping exists for "
                 + parameterType + " + " + declaredJdbcType);
         }
@@ -1209,30 +950,150 @@ final class CompilePipeline {
             .stream()
             .filter(mapping -> declaredJdbcType == null || declaredJdbcType.equals(mapping.jdbcType()))
             .toList();
-        if (matches.size() == 1 || declaredJdbcType != null) {
-            return matches.size() == 1 ? matches.getFirst() : null;
+        if (declaredJdbcType != null) {
+            return selectParameterMapping(matches);
         }
         String canonicalJdbcType = canonicalJdbcType(javaType, jdbcTypeMappings);
         List<JdbcTypeMappingsValidator.MappingDeclaration> canonicalMatches = matches.stream()
             .filter(mapping -> mapping.jdbcType().equals(canonicalJdbcType))
             .toList();
-        return canonicalMatches.size() == 1 ? canonicalMatches.getFirst() : null;
+        return selectParameterMapping(canonicalMatches);
+    }
+
+    private JdbcTypeMappingsValidator.MappingDeclaration selectParameterMapping(
+            List<JdbcTypeMappingsValidator.MappingDeclaration> matches) {
+        List<JdbcTypeMappingsValidator.MappingDeclaration> genericMatches = matches.stream()
+            .filter(mapping -> mapping.vendorTypeName() == null || mapping.vendorTypeName().isBlank())
+            .toList();
+        if (genericMatches.size() == 1) {
+            return genericMatches.getFirst();
+        }
+        return matches.size() == 1 ? matches.getFirst() : null;
     }
 
     private String canonicalJdbcType(
             TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
         List<JdbcTypeMappingsValidator.MappingDeclaration> baseMatches =
             matchingMappings(javaType, jdbcTypeMappings.baseDeclarations());
-        if (baseMatches.size() == 1) {
-            return baseMatches.getFirst().jdbcType();
+        List<String> baseJdbcTypes = baseMatches.stream()
+            .map(JdbcTypeMappingsValidator.MappingDeclaration::jdbcType)
+            .distinct()
+            .toList();
+        if (baseJdbcTypes.size() == 1) {
+            return baseJdbcTypes.getFirst();
         }
         String standardCanonicalJdbcType = canonicalJdbcType(javaType);
-        long canonicalBaseMatches = baseMatches.stream()
-            .filter(mapping -> mapping.jdbcType().equals(standardCanonicalJdbcType))
-            .count();
-        return canonicalBaseMatches == 1 || baseMatches.isEmpty()
+        return baseJdbcTypes.contains(standardCanonicalJdbcType) || baseJdbcTypes.isEmpty()
             ? standardCanonicalJdbcType
             : null;
+    }
+
+    private String routerBinderExpression(
+            TypeMirror javaType,
+            String declaredJdbcType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        if (javaType == null) {
+            return null;
+        }
+        String jdbcType = declaredJdbcType == null
+            ? canonicalJdbcType(javaType, jdbcTypeMappings) : declaredJdbcType;
+        String jdbcExpression = jdbcType == null
+            ? "null" : "java.sql.JDBCType." + jdbcType;
+        return "jdbcTypeRouter.parameterBinder(" + typeClassLiteral(javaType) + ", "
+            + jdbcExpression + ")";
+    }
+
+    private String typeClassLiteral(TypeMirror type) {
+        return typeUtils.erasure(type) + ".class";
+    }
+
+    private List<String> resultRoutingTypes(
+            TypeMirror declaredReturnType,
+            ExecutionPlan.StatementType statementType,
+            boolean customRowMapper,
+            boolean generatedKey,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        if (customRowMapper || statementType == ExecutionPlan.StatementType.BATCH
+                || statementType == ExecutionPlan.StatementType.UPDATE
+                || statementType == ExecutionPlan.StatementType.DELETE
+                || statementType == ExecutionPlan.StatementType.INSERT && !generatedKey) {
+            return List.of();
+        }
+        TypeMirror resultType = mappedResultType(declaredReturnType);
+        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
+        if (resultElement == null || generateScalarMapping(resultType.toString(), "value") != null
+                || resultElement.getKind() == javax.lang.model.element.ElementKind.ENUM
+                || hasSelectedMapping(resultType, jdbcTypeMappings)) {
+            return List.of(typeClassLiteral(resultType));
+        }
+        if (resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
+            return resultElement.getRecordComponents().stream()
+                .map(component -> typeClassLiteral(component.asType()))
+                .toList();
+        }
+        return resultElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
+            .map(VariableElement.class::cast)
+            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
+            .map(field -> {
+                String fieldName = field.getSimpleName().toString();
+                String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+                return resultElement.getEnclosedElements().stream()
+                    .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
+                    .map(ExecutableElement.class::cast)
+                    .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
+                    .filter(candidate -> candidate.getParameters().size() == 1)
+                    .findFirst()
+                    .map(setter -> typeClassLiteral(setter.getParameters().getFirst().asType()))
+                    .orElse(typeClassLiteral(field.asType()));
+            })
+            .toList();
+    }
+
+    private ExtensionBindings addDefaultResultEnumHandlers(
+            TypeMirror declaredReturnType,
+            ExecutionPlan.StatementType statementType,
+            boolean customRowMapper,
+            boolean generatedKey,
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            ExtensionBindings bindings) {
+        if (customRowMapper || statementType == ExecutionPlan.StatementType.BATCH
+                || statementType == ExecutionPlan.StatementType.UPDATE
+                || statementType == ExecutionPlan.StatementType.DELETE
+                || statementType == ExecutionPlan.StatementType.INSERT && !generatedKey) {
+            return bindings;
+        }
+        List<MapperCompilationModel.TypeHandlerField> fields =
+            new ArrayList<>(bindings.typeHandlerFields());
+        TypeMirror resultType = mappedResultType(declaredReturnType);
+        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
+        if (isEnumType(resultType) && !hasSelectedMapping(resultType, jdbcTypeMappings)) {
+            addEnumHandlers(fields, resultType, jdbcTypeMappings);
+        } else if (resultElement != null
+                && resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
+            resultElement.getRecordComponents().forEach(component ->
+                addEnumHandlers(fields, component.asType(), jdbcTypeMappings));
+        } else if (resultElement != null && generateScalarMapping(resultType.toString(), "value") == null) {
+            resultElement.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
+                .map(VariableElement.class::cast)
+                .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
+                .forEach(field -> addEnumHandlers(fields, field.asType(), jdbcTypeMappings));
+        }
+        return new ExtensionBindings(
+            bindings.extensionFields(), List.copyOf(fields),
+            bindings.parameterBinderFields(), bindings.rowMapperFieldName());
+    }
+
+    private void addEnumHandlers(
+            List<MapperCompilationModel.TypeHandlerField> fields,
+            TypeMirror javaType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        if (!isEnumType(javaType) || hasSelectedMapping(javaType, jdbcTypeMappings)) {
+            return;
+        }
+        addTypeHandlerField(fields, enumTypeHandlerField(javaType, "VARCHAR"));
+        addTypeHandlerField(fields, enumTypeHandlerField(javaType, "INTEGER"));
     }
 
     private String canonicalJdbcType(TypeMirror javaType) {
@@ -1305,49 +1166,53 @@ final class CompilePipeline {
             .toList();
     }
 
-    private MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField(
+    private MapperCompilationModel.TypeHandlerField typeHandlerField(
             JdbcTypeMappingsValidator.MappingDeclaration mapping,
             JdbcTypeMappingsSelection jdbcTypeMappings) {
-        TypeElement adapterElement = (TypeElement) typeUtils.asElement(mapping.adapterType());
+        TypeElement handlerElement = (TypeElement) typeUtils.asElement(mapping.handlerType());
         String javaTypeName = mapping.javaType().toString();
         int declarationId = jdbcTypeMappings.declarations().indexOf(mapping) + 1;
-        return new MapperCompilationModel.JdbcValueAdapterField(
-            adapterElement.getQualifiedName().toString(),
+        return new MapperCompilationModel.TypeHandlerField(
+            handlerElement.getQualifiedName().toString(),
             javaTypeName,
-            "jdbcValueAdapter" + declarationId,
+            "typeHandler" + declarationId,
             "jdbcValueParameterBinder" + declarationId,
             "bindJdbcValue" + declarationId,
             mapping.jdbcType(),
+            mapping.vendorTypeName(),
             null
         );
     }
 
-    private MapperCompilationModel.JdbcValueAdapterField enumJdbcValueAdapterField(
+    private MapperCompilationModel.TypeHandlerField enumTypeHandlerField(
             TypeMirror javaType, String declaredJdbcType) {
         if (!isEnumType(javaType)) {
             return null;
         }
         String jdbcType = declaredJdbcType == null ? "VARCHAR" : declaredJdbcType;
-        String adapterName;
+        String handlerName;
         if ("VARCHAR".equals(jdbcType)) {
-            adapterName = "EnumNameJdbcValueAdapter";
+            handlerName = "EnumNameTypeHandler";
         } else if ("INTEGER".equals(jdbcType)) {
-            adapterName = "EnumOrdinalJdbcValueAdapter";
+            handlerName = "EnumOrdinalTypeHandler";
         } else {
             return null;
         }
         String javaTypeName = javaType.toString();
         String identifier = javaTypeName.replaceAll("[^A-Za-z0-9]", "_") + "_" + jdbcType.toLowerCase();
-        String rawAdapterType = "org.liteorm.jdbc.StandardJdbcTypeMappings." + adapterName;
-        String adapterType = rawAdapterType + "<" + javaTypeName + ">";
-        return new MapperCompilationModel.JdbcValueAdapterField(
-            adapterType,
+        String rawHandlerType = "org.liteorm.jdbc.StandardJdbcTypeMappings." + handlerName;
+        String handlerType = rawHandlerType + "<" + javaTypeName + ">";
+        String constructorArgument = "VARCHAR".equals(jdbcType)
+            ? javaTypeName + "::valueOf" : javaTypeName + ".values()";
+        return new MapperCompilationModel.TypeHandlerField(
+            handlerType,
             javaTypeName,
-            "enumJdbcValueAdapter_" + identifier,
+            "enumTypeHandler_" + identifier,
             "enumJdbcValueParameterBinder_" + identifier,
             "bindEnumJdbcValue_" + identifier,
             jdbcType,
-            "new " + rawAdapterType + "<>(" + javaTypeName + ".class)"
+            null,
+            "new " + rawHandlerType + "<>(" + constructorArgument + ")"
         );
     }
 
@@ -1356,48 +1221,51 @@ final class CompilePipeline {
             && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM;
     }
 
-    private void addJdbcValueAdapterField(
-            List<MapperCompilationModel.JdbcValueAdapterField> fields,
-            MapperCompilationModel.JdbcValueAdapterField field) {
+    private void addTypeHandlerField(
+            List<MapperCompilationModel.TypeHandlerField> fields,
+            MapperCompilationModel.TypeHandlerField field) {
         if (field != null && fields.stream().noneMatch(existing -> existing.fieldName().equals(field.fieldName()))) {
             fields.add(field);
         }
     }
 
-    private TypeElement validateAdapter(
-            TypeElement mapperInterface, ExecutableElement method, TypeMirror adapterType,
-            String interfaceName, TypeMirror expectedTarget, String mismatchLabel) throws CompileException {
-        TypeElement adapterElement = (TypeElement) typeUtils.asElement(adapterType);
+    private TypeElement validateExtensionContract(
+            TypeElement mapperInterface, ExecutableElement method, TypeMirror handlerType,
+            String interfaceName, TypeMirror expectedTarget,
+            String contractName, String mismatchLabel) throws CompileException {
+        TypeElement extensionElement = (TypeElement) typeUtils.asElement(handlerType);
         String location = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
-        if (adapterElement == null) {
-            throw new CompileException(location + ": adapter type could not be resolved");
+        if (extensionElement == null) {
+            throw new CompileException(location + ": " + contractName + " type could not be resolved");
         }
         String mapperPackage = elementUtils.getPackageOf(mapperInterface).getQualifiedName().toString();
         boolean samePackage = mapperPackage.equals(
-            elementUtils.getPackageOf(adapterElement).getQualifiedName().toString());
-        if (adapterElement.getModifiers().contains(Modifier.ABSTRACT)
-                || adapterElement.getModifiers().contains(Modifier.PRIVATE)
-                || (!samePackage && !adapterElement.getModifiers().contains(Modifier.PUBLIC))) {
-            throw new CompileException(location + ": adapter must be a concrete accessible class");
+            elementUtils.getPackageOf(extensionElement).getQualifiedName().toString());
+        if (extensionElement.getModifiers().contains(Modifier.ABSTRACT)
+                || extensionElement.getModifiers().contains(Modifier.PRIVATE)
+                || (!samePackage && !extensionElement.getModifiers().contains(Modifier.PUBLIC))) {
+            throw new CompileException(location + ": " + contractName + " must be a concrete accessible class");
         }
-        boolean hasNoArgConstructor = adapterElement.getEnclosedElements().stream()
+        boolean hasNoArgConstructor = extensionElement.getEnclosedElements().stream()
             .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
             .map(ExecutableElement.class::cast)
             .anyMatch(constructor -> constructor.getParameters().isEmpty()
                 && (constructor.getModifiers().contains(Modifier.PUBLIC)
                     || (samePackage && !constructor.getModifiers().contains(Modifier.PRIVATE))));
         if (!hasNoArgConstructor) {
-            throw new CompileException(location + ": adapter requires an accessible no-arg constructor");
+            throw new CompileException(location + ": " + contractName
+                + " requires an accessible no-arg constructor");
         }
-        TypeMirror actualTarget = findGenericInterfaceInput(adapterElement, interfaceName);
+        TypeMirror actualTarget = findGenericInterfaceInput(extensionElement, interfaceName);
         if (actualTarget == null) {
-            throw new CompileException(location + ": adapter must implement " + interfaceName + "<T>");
+            throw new CompileException(location + ": " + contractName
+                + " must implement " + interfaceName + "<T>");
         }
         if (!typeUtils.isSameType(typeUtils.erasure(actualTarget), typeUtils.erasure(expectedTarget))) {
             throw new CompileException(location + ": " + mismatchLabel + " " + actualTarget
                 + " does not match " + expectedTarget);
         }
-        return adapterElement;
+        return extensionElement;
     }
 
     private TypeMirror findGenericInterfaceInput(TypeElement typeElement, String interfaceName) {
@@ -1417,11 +1285,11 @@ final class CompilePipeline {
         return null;
     }
 
-    private void addAdapterField(
-            List<MapperCompilationModel.AdapterField> fields, TypeElement adapterElement, String fieldName) {
+    private void addExtensionField(
+            List<MapperCompilationModel.ExtensionField> fields, TypeElement extensionElement, String fieldName) {
         if (fields.stream().noneMatch(field -> field.fieldName().equals(fieldName))) {
-            fields.add(new MapperCompilationModel.AdapterField(
-                adapterElement.getQualifiedName().toString(), fieldName));
+            fields.add(new MapperCompilationModel.ExtensionField(
+                extensionElement.getQualifiedName().toString(), fieldName));
         }
     }
 
@@ -1445,10 +1313,9 @@ final class CompilePipeline {
         return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
-    private record AdapterBindings(
-        List<MapperCompilationModel.AdapterField> adapterFields,
-        List<MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields,
-        MapperCompilationModel.JdbcResultReader jdbcResultReader,
+    private record ExtensionBindings(
+        List<MapperCompilationModel.ExtensionField> extensionFields,
+        List<MapperCompilationModel.TypeHandlerField> typeHandlerFields,
         List<String> parameterBinderFields,
         String rowMapperFieldName) {
     }
@@ -1941,14 +1808,18 @@ final class CompilePipeline {
      * Generates result-mapping source.
      */
     private ResultMapping generateResultMapping(
-            TypeElement mapperInterface, ExecutableElement method, String returnType) throws CompileException {
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String returnType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         if (returnType.contains("List<")) {
             String elementType = extractListElementType(returnType);
-            return generateSingleMapping(mapperInterface, method, elementType);
+            return generateSingleMapping(mapperInterface, method, elementType, jdbcTypeMappings);
         } else if (returnType.startsWith("java.util.Optional<")) {
-            return generateSingleMapping(mapperInterface, method, extractOptionalElementType(returnType));
+            return generateSingleMapping(
+                mapperInterface, method, extractOptionalElementType(returnType), jdbcTypeMappings);
         } else if (!returnType.equals("void")) {
-            return generateSingleMapping(mapperInterface, method, returnType);
+            return generateSingleMapping(mapperInterface, method, returnType, jdbcTypeMappings);
         } else {
             return new ResultMapping("", "", List.of());
         }
@@ -1973,7 +1844,10 @@ final class CompilePipeline {
      * Generates mapping source for one result object.
      */
     private ResultMapping generateSingleMapping(
-            TypeElement mapperInterface, ExecutableElement method, String objectType) throws CompileException {
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String objectType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         String scalarMapping = generateValueMapping(objectType, "row[0]");
         if (scalarMapping != null) {
             return new ResultMapping(scalarMapping, "", List.of());
@@ -1985,10 +1859,18 @@ final class CompilePipeline {
         }
 
         if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-            return generateRecordMapping(mapperInterface, method, typeElement, objectType);
+            if (hasSelectedMapping(typeElement.asType(), jdbcTypeMappings)) {
+                return new ResultMapping("(" + objectType + ")row[0]", "", List.of());
+            }
+            return generateRecordMapping(
+                mapperInterface, method, typeElement, objectType, jdbcTypeMappings);
         }
 
-        return generateJavaBeanMapping(mapperInterface, method, typeElement, objectType);
+        if (hasSelectedMapping(typeElement.asType(), jdbcTypeMappings)) {
+            return new ResultMapping("(" + objectType + ")row[0]", "", List.of());
+        }
+        return generateJavaBeanMapping(
+            mapperInterface, method, typeElement, objectType, jdbcTypeMappings);
     }
 
     private String generateScalarMapping(String objectType, String valueExpression) {
@@ -2056,7 +1938,9 @@ final class CompilePipeline {
      */
     private ResultMapping generateRecordMapping(
             TypeElement mapperInterface, ExecutableElement mapperMethod,
-            TypeElement typeElement, String objectType) throws CompileException {
+            TypeElement typeElement,
+            String objectType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         var recordComponents = typeElement.getRecordComponents();
         List<String> columnLabels = new ArrayList<>(recordComponents.size());
         
@@ -2072,8 +1956,10 @@ final class CompilePipeline {
             }
             
             String convertedValue = generateValueMapping(
-                componentType, "row[resultColumnIndexes[" + i + "]]",
-                declaredResultJdbcType(component));
+                componentType, "row[resultColumnIndexes[" + i + "]]");
+            if (convertedValue == null && hasSelectedMapping(component.asType(), jdbcTypeMappings)) {
+                convertedValue = "(" + componentType + ")row[resultColumnIndexes[" + i + "]]";
+            }
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested record component " + objectType + "." + componentName
@@ -2091,7 +1977,9 @@ final class CompilePipeline {
      */
     private ResultMapping generateJavaBeanMapping(
             TypeElement mapperInterface, ExecutableElement mapperMethod,
-            TypeElement typeElement, String objectType) throws CompileException {
+            TypeElement typeElement,
+            String objectType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         boolean hasAccessibleNoArgConstructor = typeElement.getEnclosedElements().stream()
             .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
             .map(ExecutableElement.class::cast)
@@ -2135,8 +2023,11 @@ final class CompilePipeline {
                     objectType + " is missing public setter " + setterName));
             String parameterType = setter.getParameters().get(0).asType().toString();
             String convertedValue = generateValueMapping(
-                parameterType, "row[resultColumnIndexes[" + index + "]]",
-                declaredResultJdbcType(field));
+                parameterType, "row[resultColumnIndexes[" + index + "]]");
+            if (convertedValue == null
+                    && hasSelectedMapping(setter.getParameters().getFirst().asType(), jdbcTypeMappings)) {
+                convertedValue = "(" + parameterType + ")row[resultColumnIndexes[" + index + "]]";
+            }
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");
@@ -2148,6 +2039,11 @@ final class CompilePipeline {
         helper.append("    }\n");
         return new ResultMapping(
             helperName + "(row, resultColumnIndexes)", helper.toString(), List.copyOf(columnLabels));
+    }
+
+    private boolean hasSelectedMapping(
+            TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
+        return !matchingMappings(javaType, jdbcTypeMappings).isEmpty();
     }
 
     private String resultColumnLabel(Element element, String defaultLabel) throws CompileException {
@@ -2169,12 +2065,6 @@ final class CompilePipeline {
     }
 
     private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {
-    }
-
-    private record GeneratedCompositeReader(String body) {
-    }
-
-    private record MappingValue(String expression, boolean usesAdapter) {
     }
 
     private record CursorMethod(

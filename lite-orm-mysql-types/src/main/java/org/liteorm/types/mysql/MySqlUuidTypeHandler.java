@@ -1,6 +1,6 @@
 package org.liteorm.types.mysql;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -11,12 +11,12 @@ import java.util.UUID;
 /**
  * Maps UUID values to MySQL CHAR(36) columns.
  */
-public final class MySqlUuidJdbcValueAdapter implements JdbcValueAdapter<UUID> {
+public final class MySqlUuidTypeHandler implements TypeHandler<UUID> {
 
     /**
-     * Creates a stateless UUID adapter.
+     * Creates a stateless UUID type handler.
      */
-    public MySqlUuidJdbcValueAdapter() {
+    public MySqlUuidTypeHandler() {
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class MySqlUuidJdbcValueAdapter implements JdbcValueAdapter<UUID> {
     }
 
     @Override
-    public UUID getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+    public UUID getResult(ResultSet resultSet, int columnIndex) throws SQLException {
         String value = resultSet.getString(columnIndex);
         return value == null ? null : UUID.fromString(value);
     }

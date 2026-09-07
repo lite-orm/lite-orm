@@ -18,17 +18,18 @@ class PostgreSqlGeneratedSourceTest {
     );
 
     @Test
-    void generatesDirectUuidAdapterReferencesWithoutChangingMapperConstruction() throws Exception {
+    void generatesUuidTypeHandlerRoutingWithoutChangingMapperConstruction() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source, "org.liteorm.types.postgresql.PostgreSqlUuidJdbcValueAdapter");
+        String handler = handlerFieldName(source, "org.liteorm.types.postgresql.PostgreSqlUuidTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.postgresql.PostgreSqlUuidJdbcValueAdapter()"));
+            "new org.liteorm.types.postgresql.PostgreSqlUuidTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.OTHER)"));
+            "JdbcTypeRouter.mapping(java.util.UUID.class, java.sql.JDBCType.OTHER, \"uuid\", "
+                + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, java.sql.JDBCType.OTHER)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
+            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.OTHER)"));
+        assertTrue(source.contains("new Class<?>[]{java.util.UUID.class}, null"));
         assertTrue(source.contains(
             "return org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings.class;"));
         assertEquals(1, occurrences(source, "public PostgreSqlTypesMapperImpl("));
@@ -38,39 +39,38 @@ class PostgreSqlGeneratedSourceTest {
     }
 
     @Test
-    void generatesDirectLocalTimeAdapterReferences() throws Exception {
+    void generatesLocalTimeTypeHandlerRouting() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source,
-            "org.liteorm.types.postgresql.PostgreSqlLocalTimeJdbcValueAdapter");
+        String handler = handlerFieldName(source,
+            "org.liteorm.types.postgresql.PostgreSqlLocalTimeTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.postgresql.PostgreSqlLocalTimeJdbcValueAdapter()"));
+            "new org.liteorm.types.postgresql.PostgreSqlLocalTimeTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.TIME)"));
+            "JdbcTypeRouter.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, java.sql.JDBCType.TIME)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
+            "jdbcTypeRouter.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
     }
 
     @Test
-    void generatesDirectOffsetDateTimeAdapterReferences() throws Exception {
+    void generatesOffsetDateTimeTypeHandlerRouting() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source,
-            "org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeJdbcValueAdapter");
+        String handler = handlerFieldName(source,
+            "org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeJdbcValueAdapter()"));
+            "new org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE)"));
+            "JdbcTypeRouter.mapping(java.time.OffsetDateTime.class, "
+                + "java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, " + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, "
+            "jdbcTypeRouter.parameterBinder(java.time.OffsetDateTime.class, "
                 + "java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
     }
 
-    private String adapterFieldName(String source, String adapterClass) {
-        var matcher = Pattern.compile("(jdbcValueAdapter\\d+) = new "
-            + Pattern.quote(adapterClass) + "\\(\\);").matcher(source);
+    private String handlerFieldName(String source, String handlerClass) {
+        var matcher = Pattern.compile("(typeHandler\\d+) = new "
+            + Pattern.quote(handlerClass) + "\\(\\);").matcher(source);
         assertTrue(matcher.find(), source);
         return matcher.group(1);
     }

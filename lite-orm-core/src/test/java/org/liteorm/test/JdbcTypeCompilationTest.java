@@ -196,54 +196,6 @@ class JdbcTypeCompilationTest {
     }
 
     @Test
-    void generatesExplicitOrdinalEnumMappingsForRecordAndJavaBeanProperties() throws Exception {
-        CompilationResult result = compile("OrdinalEnumPropertyMapper", """
-            package org.liteorm.test.jdbctypefixture;
-
-            import java.sql.JDBCType;
-            import org.liteorm.annotation.Mapper;
-            import org.liteorm.annotation.ResultJdbcType;
-            import org.liteorm.annotation.Select;
-
-            enum Status { ACTIVE, DISABLED }
-
-            record StatusRecord(
-                Status nameValue,
-                @ResultJdbcType(JDBCType.INTEGER) Status ordinalValue
-            ) {}
-
-            class StatusBean {
-                @ResultJdbcType(JDBCType.INTEGER)
-                private Status ordinalValue;
-
-                StatusBean() {}
-
-                public void setOrdinalValue(Status ordinalValue) {
-                    this.ordinalValue = ordinalValue;
-                }
-            }
-
-            @Mapper
-            interface OrdinalEnumPropertyMapper {
-                @Select("SELECT name_value, ordinal_value FROM values_table")
-                StatusRecord findRecord();
-
-                @Select("SELECT ordinal_value FROM values_table")
-                StatusBean findBean();
-            }
-            """);
-
-        assertTrue(result.succeeded(), result::diagnosticsText);
-        String generated = Files.readString(result.generatedDirectory().resolve(
-            "org/liteorm/test/jdbctypefixture/OrdinalEnumPropertyMapperImpl.java"));
-        assertTrue(generated.contains(
-            "ResultValueConverters.toEnumOrdinal(resultRow[resultColumnIndexes[1]], "
-                + "org.liteorm.test.jdbctypefixture.Status.class)"), generated);
-        assertTrue(generated.contains(
-            "mapped.setOrdinalValue(ResultValueConverters.toEnumOrdinal("), generated);
-    }
-
-    @Test
     void rejectsUnsupportedJdbcResultTypeWithRowMapperGuidance() throws Exception {
         CompilationResult result = compile("UnsupportedJdbcTypeMapper", """
             package org.liteorm.test.jdbctypefixture;

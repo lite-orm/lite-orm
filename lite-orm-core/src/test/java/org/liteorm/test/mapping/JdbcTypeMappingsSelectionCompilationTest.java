@@ -168,20 +168,20 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = Money.class,
                         jdbcType = JDBCType.DECIMAL,
-                        adapter = ApplicationMappings.ApplicationMoneyAdapter.class
+                        handler = ApplicationMappings.ApplicationMoneyTypeHandler.class
                     )
                     public final class ApplicationMappings implements JdbcTypeMappings {
-                        public static final class ApplicationMoneyAdapter implements JdbcValueAdapter<Money> {
-                            public ApplicationMoneyAdapter() {}
+                        public static final class ApplicationMoneyTypeHandler implements TypeHandler<Money> {
+                            public ApplicationMoneyTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, Money value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public Money getNullable(ResultSet resultSet, int columnIndex) {
+                            public Money getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
@@ -217,8 +217,8 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/override/OverrideMapperImpl.java"));
-        assertTrue(generated.contains("ApplicationMappings.ApplicationMoneyAdapter()"), generated);
-        assertFalse(generated.contains("BaseMappings.MoneyAdapter()"), generated);
+        assertTrue(generated.contains("ApplicationMappings.ApplicationMoneyTypeHandler()"), generated);
+        assertFalse(generated.contains("BaseMappings.MoneyTypeHandler()"), generated);
     }
 
     @Test
@@ -243,20 +243,20 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = String.class,
                         jdbcType = JDBCType.VARCHAR,
-                        adapter = ApplicationMappings.StringAdapter.class
+                        handler = ApplicationMappings.StringTypeHandler.class
                     )
                     public final class ApplicationMappings implements JdbcTypeMappings {
-                        public static final class StringAdapter implements JdbcValueAdapter<String> {
-                            public StringAdapter() {}
+                        public static final class StringTypeHandler implements TypeHandler<String> {
+                            public StringTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, String value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public String getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                            public String getResult(ResultSet resultSet, int columnIndex) { return null; }
                         }
                     }
                     """),
@@ -281,8 +281,8 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/overrideaddition/OverrideAdditionMapperImpl.java"));
-        assertTrue(generated.contains("BaseMappings.MoneyAdapter()"), generated);
-        assertTrue(generated.contains("ApplicationMappings.StringAdapter()"), generated);
+        assertTrue(generated.contains("BaseMappings.MoneyTypeHandler()"), generated);
+        assertTrue(generated.contains("ApplicationMappings.StringTypeHandler()"), generated);
     }
 
     @Test
@@ -300,20 +300,20 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.util.UUID;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.CHAR,
-                        adapter = BaseMappings.CharUuidAdapter.class
+                        handler = BaseMappings.CharUuidTypeHandler.class
                     )
                     public final class BaseMappings implements JdbcTypeMappings {
-                        public static final class CharUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public CharUuidAdapter() {}
+                        public static final class CharUuidTypeHandler implements TypeHandler<UUID> {
+                            public CharUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                            public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                         }
                     }
                     """),
@@ -329,20 +329,20 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.util.UUID;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.OTHER,
-                        adapter = ApplicationMappings.OtherUuidAdapter.class
+                        handler = ApplicationMappings.OtherUuidTypeHandler.class
                     )
                     public final class ApplicationMappings implements JdbcTypeMappings {
-                        public static final class OtherUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public OtherUuidAdapter() {}
+                        public static final class OtherUuidTypeHandler implements TypeHandler<UUID> {
+                            public OtherUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                            public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                         }
                     }
                     """),
@@ -371,8 +371,8 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/overridecanonical/OverrideCanonicalMapperImpl.java"));
-        assertTrue(generated.contains("new BaseMappings.CharUuidAdapter()"), generated);
-        assertTrue(generated.contains("new ApplicationMappings.OtherUuidAdapter()"), generated);
+        assertTrue(generated.contains("new BaseMappings.CharUuidTypeHandler()"), generated);
+        assertTrue(generated.contains("new ApplicationMappings.OtherUuidTypeHandler()"), generated);
     }
 
     @Test
@@ -451,7 +451,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
     }
 
     @Test
-    void generatesDirectNullSafeParameterBindingThroughSelectedAdapter() throws Exception {
+    void generatesDirectNullSafeParameterBindingThroughSelectedTypeHandler() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "org/liteorm/test/selection/binding/Money.java",
@@ -472,16 +472,16 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = Money.class,
                         jdbcType = JDBCType.DECIMAL,
-                        adapter = BindingMappings.MoneyAdapter.class
+                        handler = BindingMappings.MoneyTypeHandler.class
                     )
                     public final class BindingMappings implements JdbcTypeMappings {
-                        public static final class MoneyAdapter implements JdbcValueAdapter<Money> {
-                            public MoneyAdapter() {}
+                        public static final class MoneyTypeHandler implements TypeHandler<Money> {
+                            public MoneyTypeHandler() {}
 
                             @Override
                             public void setNonNull(
@@ -491,7 +491,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
                             }
 
                             @Override
-                            public Money getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+                            public Money getResult(ResultSet resultSet, int columnIndex) throws SQLException {
                                 return new Money(resultSet.getLong(columnIndex));
                             }
                         }
@@ -525,17 +525,18 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/binding/BindingMapperImpl.java"));
         assertEquals(1, countOccurrences(generated,
-            "BindingMappings.MoneyAdapter()"), generated);
+            "BindingMappings.MoneyTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "jdbcValueAdapter1.setNull(statement, index, java.sql.JDBCType.DECIMAL)"), generated);
+            "JdbcTypeRouter.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
         assertTrue(generated.contains(
-            "jdbcValueAdapter1.setNonNull(statement, index, value, java.sql.JDBCType.DECIMAL)"), generated);
+            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.binding.Money.class, "
+                + "java.sql.JDBCType.DECIMAL)"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("ServiceLoader"), generated);
     }
 
     @Test
-    void generatesDirectResultReadingThroughSelectedAdapter() throws Exception {
+    void generatesDirectResultReadingThroughSelectedTypeHandler() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "org/liteorm/test/selection/reading/Money.java",
@@ -556,16 +557,16 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = Money.class,
                         jdbcType = JDBCType.DECIMAL,
-                        adapter = ReadingMappings.MoneyAdapter.class
+                        handler = ReadingMappings.MoneyTypeHandler.class
                     )
                     public final class ReadingMappings implements JdbcTypeMappings {
-                        public static final class MoneyAdapter implements JdbcValueAdapter<Money> {
-                            public MoneyAdapter() {}
+                        public static final class MoneyTypeHandler implements TypeHandler<Money> {
+                            public MoneyTypeHandler() {}
 
                             @Override
                             public void setNonNull(
@@ -575,7 +576,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
                             }
 
                             @Override
-                            public Money getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+                            public Money getResult(ResultSet resultSet, int columnIndex) throws SQLException {
                                 long value = resultSet.getLong(columnIndex);
                                 return resultSet.wasNull() ? null : new Money(value);
                             }
@@ -609,18 +610,19 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/reading/ReadingMapperImpl.java"));
         assertEquals(1, countOccurrences(generated,
-            "ReadingMappings.MoneyAdapter()"), generated);
+            "ReadingMappings.MoneyTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "return jdbcValueAdapter1.getNullable(resultSet, 1);"), generated);
+            "JdbcTypeRouter.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
         assertFalse(generated.contains("ParameterBinder<Money>"), generated);
         assertFalse(generated.contains("bindJdbcValue1"), generated);
-        assertTrue(generated.contains("this::readFindBalanceResult"), generated);
+        assertTrue(generated.contains(
+            "new Class<?>[]{org.liteorm.test.selection.reading.Money.class}, null"), generated);
         assertTrue(generated.contains(
             "return (org.liteorm.test.selection.reading.Money)resultRow[0];"), generated);
     }
 
     @Test
-    void composesSelectedValueAdaptersIntoGeneratedRecordAndJavaBeanMappings() throws Exception {
+    void composesSelectedValueTypeHandlersIntoGeneratedRecordAndJavaBeanMappings() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "org/liteorm/test/selection/compositevalue/Money.java",
@@ -672,15 +674,14 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/compositevalue/CompositeValueMapperImpl.java"));
-        assertEquals(1, countOccurrences(generated, "CompositeMappings.MoneyAdapter()"), generated);
+        assertEquals(1, countOccurrences(generated, "CompositeMappings.MoneyTypeHandler()"), generated);
         assertEquals(2, countOccurrences(generated,
-            ".getNullable(resultSet, resultColumnIndexes[1])"), generated);
-        assertTrue(generated.contains("this::readFindRecordResult"), generated);
-        assertTrue(generated.contains("this::readFindBeanResult"), generated);
+            "new Class<?>[]{long.class, org.liteorm.test.selection.compositevalue.Money.class}"), generated);
+        assertTrue(generated.contains("new String[]{\"id\", \"balance\"}"), generated);
     }
 
     @Test
-    void wiresSelectedAdapterForDynamicPropertiesAndForeachItems() throws Exception {
+    void wiresSelectedTypeHandlerForDynamicPropertiesAndForeachItems() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "org/liteorm/test/selection/dynamic/Money.java",
@@ -729,13 +730,13 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/dynamic/DynamicMapperImpl.java"));
         assertEquals(1, countOccurrences(generated,
-            "DynamicMappings.MoneyAdapter()"), generated);
+            "DynamicMappings.MoneyTypeHandler()"), generated);
         assertEquals(2, countOccurrences(generated,
-            "binders.add(jdbcValueParameterBinder1)"), generated);
+            "binders.add(jdbcTypeRouter.parameterBinder("), generated);
     }
 
     @Test
-    void keepsAdapterFieldsDistinctForJavaTypesWithTheSameSimpleName() throws Exception {
+    void keepsTypeHandlerFieldsDistinctForJavaTypesWithTheSameSimpleName() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "example/first/Money.java",
@@ -764,35 +765,35 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = example.first.Money.class,
                         jdbcType = JDBCType.DECIMAL,
-                        adapter = CollisionMappings.FirstMoneyAdapter.class
+                        handler = CollisionMappings.FirstMoneyTypeHandler.class
                     )
                     @JdbcTypeMapping(
                         javaType = example.second.Money.class,
                         jdbcType = JDBCType.BIGINT,
-                        adapter = CollisionMappings.SecondMoneyAdapter.class
+                        handler = CollisionMappings.SecondMoneyTypeHandler.class
                     )
                     public final class CollisionMappings implements JdbcTypeMappings {
-                        public static final class FirstMoneyAdapter
-                                implements JdbcValueAdapter<example.first.Money> {
-                            public FirstMoneyAdapter() {}
+                        public static final class FirstMoneyTypeHandler
+                                implements TypeHandler<example.first.Money> {
+                            public FirstMoneyTypeHandler() {}
                             public void setNonNull(PreparedStatement statement, int index,
                                     example.first.Money value, JDBCType jdbcType) throws SQLException {}
-                            public example.first.Money getNullable(ResultSet resultSet, int columnIndex) {
+                            public example.first.Money getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
 
-                        public static final class SecondMoneyAdapter
-                                implements JdbcValueAdapter<example.second.Money> {
-                            public SecondMoneyAdapter() {}
+                        public static final class SecondMoneyTypeHandler
+                                implements TypeHandler<example.second.Money> {
+                            public SecondMoneyTypeHandler() {}
                             public void setNonNull(PreparedStatement statement, int index,
                                     example.second.Money value, JDBCType jdbcType) throws SQLException {}
-                            public example.second.Money getNullable(ResultSet resultSet, int columnIndex) {
+                            public example.second.Money getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
@@ -822,10 +823,10 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/collision/CollisionMapperImpl.java"));
-        assertTrue(generated.contains("jdbcValueAdapter1"), generated);
-        assertTrue(generated.contains("jdbcValueAdapter2"), generated);
-        assertEquals(1, countOccurrences(generated, "FirstMoneyAdapter()"), generated);
-        assertEquals(1, countOccurrences(generated, "SecondMoneyAdapter()"), generated);
+        assertTrue(generated.contains("typeHandler1"), generated);
+        assertTrue(generated.contains("typeHandler2"), generated);
+        assertEquals(1, countOccurrences(generated, "FirstMoneyTypeHandler()"), generated);
+        assertEquals(1, countOccurrences(generated, "SecondMoneyTypeHandler()"), generated);
     }
 
     @Test
@@ -850,22 +851,22 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = Money.class,
                         jdbcType = JDBCType.DECIMAL,
-                        adapter = DependencyMappings.MoneyAdapter.class
+                        handler = DependencyMappings.MoneyTypeHandler.class
                     )
                     public final class DependencyMappings implements JdbcTypeMappings {
-                        public static final class MoneyAdapter implements JdbcValueAdapter<Money> {
-                            public MoneyAdapter() {}
+                        public static final class MoneyTypeHandler implements TypeHandler<Money> {
+                            public MoneyTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, Money value, JDBCType jdbcType)
                                     throws SQLException {
                                 statement.setLong(index, value.minorUnits());
                             }
-                            public Money getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+                            public Money getResult(ResultSet resultSet, int columnIndex) throws SQLException {
                                 return new Money(resultSet.getLong(columnIndex));
                             }
                         }
@@ -909,9 +910,10 @@ class JdbcTypeMappingsSelectionCompilationTest {
             "org/liteorm/test/selection/dependency/DependencyMapperImpl.java"));
         assertTrue(generated.contains("return example.dependency.DependencyMappings.class;"), generated);
         assertEquals(1, countOccurrences(generated,
-            "new example.dependency.DependencyMappings.MoneyAdapter()"), generated);
+            "new example.dependency.DependencyMappings.MoneyTypeHandler()"), generated);
         assertTrue(generated.contains("java.sql.JDBCType.DECIMAL"), generated);
-        assertTrue(generated.contains("jdbcValueAdapter1.getNullable(resultSet, 1)"), generated);
+        assertTrue(generated.contains(
+            "new Class<?>[]{example.dependency.Money.class}, null"), generated);
     }
 
     @Test
@@ -929,35 +931,35 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.util.UUID;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.CHAR,
-                        adapter = DeclaredTypeMappings.CharUuidAdapter.class
+                        handler = DeclaredTypeMappings.CharUuidTypeHandler.class
                     )
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.BINARY,
-                        adapter = DeclaredTypeMappings.BinaryUuidAdapter.class
+                        handler = DeclaredTypeMappings.BinaryUuidTypeHandler.class
                     )
                     public final class DeclaredTypeMappings implements JdbcTypeMappings {
-                        public static final class CharUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public CharUuidAdapter() {}
+                        public static final class CharUuidTypeHandler implements TypeHandler<UUID> {
+                            public CharUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) {
+                            public UUID getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
 
-                        public static final class BinaryUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public BinaryUuidAdapter() {}
+                        public static final class BinaryUuidTypeHandler implements TypeHandler<UUID> {
+                            public BinaryUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) {
+                            public UUID getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
@@ -992,12 +994,92 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/declaredtype/DeclaredTypeMapperImpl.java"));
-        assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.CharUuidAdapter()"), generated);
-        assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.BinaryUuidAdapter()"), generated);
+        assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.CharUuidTypeHandler()"), generated);
+        assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.BinaryUuidTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "jdbcValueAdapter1.setNonNull(statement, index, value, java.sql.JDBCType.CHAR)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"), generated);
         assertTrue(generated.contains(
-            "jdbcValueAdapter2.setNonNull(statement, index, value, java.sql.JDBCType.BINARY)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.BINARY)"), generated);
+    }
+
+    @Test
+    void prefersGenericParameterRouteWhenAVendorResultRouteSharesTheJdbcType() throws Exception {
+        Compilation result = compile(
+            new SourceFile(
+                "org/liteorm/test/selection/vendorroute/VendorRouteMappings.java",
+                """
+                    package org.liteorm.test.selection.vendorroute;
+
+                    import java.sql.JDBCType;
+                    import java.sql.PreparedStatement;
+                    import java.sql.ResultSet;
+                    import java.sql.SQLException;
+                    import org.liteorm.annotation.JdbcTypeMapping;
+                    import org.liteorm.api.JdbcTypeMappings;
+                    import org.liteorm.api.TypeHandler;
+
+                    record Money(long minorUnits) {}
+
+                    @JdbcTypeMapping(
+                        javaType = Money.class,
+                        jdbcType = JDBCType.OTHER,
+                        handler = VendorRouteMappings.GenericMoneyTypeHandler.class
+                    )
+                    @JdbcTypeMapping(
+                        javaType = Money.class,
+                        jdbcType = JDBCType.OTHER,
+                        vendorTypeName = "money",
+                        handler = VendorRouteMappings.VendorMoneyTypeHandler.class
+                    )
+                    public final class VendorRouteMappings implements JdbcTypeMappings {
+                        public static final class GenericMoneyTypeHandler implements TypeHandler<Money> {
+                            public GenericMoneyTypeHandler() {}
+                            public void setNonNull(
+                                    PreparedStatement statement, int index, Money value, JDBCType jdbcType)
+                                    throws SQLException {}
+                            public Money getResult(ResultSet resultSet, int columnIndex) { return null; }
+                        }
+
+                        public static final class VendorMoneyTypeHandler implements TypeHandler<Money> {
+                            public VendorMoneyTypeHandler() {}
+                            public void setNonNull(
+                                    PreparedStatement statement, int index, Money value, JDBCType jdbcType)
+                                    throws SQLException {}
+                            public Money getResult(ResultSet resultSet, int columnIndex) { return null; }
+                        }
+                    }
+                    """),
+            packageSelection(
+                "org.liteorm.test.selection.vendorroute", "VendorRouteMappings"),
+            new SourceFile(
+                "org/liteorm/test/selection/vendorroute/VendorRouteMapper.java",
+                """
+                    package org.liteorm.test.selection.vendorroute;
+
+                    import org.liteorm.annotation.Insert;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.Param;
+
+                    @Mapper
+                    public interface VendorRouteMapper {
+                        @Insert("INSERT INTO values_table (amount) VALUES (#{value})")
+                        int insert(@Param("value") Money value);
+
+                        @Insert("INSERT INTO values_table (amount) VALUES (#{value,jdbcType=OTHER})")
+                        int insertExplicit(@Param("value") Money value);
+                    }
+                    """));
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/selection/vendorroute/VendorRouteMapperImpl.java"));
+        assertEquals(1, countOccurrences(generated,
+            "new VendorRouteMappings.GenericMoneyTypeHandler()"), generated);
+        assertEquals(1, countOccurrences(generated,
+            "new VendorRouteMappings.VendorMoneyTypeHandler()"), generated);
+        assertEquals(2, countOccurrences(generated,
+            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.vendorroute.Money.class, java.sql.JDBCType.OTHER)"),
+            generated);
     }
 
     @Test
@@ -1015,35 +1097,35 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.util.UUID;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.CHAR,
-                        adapter = AmbiguousMappings.CharUuidAdapter.class
+                        handler = AmbiguousMappings.CharUuidTypeHandler.class
                     )
                     @JdbcTypeMapping(
                         javaType = UUID.class,
                         jdbcType = JDBCType.BINARY,
-                        adapter = AmbiguousMappings.BinaryUuidAdapter.class
+                        handler = AmbiguousMappings.BinaryUuidTypeHandler.class
                     )
                     public final class AmbiguousMappings implements JdbcTypeMappings {
-                        public static final class CharUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public CharUuidAdapter() {}
+                        public static final class CharUuidTypeHandler implements TypeHandler<UUID> {
+                            public CharUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) {
+                            public UUID getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
 
-                        public static final class BinaryUuidAdapter implements JdbcValueAdapter<UUID> {
-                            public BinaryUuidAdapter() {}
+                        public static final class BinaryUuidTypeHandler implements TypeHandler<UUID> {
+                            public BinaryUuidTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public UUID getNullable(ResultSet resultSet, int columnIndex) {
+                            public UUID getResult(ResultSet resultSet, int columnIndex) {
                                 return null;
                             }
                         }
@@ -1089,33 +1171,33 @@ class JdbcTypeMappingsSelectionCompilationTest {
                     import java.sql.SQLException;
                     import org.liteorm.annotation.JdbcTypeMapping;
                     import org.liteorm.api.JdbcTypeMappings;
-                    import org.liteorm.api.JdbcValueAdapter;
+                    import org.liteorm.api.TypeHandler;
 
                     @JdbcTypeMapping(
                         javaType = String.class,
                         jdbcType = JDBCType.CHAR,
-                        adapter = CanonicalMappings.CharStringAdapter.class
+                        handler = CanonicalMappings.CharStringTypeHandler.class
                     )
                     @JdbcTypeMapping(
                         javaType = String.class,
                         jdbcType = JDBCType.VARCHAR,
-                        adapter = CanonicalMappings.VarcharStringAdapter.class
+                        handler = CanonicalMappings.VarcharStringTypeHandler.class
                     )
                     public final class CanonicalMappings implements JdbcTypeMappings {
-                        public static final class CharStringAdapter implements JdbcValueAdapter<String> {
-                            public CharStringAdapter() {}
+                        public static final class CharStringTypeHandler implements TypeHandler<String> {
+                            public CharStringTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, String value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public String getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                            public String getResult(ResultSet resultSet, int columnIndex) { return null; }
                         }
 
-                        public static final class VarcharStringAdapter implements JdbcValueAdapter<String> {
-                            public VarcharStringAdapter() {}
+                        public static final class VarcharStringTypeHandler implements TypeHandler<String> {
+                            public VarcharStringTypeHandler() {}
                             public void setNonNull(
                                     PreparedStatement statement, int index, String value, JDBCType jdbcType)
                                     throws SQLException {}
-                            public String getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                            public String getResult(ResultSet resultSet, int columnIndex) { return null; }
                         }
                     }
                     """),
@@ -1143,9 +1225,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/canonical/CanonicalMapperImpl.java"));
         assertTrue(generated.contains(
-            "jdbcValueAdapter2.setNonNull(statement, index, value, java.sql.JDBCType.VARCHAR)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.lang.String.class, java.sql.JDBCType.VARCHAR)"), generated);
         assertTrue(generated.contains(
-            "jdbcValueAdapter1.setNonNull(statement, index, value, java.sql.JDBCType.CHAR)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.lang.String.class, java.sql.JDBCType.CHAR)"), generated);
     }
 
     @Test
@@ -1242,11 +1324,10 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/biginteger/BigIntegerMapperImpl.java"));
         assertEquals(1, countOccurrences(generated,
-            "new org.liteorm.jdbc.StandardJdbcTypeMappings.BigIntegerJdbcValueAdapter()"), generated);
+            "new org.liteorm.jdbc.StandardJdbcTypeMappings.BigIntegerTypeHandler()"), generated);
         assertTrue(generated.contains(
-            ".setNull(statement, index, java.sql.JDBCType.DECIMAL)"), generated);
-        assertTrue(generated.contains("binders.add(jdbcValueParameterBinder1)"), generated);
-        assertTrue(generated.contains("getNullable(resultSet, 1)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.math.BigInteger.class, java.sql.JDBCType.DECIMAL)"), generated);
+        assertTrue(generated.contains("new Class<?>[]{java.math.BigInteger.class}, null"), generated);
     }
 
     @Test
@@ -1277,10 +1358,10 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/boxedbytes/BoxedBytesMapperImpl.java"));
         assertEquals(1, countOccurrences(generated,
-            "new org.liteorm.jdbc.StandardJdbcTypeMappings.BoxedByteArrayJdbcValueAdapter()"), generated);
+            "new org.liteorm.jdbc.StandardJdbcTypeMappings.BoxedByteArrayTypeHandler()"), generated);
         assertTrue(generated.contains(
-            ".setNull(statement, index, java.sql.JDBCType.VARBINARY)"), generated);
-        assertTrue(generated.contains("getNullable(resultSet, 1)"), generated);
+            "jdbcTypeRouter.parameterBinder(java.lang.Byte[].class, java.sql.JDBCType.VARBINARY)"), generated);
+        assertTrue(generated.contains("new Class<?>[]{java.lang.Byte[].class}, null"), generated);
     }
 
     @Test
@@ -1292,11 +1373,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
                 """
                     package org.liteorm.test.selection.legacydate;
 
-                    import java.sql.JDBCType;
                     import org.liteorm.annotation.Insert;
                     import org.liteorm.annotation.Mapper;
                     import org.liteorm.annotation.Param;
-                    import org.liteorm.annotation.ResultJdbcType;
                     import org.liteorm.annotation.Select;
 
                     @Mapper
@@ -1322,11 +1401,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
                         @Select("SELECT value FROM values_table")
                         java.util.Date findUtilDate();
 
-                        @ResultJdbcType(JDBCType.DATE)
                         @Select("SELECT value FROM values_table")
                         java.util.Date findUtilDateOnly();
 
-                        @ResultJdbcType(JDBCType.TIME)
                         @Select("SELECT value FROM values_table")
                         java.util.Date findUtilTimeOnly();
 
@@ -1344,15 +1421,15 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/legacydate/LegacyDateMapperImpl.java"));
-        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilDateJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilDateOnlyJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilTimeOnlyJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlDateJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlTimeJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlTimestampJdbcValueAdapter"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.DATE)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.TIME)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.TIMESTAMP)"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilDateTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilDateOnlyTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.UtilTimeOnlyTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlDateTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlTimeTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlTimestampTypeHandler"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.DATE"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.TIME"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.TIMESTAMP"), generated);
     }
 
     @Test
@@ -1404,13 +1481,13 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/calendar/CalendarMapperImpl.java"));
-        assertTrue(generated.contains("StandardJdbcTypeMappings.YearJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.MonthJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.YearMonthJdbcValueAdapter"), generated);
-        assertTrue(generated.contains("StandardJdbcTypeMappings.JapaneseDateJdbcValueAdapter"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.INTEGER)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.VARCHAR)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.DATE)"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.YearTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.MonthTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.YearMonthTypeHandler"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.JapaneseDateTypeHandler"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.INTEGER"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.VARCHAR"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.DATE"), generated);
     }
 
     @Test
@@ -1456,19 +1533,17 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/enums/EnumMapperImpl.java"));
         assertTrue(generated.contains(
-            "EnumNameJdbcValueAdapter<org.liteorm.test.selection.enums.Status>"), generated);
+            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
+                + "java.sql.JDBCType.VARCHAR)"), generated);
         assertTrue(generated.contains(
-            "EnumOrdinalJdbcValueAdapter<org.liteorm.test.selection.enums.Status>"), generated);
-        assertTrue(generated.contains("new org.liteorm.jdbc.StandardJdbcTypeMappings."
-            + "EnumNameJdbcValueAdapter<>(org.liteorm.test.selection.enums.Status.class)"), generated);
-        assertTrue(generated.contains("new org.liteorm.jdbc.StandardJdbcTypeMappings."
-            + "EnumOrdinalJdbcValueAdapter<>(org.liteorm.test.selection.enums.Status.class)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.VARCHAR)"), generated);
-        assertTrue(generated.contains(".setNull(statement, index, java.sql.JDBCType.INTEGER)"), generated);
+            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
+                + "java.sql.JDBCType.INTEGER)"), generated);
+        assertTrue(generated.contains(
+            "new Class<?>[]{org.liteorm.test.selection.enums.Status.class}, null"), generated);
     }
 
     @Test
-    void selectsExplicitJdbcTypeForScalarEnumResults() throws Exception {
+    void generatesRuntimeMetadataRoutingForScalarEnumResults() throws Exception {
         Compilation result = compile(
             new SourceFile(
                 "org/liteorm/test/selection/enumresults/EnumResultMappings.java",
@@ -1486,11 +1561,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
                 """
                     package org.liteorm.test.selection.enumresults;
 
-                    import java.sql.JDBCType;
                     import java.util.List;
                     import java.util.Optional;
                     import org.liteorm.annotation.Mapper;
-                    import org.liteorm.annotation.ResultJdbcType;
                     import org.liteorm.annotation.Select;
 
                     enum Status {
@@ -1508,15 +1581,12 @@ class JdbcTypeMappingsSelectionCompilationTest {
                         @Select("SELECT status FROM values_table")
                         Status findByName();
 
-                        @ResultJdbcType(JDBCType.INTEGER)
                         @Select("SELECT status FROM values_table")
                         Status findByOrdinal();
 
-                        @ResultJdbcType(JDBCType.INTEGER)
                         @Select("SELECT status FROM values_table")
                         List<Status> findAllByOrdinal();
 
-                        @ResultJdbcType(JDBCType.INTEGER)
                         @Select("SELECT status FROM values_table")
                         Optional<Status> findOptionalByOrdinal();
                     }
@@ -1525,51 +1595,14 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/enumresults/EnumResultMapperImpl.java"));
+        assertEquals(4, countOccurrences(generated,
+            "new Class<?>[]{org.liteorm.test.selection.enumresults.Status.class}, null"), generated);
         assertTrue(generated.contains(
-            "EnumNameJdbcValueAdapter<org.liteorm.test.selection.enumresults.Status>"), generated);
+            "org.liteorm.test.selection.enumresults.Status::valueOf"), generated);
         assertTrue(generated.contains(
-            "EnumOrdinalJdbcValueAdapter<org.liteorm.test.selection.enumresults.Status>"), generated);
-        assertEquals(3, countOccurrences(generated,
-            "enumJdbcValueAdapter_org_liteorm_test_selection_enumresults_Status_integer.getNullable"), generated);
-        assertFalse(generated.contains("Status.valueOf"), generated);
-    }
-
-    @Test
-    void rejectsResultJdbcTypeOutsideDirectSelectResults() throws Exception {
-        Compilation result = compile(
-            new SourceFile(
-                "org/liteorm/test/selection/invalidresulttype/InvalidResultMappings.java",
-                """
-                    package org.liteorm.test.selection.invalidresulttype;
-
-                    import org.liteorm.api.JdbcTypeMappings;
-
-                    public final class InvalidResultMappings implements JdbcTypeMappings {
-                    }
-                    """),
-            packageSelection("org.liteorm.test.selection.invalidresulttype", "InvalidResultMappings"),
-            new SourceFile(
-                "org/liteorm/test/selection/invalidresulttype/InvalidResultMapper.java",
-                """
-                    package org.liteorm.test.selection.invalidresulttype;
-
-                    import java.sql.JDBCType;
-                    import org.liteorm.annotation.Insert;
-                    import org.liteorm.annotation.Mapper;
-                    import org.liteorm.annotation.ResultJdbcType;
-
-                    @Mapper
-                    public interface InvalidResultMapper {
-                        @ResultJdbcType(JDBCType.INTEGER)
-                        @Insert("INSERT INTO values_table (value) VALUES (#{value})")
-                        int insert(int value);
-                    }
-                    """));
-
-        assertFalse(result.succeeded(), result::diagnosticsText);
-        assertTrue(result.diagnosticsText().contains(
-            "InvalidResultMapper#insert: @ResultJdbcType requires a SELECT statement"),
-            result::diagnosticsText);
+            "org.liteorm.test.selection.enumresults.Status.values()"), generated);
+        assertFalse(generated.contains("getEnumConstants"), generated);
+        assertFalse(generated.contains("ResultJdbcType"), generated);
     }
 
     @Test
@@ -1687,22 +1720,22 @@ class JdbcTypeMappingsSelectionCompilationTest {
                 import java.sql.SQLException;
                 import org.liteorm.annotation.JdbcTypeMapping;
                 import org.liteorm.api.JdbcTypeMappings;
-                import org.liteorm.api.JdbcValueAdapter;
+                import org.liteorm.api.TypeHandler;
 
                 @JdbcTypeMapping(
                     javaType = %s.class,
                     jdbcType = JDBCType.DECIMAL,
-                    adapter = %s.MoneyAdapter.class
+                    handler = %s.MoneyTypeHandler.class
                 )
                 public final class %s implements JdbcTypeMappings {
-                    public static final class MoneyAdapter implements JdbcValueAdapter<%s> {
-                        public MoneyAdapter() {}
+                    public static final class MoneyTypeHandler implements TypeHandler<%s> {
+                        public MoneyTypeHandler() {}
 
                         public void setNonNull(
                                 PreparedStatement statement, int index, %s value, JDBCType jdbcType)
                                 throws SQLException {}
 
-                        public %s getNullable(ResultSet resultSet, int columnIndex) {
+                        public %s getResult(ResultSet resultSet, int columnIndex) {
                             return null;
                         }
                     }

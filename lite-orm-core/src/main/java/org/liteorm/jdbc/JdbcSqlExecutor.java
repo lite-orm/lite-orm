@@ -17,8 +17,10 @@ import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.StatementOptions;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -28,6 +30,7 @@ import java.sql.Types;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -75,30 +78,31 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             switch (plan.getStatementType()) {
                 case SELECT -> {
                     phase = ExecutionPhase.BINDING;
-                    bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    bind(statement, plan.getParameters(), plan.getParameterBinders(), plan.getTypeRouting());
                     phase = ExecutionPhase.EXECUTION;
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     resultSet = statement.executeQuery();
                     executionState = JdbcExecutionState.EXECUTED;
-                    phase = plan.getRowMapper() == null
+                    phase = plan.getRowMapper() == null && plan.getTypeRouting() == null
                         ? ExecutionPhase.RESULT_READING : ExecutionPhase.MAPPING;
-                    QueryRows queryRows = readRows(resultSet, plan.getRowMapper());
+                    QueryRows queryRows = readRows(resultSet, plan.getRowMapper(), plan.getTypeRouting());
                     result = SqlResult.forQuery(queryRows.columns(), queryRows.rows());
                 }
                 case INSERT, UPDATE, DELETE -> {
                     phase = ExecutionPhase.BINDING;
-                    bind(statement, plan.getParameters(), plan.getParameterBinders());
+                    bind(statement, plan.getParameters(), plan.getParameterBinders(), plan.getTypeRouting());
                     phase = ExecutionPhase.EXECUTION;
                     executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
                     int updateCount = statement.executeUpdate();
                     executionState = JdbcExecutionState.EXECUTED;
                     confirmedAffectedRows = updateCount;
                     if (plan.returnsGeneratedKey()) {
-                        phase = plan.getRowMapper() == null
+                        phase = plan.getRowMapper() == null && plan.getTypeRouting() == null
                             ? ExecutionPhase.RESULT_READING : ExecutionPhase.MAPPING;
                         resultSet = statement.getGeneratedKeys();
                         result = SqlResult.forGeneratedKey(
-                            updateCount, readGeneratedKey(resultSet, plan.getRowMapper()));
+                            updateCount, readGeneratedKey(
+                                resultSet, plan.getRowMapper(), plan.getTypeRouting()));
                     } else {
                         result = SqlResult.forUpdate(updateCount);
                     }
@@ -156,7 +160,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             statement = prepare(connection, plan);
             applyOptions(statement, plan.getStatementOptions());
             phase = ExecutionPhase.BINDING;
-            bind(statement, plan.getParameters(), plan.getParameterBinders());
+            bind(statement, plan.getParameters(), plan.getParameterBinders(), plan.getTypeRouting());
             phase = ExecutionPhase.EXECUTION;
             executionState = JdbcExecutionState.OUTCOME_UNKNOWN;
             resultSet = statement.executeQuery();
@@ -275,17 +279,28 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         }
     }
 
-    private Object readGeneratedKey(ResultSet generatedKeys, RowMapper<?> rowMapper) throws SQLException {
-        int columnCount = generatedKeys.getMetaData().getColumnCount();
+    private Object readGeneratedKey(
+            ResultSet generatedKeys,
+            RowMapper<?> rowMapper,
+            ExecutionPlan.TypeRouting typeRouting) throws SQLException {
+        ResultSetMetaData metadata = generatedKeys.getMetaData();
+        int columnCount = metadata.getColumnCount();
         if (columnCount != 1) {
             throw new SQLException("JDBC returned a composite generated key with " + columnCount + " columns");
         }
         if (!generatedKeys.next()) {
             throw new SQLException("JDBC returned no generated key");
         }
-        Object generatedKey = rowMapper == null
-            ? generatedKeys.getObject(1)
-            : rowMapper.map(generatedKeys);
+        Object generatedKey;
+        if (rowMapper != null) {
+            generatedKey = rowMapper.map(generatedKeys);
+        } else if (typeRouting != null && typeRouting.resultTypes().length == 1) {
+            TypeHandler<?> handler = typeRouting.router().resolveResult(
+                metadata, 1, typeRouting.resultTypes()[0]);
+            generatedKey = handler.getResult(generatedKeys, 1);
+        } else {
+            generatedKey = generatedKeys.getObject(1);
+        }
         if (generatedKeys.next()) {
             throw new SQLException("JDBC returned multiple generated keys for one insert");
         }
@@ -295,19 +310,28 @@ public final class JdbcSqlExecutor implements SqlExecutor {
     private void addBatch(PreparedStatement statement, BatchExecutionPlan plan) throws SQLException {
         List<Object[]> batchParameters = plan.getBatchParameters();
         for (Object[] parameters : batchParameters) {
-            bind(statement, parameters, plan.getParameterBinders());
+            bind(statement, parameters, plan.getParameterBinders(), plan.getTypeRouting());
             statement.addBatch();
         }
     }
 
     private void bind(
-            PreparedStatement statement, Object[] parameters, ParameterBinder<?>[] binders) throws SQLException {
+            PreparedStatement statement,
+            Object[] parameters,
+            ParameterBinder<?>[] binders,
+            ExecutionPlan.TypeRouting typeRouting) throws SQLException {
+        Class<?>[] parameterTypes = typeRouting == null ? null : typeRouting.parameterTypes();
+        JDBCType[] parameterJdbcTypes = typeRouting == null ? null : typeRouting.parameterJdbcTypes();
         for (int index = 0; index < parameters.length; index++) {
             ParameterBinder<Object> binder = binderAt(binders, index);
-            if (binder == null) {
-                bindDefault(statement, index + 1, parameters[index]);
-            } else {
+            if (binder != null) {
                 binder.bind(statement, index + 1, parameters[index]);
+            } else if (typeRouting != null && index < parameterTypes.length) {
+                JDBCType jdbcType = parameterJdbcTypes == null ? null : parameterJdbcTypes[index];
+                typeRouting.router().setParameter(
+                    statement, index + 1, parameters[index], parameterTypes[index], jdbcType);
+            } else {
+                bindDefault(statement, index + 1, parameters[index]);
             }
         }
     }
@@ -332,7 +356,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             : (ParameterBinder<Object>) binders[index];
     }
 
-    private QueryRows readRows(ResultSet resultSet, RowMapper<?> rowMapper) throws SQLException {
+    private QueryRows readRows(
+            ResultSet resultSet,
+            RowMapper<?> rowMapper,
+            ExecutionPlan.TypeRouting typeRouting) throws SQLException {
         if (rowMapper != null) {
             List<Object[]> rows = new ArrayList<>();
             while (resultSet.next()) {
@@ -354,15 +381,56 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             columns.add(new ResultColumn(label, column - 1));
         }
+        TypeHandler<?>[] handlers = resolveResultHandlers(metadata, columns, typeRouting);
         List<Object[]> rows = new ArrayList<>();
         while (resultSet.next()) {
             Object[] row = new Object[columnCount];
             for (int column = 1; column <= columnCount; column++) {
-                row[column - 1] = readColumnValue(resultSet, metadata, column);
+                TypeHandler<?> handler = handlers[column - 1];
+                row[column - 1] = handler == null
+                    ? readColumnValue(resultSet, metadata, column)
+                    : handler.getResult(resultSet, column);
             }
             rows.add(row);
         }
         return new QueryRows(columns, rows);
+    }
+
+    private TypeHandler<?>[] resolveResultHandlers(
+            ResultSetMetaData metadata,
+            List<ResultColumn> columns,
+            ExecutionPlan.TypeRouting typeRouting) throws SQLException {
+        TypeHandler<?>[] handlers = new TypeHandler<?>[columns.size()];
+        if (typeRouting == null) {
+            return handlers;
+        }
+        Class<?>[] resultTypes = typeRouting.resultTypes();
+        String[] labels = typeRouting.resultColumnLabels();
+        if (labels == null && resultTypes.length == 1 && !columns.isEmpty()) {
+            handlers[0] = typeRouting.router().resolveResult(metadata, 1, resultTypes[0]);
+            return handlers;
+        }
+        if (labels == null) {
+            return handlers;
+        }
+        for (int target = 0; target < labels.length; target++) {
+            int column = findColumn(columns, labels[target]);
+            if (column >= 0) {
+                handlers[column] = typeRouting.router().resolveResult(
+                    metadata, column + 1, resultTypes[target]);
+            }
+        }
+        return handlers;
+    }
+
+    private int findColumn(List<ResultColumn> columns, String requiredLabel) {
+        String normalized = requiredLabel.trim().toLowerCase(Locale.ROOT);
+        for (ResultColumn column : columns) {
+            if (column.label().trim().toLowerCase(Locale.ROOT).equals(normalized)) {
+                return column.index();
+            }
+        }
+        return -1;
     }
 
     private Object readColumnValue(ResultSet resultSet, ResultSetMetaData metadata, int column)

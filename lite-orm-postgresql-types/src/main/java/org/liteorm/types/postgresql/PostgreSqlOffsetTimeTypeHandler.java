@@ -1,6 +1,6 @@
 package org.liteorm.types.postgresql;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -9,10 +9,10 @@ import java.sql.SQLException;
 import java.time.OffsetTime;
 
 /** Preserves PostgreSQL time-with-time-zone values through the JDBC 4.2 object contract. */
-public final class PostgreSqlOffsetTimeJdbcValueAdapter implements JdbcValueAdapter<OffsetTime> {
+public final class PostgreSqlOffsetTimeTypeHandler implements TypeHandler<OffsetTime> {
 
-    /** Creates a stateless adapter. */
-    public PostgreSqlOffsetTimeJdbcValueAdapter() {
+    /** Creates a stateless type handler. */
+    public PostgreSqlOffsetTimeTypeHandler() {
     }
 
     @Override
@@ -22,7 +22,7 @@ public final class PostgreSqlOffsetTimeJdbcValueAdapter implements JdbcValueAdap
     }
 
     @Override
-    public OffsetTime getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+    public OffsetTime getResult(ResultSet resultSet, int columnIndex) throws SQLException {
         return resultSet.getObject(columnIndex, OffsetTime.class);
     }
 }

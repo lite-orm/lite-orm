@@ -16,16 +16,16 @@ class MySqlTypesPublicApiSurfaceTest {
 
     private static final Set<String> SUPPORTED_PUBLIC_TYPES = Set.of(
         "org.liteorm.types.mysql.MySqlJdbcTypeMappings",
-        "org.liteorm.types.mysql.MySqlLocalTimeJdbcValueAdapter",
-        "org.liteorm.types.mysql.MySqlOffsetDateTimeJdbcValueAdapter",
-        "org.liteorm.types.mysql.MySqlUuidJdbcValueAdapter"
+        "org.liteorm.types.mysql.MySqlLocalTimeTypeHandler",
+        "org.liteorm.types.mysql.MySqlOffsetDateTimeTypeHandler",
+        "org.liteorm.types.mysql.MySqlUuidTypeHandler"
     );
     private static final Set<String> SUPPORTED_PUBLIC_NESTED_TYPES = Set.of(
-        "org.liteorm.types.mysql.MySqlJdbcTypeMappings$NationalStringJdbcValueAdapter"
+        "org.liteorm.types.mysql.MySqlJdbcTypeMappings$NationalStringTypeHandler"
     );
 
     @Test
-    void exposesOnlyTheOfficialCollectionAndItsAdapters() throws Exception {
+    void exposesOnlyTheOfficialCollectionAndItsTypeHandlers() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
         assertEquals(
             new TreeSet<>(SUPPORTED_PUBLIC_NESTED_TYPES),

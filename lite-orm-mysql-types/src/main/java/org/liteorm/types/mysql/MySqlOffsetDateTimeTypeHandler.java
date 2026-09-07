@@ -1,6 +1,6 @@
-package org.liteorm.types.postgresql;
+package org.liteorm.types.mysql;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -9,15 +9,15 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 
 /**
- * Preserves PostgreSQL TIMESTAMP WITH TIME ZONE instants through the JDBC 4.2 contract.
+ * Preserves instants stored in MySQL TIMESTAMP columns through the JDBC 4.2 contract.
  */
-public final class PostgreSqlOffsetDateTimeJdbcValueAdapter
-        implements JdbcValueAdapter<OffsetDateTime> {
+public final class MySqlOffsetDateTimeTypeHandler
+        implements TypeHandler<OffsetDateTime> {
 
     /**
-     * Creates a stateless OffsetDateTime adapter.
+     * Creates a stateless OffsetDateTime type handler.
      */
-    public PostgreSqlOffsetDateTimeJdbcValueAdapter() {
+    public MySqlOffsetDateTimeTypeHandler() {
     }
 
     @Override
@@ -28,7 +28,7 @@ public final class PostgreSqlOffsetDateTimeJdbcValueAdapter
     }
 
     @Override
-    public OffsetDateTime getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+    public OffsetDateTime getResult(ResultSet resultSet, int columnIndex) throws SQLException {
         return resultSet.getObject(columnIndex, OffsetDateTime.class);
     }
 }

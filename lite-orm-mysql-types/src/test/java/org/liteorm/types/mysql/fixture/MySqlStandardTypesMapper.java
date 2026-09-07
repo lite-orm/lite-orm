@@ -5,11 +5,9 @@ import org.liteorm.annotation.Batch;
 import org.liteorm.annotation.GeneratedKey;
 import org.liteorm.annotation.Mapper;
 import org.liteorm.annotation.Param;
-import org.liteorm.annotation.ResultJdbcType;
 import org.liteorm.annotation.Select;
 
 import java.math.BigInteger;
-import java.sql.JDBCType;
 import java.time.Month;
 import java.time.Year;
 import java.time.YearMonth;
@@ -25,14 +23,13 @@ public interface MySqlStandardTypesMapper {
 
     record StandardValueRecord(
         BigInteger integerValue,
-        @ResultJdbcType(JDBCType.INTEGER) StandardStatus enumOrdinalValue
+        StandardStatus enumOrdinalValue
     ) {
     }
 
     class StandardValueBean {
         private BigInteger integerValue;
 
-        @ResultJdbcType(JDBCType.INTEGER)
         private StandardStatus enumOrdinalValue;
 
         public StandardValueBean() {
@@ -136,11 +133,9 @@ public interface MySqlStandardTypesMapper {
         @Param("timeValue") java.util.Date timeValue
     );
 
-    @ResultJdbcType(JDBCType.DATE)
     @Select("SELECT util_date_only_value FROM mysql_standard_type_values WHERE id = #{id}")
     java.util.Date findUtilDateOnly(@Param("id") long id);
 
-    @ResultJdbcType(JDBCType.TIME)
     @Select("SELECT util_time_only_value FROM mysql_standard_type_values WHERE id = #{id}")
     java.util.Date findUtilTimeOnly(@Param("id") long id);
 
@@ -178,7 +173,6 @@ public interface MySqlStandardTypesMapper {
     @Select("SELECT enum_name_value FROM mysql_standard_type_values WHERE id = #{id}")
     StandardStatus findEnumName(@Param("id") long id);
 
-    @ResultJdbcType(JDBCType.INTEGER)
     @Select("SELECT enum_ordinal_value FROM mysql_standard_type_values WHERE id = #{id}")
     StandardStatus findEnumOrdinal(@Param("id") long id);
 
@@ -191,11 +185,9 @@ public interface MySqlStandardTypesMapper {
         @Param("varcharValue") String varcharValue
     );
 
-    @ResultJdbcType(JDBCType.NCHAR)
     @Select("SELECT national_char_value FROM mysql_standard_type_values WHERE id = #{id}")
     String findNationalChar(@Param("id") long id);
 
-    @ResultJdbcType(JDBCType.NVARCHAR)
     @Select("SELECT national_varchar_value FROM mysql_standard_type_values WHERE id = #{id}")
     String findNationalVarchar(@Param("id") long id);
 }

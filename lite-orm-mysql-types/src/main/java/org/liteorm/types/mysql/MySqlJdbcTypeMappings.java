@@ -2,7 +2,7 @@ package org.liteorm.types.mysql;
 
 import org.liteorm.annotation.JdbcTypeMapping;
 import org.liteorm.api.JdbcTypeMappings;
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 import org.liteorm.jdbc.StandardJdbcTypeMappings;
 
 import java.math.BigInteger;
@@ -24,95 +24,95 @@ import java.util.UUID;
 @JdbcTypeMapping(
     javaType = BigInteger.class,
     jdbcType = JDBCType.DECIMAL,
-    adapter = StandardJdbcTypeMappings.BigIntegerJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.BigIntegerTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = Byte[].class,
     jdbcType = JDBCType.VARBINARY,
-    adapter = StandardJdbcTypeMappings.BoxedByteArrayJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.BoxedByteArrayTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.util.Date.class,
     jdbcType = JDBCType.TIMESTAMP,
-    adapter = StandardJdbcTypeMappings.UtilDateJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.UtilDateTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.util.Date.class,
     jdbcType = JDBCType.DATE,
-    adapter = StandardJdbcTypeMappings.UtilDateOnlyJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.UtilDateOnlyTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.util.Date.class,
     jdbcType = JDBCType.TIME,
-    adapter = StandardJdbcTypeMappings.UtilTimeOnlyJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.UtilTimeOnlyTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.sql.Date.class,
     jdbcType = JDBCType.DATE,
-    adapter = StandardJdbcTypeMappings.SqlDateJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.SqlDateTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.sql.Time.class,
     jdbcType = JDBCType.TIME,
-    adapter = StandardJdbcTypeMappings.SqlTimeJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.SqlTimeTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = java.sql.Timestamp.class,
     jdbcType = JDBCType.TIMESTAMP,
-    adapter = StandardJdbcTypeMappings.SqlTimestampJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.SqlTimestampTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = Year.class,
     jdbcType = JDBCType.INTEGER,
-    adapter = StandardJdbcTypeMappings.YearJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.YearTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = Month.class,
     jdbcType = JDBCType.INTEGER,
-    adapter = StandardJdbcTypeMappings.MonthJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.MonthTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = YearMonth.class,
     jdbcType = JDBCType.VARCHAR,
-    adapter = StandardJdbcTypeMappings.YearMonthJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.YearMonthTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = JapaneseDate.class,
     jdbcType = JDBCType.DATE,
-    adapter = StandardJdbcTypeMappings.JapaneseDateJdbcValueAdapter.class
+    handler = StandardJdbcTypeMappings.JapaneseDateTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = UUID.class,
     jdbcType = JDBCType.CHAR,
-    adapter = MySqlUuidJdbcValueAdapter.class
+    handler = MySqlUuidTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = LocalTime.class,
     jdbcType = JDBCType.TIME,
-    adapter = MySqlLocalTimeJdbcValueAdapter.class
+    handler = MySqlLocalTimeTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = OffsetDateTime.class,
     jdbcType = JDBCType.TIMESTAMP,
-    adapter = MySqlOffsetDateTimeJdbcValueAdapter.class
+    handler = MySqlOffsetDateTimeTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = String.class,
     jdbcType = JDBCType.NCHAR,
-    adapter = MySqlJdbcTypeMappings.NationalStringJdbcValueAdapter.class
+    handler = MySqlJdbcTypeMappings.NationalStringTypeHandler.class
 )
 @JdbcTypeMapping(
     javaType = String.class,
     jdbcType = JDBCType.NVARCHAR,
-    adapter = MySqlJdbcTypeMappings.NationalStringJdbcValueAdapter.class
+    handler = MySqlJdbcTypeMappings.NationalStringTypeHandler.class
 )
 public final class MySqlJdbcTypeMappings implements JdbcTypeMappings {
 
     /** Maps national-character values through the JDBC national string methods. */
-    public static final class NationalStringJdbcValueAdapter implements JdbcValueAdapter<String> {
+    public static final class NationalStringTypeHandler implements TypeHandler<String> {
 
-        /** Creates a stateless adapter. */
-        public NationalStringJdbcValueAdapter() {
+        /** Creates a stateless type handler. */
+        public NationalStringTypeHandler() {
         }
 
         @Override
@@ -122,7 +122,7 @@ public final class MySqlJdbcTypeMappings implements JdbcTypeMappings {
         }
 
         @Override
-        public String getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+        public String getResult(ResultSet resultSet, int columnIndex) throws SQLException {
             return resultSet.getNString(columnIndex);
         }
     }

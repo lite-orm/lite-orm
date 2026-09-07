@@ -1,6 +1,6 @@
 package org.liteorm.annotation;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -30,9 +30,14 @@ public @interface JdbcTypeMapping {
     JDBCType jdbcType();
 
     /**
-     * Returns the concrete adapter for the declared Java value type.
+     * Returns the optional driver-reported type name that narrows result routing.
      */
-    Class<? extends JdbcValueAdapter<?>> adapter();
+    String vendorTypeName() default "";
+
+    /**
+     * Returns the concrete type handler for the declared Java value type.
+     */
+    Class<? extends TypeHandler<?>> handler();
 
     /**
      * Contains repeated JDBC type mapping declarations.

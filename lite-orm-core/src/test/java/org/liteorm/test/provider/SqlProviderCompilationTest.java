@@ -42,7 +42,7 @@ class SqlProviderCompilationTest {
             class IdProvider implements SqlProvider<Query> {
                 public IdProvider() {}
                 public BoundSql provide(Query query) {
-                    return new BoundSql("SELECT id FROM users WHERE id >= ?", List.of(BoundParameter.of(query.minimumId())));
+                    return new BoundSql("SELECT id FROM users WHERE id >= ?", List.of(BoundParameter.of(Long.class, query.minimumId())));
                 }
             }
 
@@ -59,6 +59,8 @@ class SqlProviderCompilationTest {
         assertTrue(generated.contains("private final org.liteorm.test.providerfixture.IdProvider findSqlProvider = new org.liteorm.test.providerfixture.IdProvider();"), generated);
         assertTrue(generated.contains("findSqlProvider.provide(query)"), generated);
         assertTrue(generated.contains("boundSql.parameterBinders()"), generated);
+        assertTrue(generated.contains("boundSql.parameterTypes()"), generated);
+        assertTrue(generated.contains("boundSql.parameterJdbcTypes()"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }
@@ -79,7 +81,7 @@ class SqlProviderCompilationTest {
             class ResultProvider implements SqlProvider<Query> {
                 public ResultProvider() {}
                 public BoundSql provide(Query query) {
-                    return new BoundSql("SELECT id FROM users WHERE id = ?", List.of(BoundParameter.of(query.id())));
+                    return new BoundSql("SELECT id FROM users WHERE id = ?", List.of(BoundParameter.of(Long.class, query.id())));
                 }
             }
 

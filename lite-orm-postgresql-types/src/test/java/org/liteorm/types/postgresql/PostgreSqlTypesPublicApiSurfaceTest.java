@@ -16,17 +16,17 @@ class PostgreSqlTypesPublicApiSurfaceTest {
 
     private static final Set<String> SUPPORTED_PUBLIC_TYPES = Set.of(
         "org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings",
-        "org.liteorm.types.postgresql.PostgreSqlLocalTimeJdbcValueAdapter",
-        "org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeJdbcValueAdapter",
-        "org.liteorm.types.postgresql.PostgreSqlOffsetTimeJdbcValueAdapter",
-        "org.liteorm.types.postgresql.PostgreSqlUuidJdbcValueAdapter"
+        "org.liteorm.types.postgresql.PostgreSqlLocalTimeTypeHandler",
+        "org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeTypeHandler",
+        "org.liteorm.types.postgresql.PostgreSqlOffsetTimeTypeHandler",
+        "org.liteorm.types.postgresql.PostgreSqlUuidTypeHandler"
     );
     private static final Set<String> SUPPORTED_PUBLIC_NESTED_TYPES = Set.of(
-        "org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings$NationalStringJdbcValueAdapter"
+        "org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings$NationalStringTypeHandler"
     );
 
     @Test
-    void exposesOnlyTheOfficialCollectionAndItsAdapters() throws Exception {
+    void exposesOnlyTheOfficialCollectionAndItsTypeHandlers() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
         assertEquals(
             new TreeSet<>(SUPPORTED_PUBLIC_NESTED_TYPES),

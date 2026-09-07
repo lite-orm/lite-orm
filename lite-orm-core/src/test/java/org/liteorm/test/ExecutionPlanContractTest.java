@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.StatementOptions;
+import org.liteorm.jdbc.JdbcTypeRouter;
 
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -95,5 +97,32 @@ class ExecutionPlanContractTest {
             " ",
             null,
             null));
+    }
+
+    @Test
+    void typeRoutingDefensivelyCopiesGeneratedTypeInformation() {
+        Class<?>[] parameterTypes = {String.class};
+        JDBCType[] jdbcTypes = {JDBCType.VARCHAR};
+        Class<?>[] resultTypes = {Long.class};
+        String[] labels = {"id"};
+        ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
+            new JdbcTypeRouter(List.of()), parameterTypes, jdbcTypes, resultTypes, labels);
+
+        parameterTypes[0] = Object.class;
+        jdbcTypes[0] = JDBCType.OTHER;
+        resultTypes[0] = Object.class;
+        labels[0] = "other";
+
+        assertArrayEquals(new Class<?>[]{String.class}, routing.parameterTypes());
+        assertArrayEquals(new JDBCType[]{JDBCType.VARCHAR}, routing.parameterJdbcTypes());
+        assertArrayEquals(new Class<?>[]{Long.class}, routing.resultTypes());
+        assertArrayEquals(new String[]{"id"}, routing.resultColumnLabels());
+    }
+
+    @Test
+    void typeRoutingRequiresLabelsForCompositeResults() {
+        assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan.TypeRouting(
+            new JdbcTypeRouter(List.of()), new Class<?>[0], null,
+            new Class<?>[]{Long.class, String.class}, null));
     }
 }

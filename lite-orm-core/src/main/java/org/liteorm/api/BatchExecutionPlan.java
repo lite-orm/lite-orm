@@ -34,8 +34,19 @@ public final class BatchExecutionPlan extends ExecutionPlan {
             SqlSource sourceType,
             ParameterBinder<?>[] parameterBinders,
             StatementOptions statementOptions) {
+        this(statementId, sql, batchParameters, sourceType, parameterBinders, statementOptions, null);
+    }
+
+    public BatchExecutionPlan(
+            String statementId,
+            String sql,
+            List<Object[]> batchParameters,
+            SqlSource sourceType,
+            ParameterBinder<?>[] parameterBinders,
+            StatementOptions statementOptions,
+            TypeRouting typeRouting) {
         super(statementId, sql, new Object[0], StatementType.BATCH, sourceType,
-            null, parameterBinders, null, statementOptions);
+            null, parameterBinders, null, statementOptions, typeRouting);
         this.batchParameters = copy(Objects.requireNonNull(batchParameters, "batchParameters"));
     }
 

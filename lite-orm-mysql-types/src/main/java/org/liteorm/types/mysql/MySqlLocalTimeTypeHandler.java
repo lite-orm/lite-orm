@@ -1,6 +1,6 @@
 package org.liteorm.types.mysql;
 
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -11,12 +11,12 @@ import java.time.LocalTime;
 /**
  * Preserves MySQL TIME values through the JDBC 4.2 LocalTime contract.
  */
-public final class MySqlLocalTimeJdbcValueAdapter implements JdbcValueAdapter<LocalTime> {
+public final class MySqlLocalTimeTypeHandler implements TypeHandler<LocalTime> {
 
     /**
-     * Creates a stateless LocalTime adapter.
+     * Creates a stateless LocalTime type handler.
      */
-    public MySqlLocalTimeJdbcValueAdapter() {
+    public MySqlLocalTimeTypeHandler() {
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class MySqlLocalTimeJdbcValueAdapter implements JdbcValueAdapter<Lo
     }
 
     @Override
-    public LocalTime getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+    public LocalTime getResult(ResultSet resultSet, int columnIndex) throws SQLException {
         return resultSet.getObject(columnIndex, LocalTime.class);
     }
 }

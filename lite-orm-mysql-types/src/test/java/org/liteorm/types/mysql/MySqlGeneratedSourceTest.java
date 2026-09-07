@@ -18,17 +18,17 @@ class MySqlGeneratedSourceTest {
     );
 
     @Test
-    void generatesDirectUuidAdapterReferencesWithoutChangingMapperConstruction() throws Exception {
+    void generatesUuidTypeHandlerRoutingWithoutChangingMapperConstruction() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source, "org.liteorm.types.mysql.MySqlUuidJdbcValueAdapter");
+        String handler = handlerFieldName(source, "org.liteorm.types.mysql.MySqlUuidTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.mysql.MySqlUuidJdbcValueAdapter()"));
+            "new org.liteorm.types.mysql.MySqlUuidTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.CHAR)"));
+            "JdbcTypeRouter.mapping(java.util.UUID.class, java.sql.JDBCType.CHAR, " + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, java.sql.JDBCType.CHAR)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
+            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"));
+        assertTrue(source.contains("new Class<?>[]{java.util.UUID.class}, null"));
         assertTrue(source.contains(
             "return org.liteorm.types.mysql.MySqlJdbcTypeMappings.class;"));
         assertEquals(1, occurrences(source, "public MySqlTypesMapperImpl("));
@@ -38,37 +38,37 @@ class MySqlGeneratedSourceTest {
     }
 
     @Test
-    void generatesDirectLocalTimeAdapterReferences() throws Exception {
+    void generatesLocalTimeTypeHandlerRouting() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source, "org.liteorm.types.mysql.MySqlLocalTimeJdbcValueAdapter");
+        String handler = handlerFieldName(source, "org.liteorm.types.mysql.MySqlLocalTimeTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.mysql.MySqlLocalTimeJdbcValueAdapter()"));
+            "new org.liteorm.types.mysql.MySqlLocalTimeTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.TIME)"));
+            "JdbcTypeRouter.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, java.sql.JDBCType.TIME)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
+            "jdbcTypeRouter.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
     }
 
     @Test
-    void generatesDirectOffsetDateTimeAdapterReferences() throws Exception {
+    void generatesOffsetDateTimeTypeHandlerRouting() throws Exception {
         String source = Files.readString(GENERATED_MAPPER);
-        String adapter = adapterFieldName(source,
-            "org.liteorm.types.mysql.MySqlOffsetDateTimeJdbcValueAdapter");
+        String handler = handlerFieldName(source,
+            "org.liteorm.types.mysql.MySqlOffsetDateTimeTypeHandler");
 
         assertEquals(1, occurrences(source,
-            "new org.liteorm.types.mysql.MySqlOffsetDateTimeJdbcValueAdapter()"));
+            "new org.liteorm.types.mysql.MySqlOffsetDateTimeTypeHandler()"));
         assertTrue(source.contains(
-            adapter + ".setNull(statement, index, java.sql.JDBCType.TIMESTAMP)"));
+            "JdbcTypeRouter.mapping(java.time.OffsetDateTime.class, java.sql.JDBCType.TIMESTAMP, "
+                + handler + ")"));
         assertTrue(source.contains(
-            adapter + ".setNonNull(statement, index, value, java.sql.JDBCType.TIMESTAMP)"));
-        assertTrue(source.contains("return " + adapter + ".getNullable(resultSet, 1);"));
+            "jdbcTypeRouter.parameterBinder(java.time.OffsetDateTime.class, "
+                + "java.sql.JDBCType.TIMESTAMP)"));
     }
 
-    private String adapterFieldName(String source, String adapterClass) {
-        var matcher = Pattern.compile("(jdbcValueAdapter\\d+) = new "
-            + Pattern.quote(adapterClass) + "\\(\\);").matcher(source);
+    private String handlerFieldName(String source, String handlerClass) {
+        var matcher = Pattern.compile("(typeHandler\\d+) = new "
+            + Pattern.quote(handlerClass) + "\\(\\);").matcher(source);
         assertTrue(matcher.find(), source);
         return matcher.group(1);
     }

@@ -111,18 +111,18 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateMethods(
             List<MapperCompilationModel.MethodModel> methods, String packageName) throws GenerationException {
         StringBuilder builder = new StringBuilder();
-        Map<String, MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields =
+        Map<String, MapperCompilationModel.TypeHandlerField> typeHandlerFields =
             new java.util.LinkedHashMap<>();
         Set<String> referencedJdbcBinderFields = new LinkedHashSet<>();
         for (MapperCompilationModel.MethodModel method : methods) {
-            for (MapperCompilationModel.JdbcValueAdapterField field : method.jdbcValueAdapterFields()) {
-                jdbcValueAdapterFields.putIfAbsent(field.fieldName(), field);
+            for (MapperCompilationModel.TypeHandlerField field : method.typeHandlerFields()) {
+                typeHandlerFields.putIfAbsent(field.fieldName(), field);
             }
             method.parameterBinderFields().stream()
                 .filter(java.util.Objects::nonNull)
                 .forEach(referencedJdbcBinderFields::add);
         }
-        for (MapperCompilationModel.JdbcValueAdapterField field : jdbcValueAdapterFields.values()) {
+        for (MapperCompilationModel.TypeHandlerField field : typeHandlerFields.values()) {
             builder.append("    private final ")
                 .append(classReference(packageName, field.typeName())).append(" ")
                 .append(field.fieldName()).append(" = ");
@@ -139,32 +139,36 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(field.binderMethodName()).append(";\n");
             }
         }
+        builder.append("    private final JdbcTypeRouter jdbcTypeRouter = new JdbcTypeRouter(List.of(");
+        builder.append(typeHandlerFields.values().stream()
+            .map(field -> "JdbcTypeRouter.mapping("
+                + classReference(packageName, field.javaTypeName()) + ".class, java.sql.JDBCType."
+                + field.jdbcType() + ", "
+                + (field.vendorTypeName() == null || field.vendorTypeName().isBlank()
+                    ? "" : javaString(field.vendorTypeName()) + ", ")
+                + field.fieldName() + ")")
+            .collect(java.util.stream.Collectors.joining(", ")));
+        builder.append("));\n");
         for (MapperCompilationModel.MethodModel method : methods) {
             if (method.providerClassName() != null) {
                 builder.append("    private final ").append(method.providerClassName()).append(" ")
                     .append(method.providerFieldName()).append(" = new ")
                     .append(method.providerClassName()).append("();\n");
             }
-            for (MapperCompilationModel.AdapterField adapterField : method.adapterFields()) {
-                builder.append("    private final ").append(adapterField.typeName()).append(" ")
-                    .append(adapterField.fieldName()).append(" = new ")
-                    .append(adapterField.typeName()).append("();\n");
+            for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
+                builder.append("    private final ").append(extensionField.typeName()).append(" ")
+                    .append(extensionField.fieldName()).append(" = new ")
+                    .append(extensionField.typeName()).append("();\n");
             }
         }
-        if (!jdbcValueAdapterFields.isEmpty()
+        if (!typeHandlerFields.isEmpty()
                 || methods.stream().anyMatch(method -> method.providerClassName() != null
-                    || !method.adapterFields().isEmpty())) {
+                    || !method.extensionFields().isEmpty())) {
             builder.append("\n");
         }
-        for (MapperCompilationModel.JdbcValueAdapterField field : jdbcValueAdapterFields.values()) {
+        for (MapperCompilationModel.TypeHandlerField field : typeHandlerFields.values()) {
             if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
                 builder.append(generateJdbcValueBinder(field, packageName)).append("\n");
-            }
-        }
-        for (MapperCompilationModel.MethodModel method : methods) {
-            if (method.jdbcResultReader() != null) {
-                builder.append(generateJdbcResultReader(method.jdbcResultReader(), packageName))
-                    .append("\n");
             }
         }
         for (MapperCompilationModel.MethodModel method : methods) {
@@ -177,7 +181,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String generateJdbcValueBinder(
-            MapperCompilationModel.JdbcValueAdapterField field, String packageName) {
+            MapperCompilationModel.TypeHandlerField field, String packageName) {
         String javaType = classReference(packageName, field.javaTypeName());
         return """
                 private void %s(
@@ -192,14 +196,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             """.formatted(
                 field.binderMethodName(), javaType, field.fieldName(), field.jdbcType(),
                 field.fieldName(), field.jdbcType());
-    }
-
-    private String generateJdbcResultReader(
-            MapperCompilationModel.JdbcResultReader reader, String packageName) {
-        return "    private " + classReference(packageName, reader.javaTypeName()) + " "
-            + reader.methodName() + "(java.sql.ResultSet resultSet) throws java.sql.SQLException {\n"
-            + reader.body().indent(8)
-            + "    }\n";
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {
@@ -359,7 +355,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append(javaString(methodModel.sqlTemplate())).append(", batchParameters, ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
-                .append(parameterBinderArray(methodModel)).append(");\n");
+                .append(parameterBinderArray(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(methodModel)).append(");\n");
         } else if (methodModel.providerClassName() != null) {
             code.append("        BoundSql boundSql = BoundSql.requireValid(")
                 .append(methodModel.providerFieldName()).append(".provide(")
@@ -370,7 +367,10 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("boundSql.parameterValues(), ExecutionPlan.StatementType.")
                 .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, null, ")
                 .append("boundSql.parameterBinders()").append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(
+                    methodModel, "boundSql.parameterTypes()", "boundSql.parameterJdbcTypes()"))
+                .append(");\n");
         } else if (methodModel.dynamic()) {
             code.append("        StringBuilder sql = new StringBuilder();\n");
             code.append("        List<Object> parameters = new ArrayList<>();\n");
@@ -402,7 +402,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append("binders.toArray(new ParameterBinder<?>[0])").append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(methodModel)).append(");\n");
         } else {
             code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
             code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
@@ -412,7 +413,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(methodModel)).append(");\n");
         }
 
         code.append("    }\n");
@@ -431,6 +433,27 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
 
     private String rowMapperExpression(MapperCompilationModel.MethodModel methodModel) {
         return methodModel.rowMapperFieldName() == null ? "null" : methodModel.rowMapperFieldName();
+    }
+
+    private String typeRoutingExpression(MapperCompilationModel.MethodModel methodModel) {
+        return typeRoutingExpression(methodModel, "null", "null");
+    }
+
+    private String typeRoutingExpression(
+            MapperCompilationModel.MethodModel methodModel,
+            String parameterTypes,
+            String parameterJdbcTypes) {
+        String resultTypes = methodModel.resultTypeNames().isEmpty()
+            ? "new Class<?>[0]"
+            : "new Class<?>[]{" + String.join(", ", methodModel.resultTypeNames()) + "}";
+        String labels = methodModel.resultColumnLabels().isEmpty()
+            ? "null"
+            : "new String[]{" + methodModel.resultColumnLabels().stream()
+                .map(this::javaString)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        return "new ExecutionPlan.TypeRouting(jdbcTypeRouter, "
+            + parameterTypes + ", " + parameterJdbcTypes + ", "
+            + resultTypes + ", " + labels + ")";
     }
 
     private String generateAstLogic(AstNode astNode, MapperCompilationModel.MethodModel methodModel,

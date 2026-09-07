@@ -25,7 +25,6 @@ class PublicApiSurfaceTest {
         "org.liteorm.annotation.JdbcTypeMapping",
         "org.liteorm.annotation.Mapper",
         "org.liteorm.annotation.Param",
-        "org.liteorm.annotation.ResultJdbcType",
         "org.liteorm.annotation.Select",
         "org.liteorm.annotation.Update",
         "org.liteorm.annotation.UseParameterBinder",
@@ -46,7 +45,7 @@ class PublicApiSurfaceTest {
         "org.liteorm.api.JdbcExecutionState",
         "org.liteorm.api.JdbcTypeMappings",
         "org.liteorm.api.JdbcTypeMappingsMetadata",
-        "org.liteorm.api.JdbcValueAdapter",
+        "org.liteorm.api.TypeHandler",
         "org.liteorm.api.LiteOrmException",
         "org.liteorm.api.MappingException",
         "org.liteorm.api.NonUniqueResultException",
@@ -69,6 +68,7 @@ class PublicApiSurfaceTest {
         "org.liteorm.interceptor.LoggingExecutionInterceptor",
         "org.liteorm.interceptor.SlowQueryExecutionInterceptor",
         "org.liteorm.jdbc.JdbcSqlExecutor",
+        "org.liteorm.jdbc.JdbcTypeRouter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings",
         "org.liteorm.runtime.ResultValueConverters",
         "org.liteorm.transaction.SimpleConnectionHandleFactory",
@@ -76,20 +76,20 @@ class PublicApiSurfaceTest {
         "org.liteorm.transaction.SimpleTransactionalExecutor"
     );
     private static final Set<String> SUPPORTED_STANDARD_MAPPING_ADAPTERS = Set.of(
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$BigIntegerJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$BoxedByteArrayJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumNameJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumOrdinalJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$JapaneseDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$MonthJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimeJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimestampJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateOnlyJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilTimeOnlyJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearMonthJdbcValueAdapter"
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$BigIntegerTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$BoxedByteArrayTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumNameTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumOrdinalTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$JapaneseDateTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$MonthTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlDateTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimeTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimestampTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateOnlyTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilTimeOnlyTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearTypeHandler",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearMonthTypeHandler"
     );
 
     @Test
@@ -98,7 +98,7 @@ class PublicApiSurfaceTest {
     }
 
     @Test
-    void protectsGeneratedCodeVisibleStandardMappingAdapters() throws Exception {
+    void protectsGeneratedCodeVisibleStandardMappingTypeHandlers() throws Exception {
         assertEquals(
             new TreeSet<>(SUPPORTED_STANDARD_MAPPING_ADAPTERS),
             discoverPublicNestedTypes("org.liteorm.jdbc.StandardJdbcTypeMappings"));

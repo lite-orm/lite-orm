@@ -4,12 +4,12 @@ LiteORM has one generated default path and three typed mapping extension points.
 
 The shortest mental model is:
 
-- a **JDBC value adapter** defines how one reusable Java value maps to one JDBC column value;
+- a **type handler** defines how one reusable Java value maps to one JDBC column representation in both directions;
 - **generated result mapping** composes column values into a scalar, record, or JavaBean;
 - a **parameter binder** changes how one Mapper parameter is written;
 - a **row mapper** changes how one query method constructs an object from a whole row.
 
-All three choices are resolved during compilation. Generated Mappers hold direct references to the selected implementation. LiteORM does not search a runtime registry or choose a mapping from live database metadata.
+All extension implementations are resolved during compilation. Generated Mappers hold direct references and an immutable type router. For ordinary query results, the router uses the generated Java target type and JDBC metadata to select a handler once per result column; it does not scan, reflect, or consult a global registry.
 
 ## Start With the Generated Path
 
@@ -22,12 +22,20 @@ User findById(long id);
 
 Generated mapping provides the strongest compile-time validation and keeps application code smallest.
 
+Result methods do not declare a JDBC type. LiteORM combines the generated Java target type with the active driver's `ResultSetMetaData`:
+
+- ordinary character, numeric, temporal, binary, and other supported columns need no annotation;
+- BLOB, CLOB, NCLOB, SQLXML, ARRAY, and other lifecycle-bound values use the supported handler or callback contract for that value; they do not use a result-side JDBC annotation;
+- `@UseRowMapper` fully owns result reading for its method, so default result type routing is not applied.
+
+If no route exists for the generated Java type and the driver-reported JDBC type, execution fails during the mapping phase. The diagnostic identifies the target Java type, JDBC type, result column, vendor type name, and the two supported remedies: add a matching `@JdbcTypeMapping`/`TypeHandler` or use `@UseRowMapper`. LiteORM does not inspect a schema during compilation and does not provide `@ResultJdbcType`.
+
 ## Choose by Scope
 
 | Concept | Scope | Direction | Input/output shape | Use it when |
 | --- | --- | --- | --- | --- |
 | Generated mapping | Mapper method | Write and read | Supported parameters, scalars, records, and JavaBeans | LiteORM already understands the Java and JDBC representation. |
-| `@JdbcTypeMapping` with `JdbcValueAdapter<T>` | Mapper package | Write and read | One Java value and one JDBC column value | A Java type has a reusable database-family representation. |
+| `@JdbcTypeMapping` with `TypeHandler<T>` | Mapper package | Write and read | One Java value and one JDBC column value | A Java type has a reusable database-family representation. |
 | `@UseParameterBinder` with `ParameterBinder<T>` | One Mapper parameter | Write only | One annotated parameter | One parameter needs exceptional binding that should not become package policy. |
 | `@UseRowMapper` with `RowMapper<T>` | One query method | Read only | One current result row, possibly several columns | One result shape cannot be generated as a scalar, record, or JavaBean. |
 
@@ -36,7 +44,7 @@ flowchart TD
     A[What needs custom mapping?] --> B{Is the generated mapping sufficient?}
     B -->|Yes| G[Use the generated path]
     B -->|No| C{Is this a reusable one-value representation?}
-    C -->|Yes, write and read one JDBC value| J[JdbcTypeMapping plus JdbcValueAdapter]
+    C -->|Yes, write and read one JDBC value| J[JdbcTypeMapping plus TypeHandler]
     C -->|No| D{Is only one parameter binding exceptional?}
     D -->|Yes| P[UseParameterBinder plus ParameterBinder]
     D -->|No| E{Does one query need a custom whole-row result?}
@@ -52,21 +60,23 @@ The three similarly named types form one module; they are not three competing ex
 | --- | --- |
 | `JdbcTypeMappings` | The selected collection for a Mapper package. |
 | `@JdbcTypeMapping` | One declarative entry in that collection. |
-| `JdbcValueAdapter<T>` | The implementation that writes and reads the declared value representation. |
+| `TypeHandler<T>` | The implementation that writes and reads the declared value representation. |
 
 Each `@JdbcTypeMapping` entry associates:
 
 1. one Java type;
 2. one `JDBCType` representation;
-3. one `JdbcValueAdapter<T>` implementation.
+3. an optional driver-reported `vendorTypeName` for JDBC types such as `OTHER`;
+4. one `TypeHandler<T>` implementation.
 
-The collection is selected once for every package that directly contains Mappers. The processor validates it and generates direct adapter calls for matching parameters and supported scalar results.
+The collection is selected once for every package that directly contains Mappers. The processor validates it and generates an immutable Mapper-local router containing those handlers.
 
 ```java
 @JdbcTypeMapping(
     javaType = Money.class,
     jdbcType = JDBCType.DECIMAL,
-    adapter = MoneyJdbcValueAdapter.class
+    vendorTypeName = "money",
+    handler = MoneyTypeHandler.class
 )
 public final class ApplicationJdbcTypeMappings
         implements JdbcTypeMappings {
@@ -83,21 +93,21 @@ Use a complete official collection as the base and select at most one explicit a
 package com.example.account.mapper;
 ```
 
-Compilation loads the base first and the application collection second. The application declaration replaces the exact same Java-type and `JDBCType` key; a new key is appended. The base collection still owns inferred defaults, so appending an alternative representation never changes an undeclared parameter or result implicitly; select the alternative with explicit `jdbcType` metadata. Duplicate keys inside either collection are errors. No collection is appended or discovered implicitly, and no runtime map participates in execution.
+Compilation loads the base first and the application collection second. The application declaration replaces the exact same Java type, `JDBCType`, and optional vendor type name key; a new key is appended. The base collection still owns inferred parameter defaults, so appending an alternative representation never changes an undeclared parameter implicitly; select the alternative with placeholder `jdbcType` metadata or `@UseParameterBinder` when vendor information is also required. Query results use JDBC metadata, including the vendor type name when declared, to choose among the generated routes. Duplicate keys inside either collection are errors. No collection is appended or discovered implicitly.
 
 Use this path when the rule should apply consistently across Mapper methods in the same database package. Examples include PostgreSQL native UUID values, a project-wide `Money` representation, or an enum representation selected by an explicit JDBC type.
 
-A JDBC value adapter works with one value at a time. It is not appropriate for combining several columns into an aggregate object.
+A type handler works with one value at a time. It is not appropriate for combining several columns into an aggregate object.
 
 ## Generated Result Mapping and MyBatis `resultMap`
 
-Generated result mapping and JDBC type mapping are layers, not alternatives. Generated mapping decides which result column supplies each constructor argument or property. A JDBC value adapter decides how one of those column values becomes its Java value.
+Generated result mapping and JDBC type mapping are layers, not alternatives. Generated mapping decides which result column supplies each constructor argument or property. The runtime type router selects the `TypeHandler` that converts each column value.
 
 ```text
 one result row -> generated record/JavaBean mapping
                   |-- id column      -> Long value mapping
-                  |-- balance column -> Money JDBC value adapter
-                  `-- status column  -> enum JDBC value adapter
+                  |-- balance column -> Money TypeHandler
+                  `-- status column  -> enum TypeHandler
 ```
 
 Consequently, a declarative whole-row mapping cannot replace JDBC type mappings: it still needs a conversion for every non-built-in column value, and it has no role in Mapper parameter binding. Conversely, JDBC type mappings cannot describe how several columns are assembled into one object.
@@ -117,7 +127,7 @@ int insert(
 
 Use it when only this parameter needs special treatment—for example, one UUID parameter stored as vendor-specific binary data while the package normally uses a string representation.
 
-A parameter binder is write-only. It does not define how query results are read. If the same Java/JDBC representation should be reused for both writes and scalar reads, define a JDBC value adapter instead.
+A parameter binder is write-only. It does not define how query results are read. If the same Java/JDBC representation should be reused for both writes and reads, define a `TypeHandler` instead.
 
 ## Row Mapper: One Exceptional Read Shape
 
@@ -149,7 +159,7 @@ For this method:
 - `UserRowMapper` replaces generated result mapping for each current row;
 - JDBC type mappings continue to serve every other Mapper method in the package.
 
-A row mapper reads the `ResultSet` directly. LiteORM does not automatically apply package JDBC value adapters inside custom row-mapper code. If a query has no parameters and a row mapper handles every result column, the package mappings do no runtime work for that particular method, although the package still has one compile-time mapping selection.
+A row mapper reads the `ResultSet` directly and fully bypasses default result type routing for that method. If a query has no parameters and a row mapper handles every result column, the package mappings do no runtime work for that particular method, although the package still has one compile-time mapping selection.
 
 ## Compilation and Runtime Responsibilities
 
@@ -181,22 +191,22 @@ flowchart LR
         CALL --> GEN
         GEN --> PLAN
         PLAN --> EXEC
-        EXEC -->|invokes generated binder or value adapter| PS
+        EXEC -->|invokes explicit binder or routed TypeHandler| PS
         EXEC --> RS
-        RS -->|generated mapping, value adapter, or row mapper| RESULT
+        RS -->|routed TypeHandler or explicit RowMapper| RESULT
     end
 ```
 
 The runtime distinction is therefore mechanical:
 
 - parameter binding ends at `PreparedStatement`;
-- value adapters may participate in parameter binding or single-column reading;
+- type handlers participate in parameter binding and single-column reading;
 - row mapping starts from the current `ResultSet` row and produces the method's result element.
 
 ## Practical Decision Rules
 
 - Prefer generated mapping first.
-- Use a JDBC value adapter when the representation is a reusable property of a Java type within one database package.
+- Use a type handler when the representation is a reusable property of a Java type within one database package.
 - Let generated scalar, record, or JavaBean mapping compose those atomic column values for ordinary query results.
 - Use a parameter binder when the exception belongs to one parameter rather than the package's type policy.
 - Use a row mapper only as the method-level, read-only escape hatch when the exception belongs to one result shape rather than one column value.

@@ -31,6 +31,6 @@ The `PlatformTransactionManager` must manage the same DataSource named by the Ma
 
 ## Extension Beans
 
-Spring may discover and order `ExecutionInterceptor` beans. SQL providers, parameter binders, JDBC value adapters, and row mappers remain compile-time-selected generated dependencies rather than runtime registries.
+Spring may discover and order `ExecutionInterceptor` beans. SQL providers, parameter binders, type handlers, and row mappers remain compile-time-selected generated dependencies rather than global runtime registries.
 
 See the [Extension contracts](../../reference/extensions.md) for exact validation, lifecycle, and ownership rules.

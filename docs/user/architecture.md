@@ -12,7 +12,7 @@ The annotation processor validates Mapper methods, selects SQL sources, compiles
 
 ## Runtime
 
-Generated Mappers build immutable execution plans and call `SqlExecutor`. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover JDBC adapters.
+Generated Mappers build immutable execution plans and call `SqlExecutor`. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover type handlers. Generated immutable routes select handlers from declared Java types and JDBC metadata.
 
 ## Host Integrations
 

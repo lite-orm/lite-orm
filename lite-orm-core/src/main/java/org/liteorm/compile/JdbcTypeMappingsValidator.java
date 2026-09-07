@@ -1,7 +1,7 @@
 package org.liteorm.compile;
 
 import org.liteorm.api.JdbcTypeMappings;
-import org.liteorm.api.JdbcValueAdapter;
+import org.liteorm.api.TypeHandler;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.RoundEnvironment;
@@ -38,14 +38,14 @@ final class JdbcTypeMappingsValidator {
     private final Types types;
     private final Messager messager;
     private final TypeMirror mappingsType;
-    private final TypeMirror adapterType;
+    private final TypeMirror handlerType;
 
     JdbcTypeMappingsValidator(Elements elements, Types types, Messager messager) {
         this.elements = elements;
         this.types = types;
         this.messager = messager;
         this.mappingsType = elements.getTypeElement(JdbcTypeMappings.class.getCanonicalName()).asType();
-        this.adapterType = elements.getTypeElement(JdbcValueAdapter.class.getCanonicalName()).asType();
+        this.handlerType = elements.getTypeElement(TypeHandler.class.getCanonicalName()).asType();
     }
 
     void validate(RoundEnvironment roundEnvironment) {
@@ -115,9 +115,11 @@ final class JdbcTypeMappingsValidator {
         for (AnnotationMirror mapping : mappingAnnotations(mappingsElement)) {
             TypeMirror javaType = typeValue(mapping, "javaType");
             String jdbcType = enumValue(mapping, "jdbcType");
-            TypeMirror adapterType = typeValue(mapping, "adapter");
-            declarations.add(new MappingDeclaration(javaType, jdbcType, adapterType));
-            String mappingKey = javaType + " + " + jdbcType;
+            String vendorTypeName = stringValue(mapping, "vendorTypeName").trim();
+            TypeMirror handlerType = typeValue(mapping, "handler");
+            declarations.add(new MappingDeclaration(javaType, jdbcType, vendorTypeName, handlerType));
+            String mappingKey = javaType + " + " + jdbcType
+                + (vendorTypeName.isEmpty() ? "" : " + " + vendorTypeName.toLowerCase(java.util.Locale.ROOT));
             if (!declaredMappings.add(mappingKey)) {
                 problems.add(new ValidationProblem(
                     mapping, null, "duplicate JDBC type mapping for " + mappingKey));
@@ -150,62 +152,62 @@ final class JdbcTypeMappingsValidator {
 
     private void validateMapping(AnnotationMirror mapping, List<ValidationProblem> problems) {
         TypeMirror javaType = typeValue(mapping, "javaType");
-        TypeMirror declaredAdapterType = typeValue(mapping, "adapter");
-        if (javaType == null || declaredAdapterType == null) {
+        TypeMirror declaredHandlerType = typeValue(mapping, "handler");
+        if (javaType == null || declaredHandlerType == null) {
             problems.add(new ValidationProblem(
-                mapping, null, "JDBC type mapping must declare javaType and adapter"));
+                mapping, null, "JDBC type mapping must declare javaType and handler"));
             return;
         }
-        TypeElement adapterElement = (TypeElement) types.asElement(declaredAdapterType);
-        if (adapterElement == null
-                || !types.isAssignable(types.erasure(declaredAdapterType), types.erasure(adapterType))) {
+        TypeElement handlerElement = (TypeElement) types.asElement(declaredHandlerType);
+        if (handlerElement == null
+                || !types.isAssignable(types.erasure(declaredHandlerType), types.erasure(handlerType))) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " must implement JdbcValueAdapter"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " must implement TypeHandler"));
             return;
         }
-        if (!adapterElement.getModifiers().contains(Modifier.PUBLIC)
-                || adapterElement.getModifiers().contains(Modifier.ABSTRACT)) {
+        if (!handlerElement.getModifiers().contains(Modifier.PUBLIC)
+                || handlerElement.getModifiers().contains(Modifier.ABSTRACT)) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " must be a public concrete JDBC value adapter"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " must be a public concrete JDBC type handler"));
             return;
         }
-        if (!hasPublicEnclosingTypes(adapterElement)) {
+        if (!hasPublicEnclosingTypes(handlerElement)) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " must be enclosed only by public types"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " must be enclosed only by public types"));
             return;
         }
-        if (adapterElement.getNestingKind() == NestingKind.MEMBER
-                && !adapterElement.getModifiers().contains(Modifier.STATIC)) {
+        if (handlerElement.getNestingKind() == NestingKind.MEMBER
+                && !handlerElement.getModifiers().contains(Modifier.STATIC)) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " nested JDBC value adapter must be static"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " nested JDBC value type handler must be static"));
             return;
         }
-        boolean hasPublicNoArgConstructor = adapterElement.getEnclosedElements().stream()
+        boolean hasPublicNoArgConstructor = handlerElement.getEnclosedElements().stream()
             .filter(element -> element.getKind() == ElementKind.CONSTRUCTOR)
             .map(ExecutableElement.class::cast)
             .anyMatch(constructor -> constructor.getParameters().isEmpty()
                 && constructor.getModifiers().contains(Modifier.PUBLIC));
         if (!hasPublicNoArgConstructor) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " must declare a public no-argument constructor"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " must declare a public no-argument constructor"));
             return;
         }
-        TypeMirror targetType = adapterTarget(declaredAdapterType);
+        TypeMirror targetType = handlerTarget(declaredHandlerType);
         if (targetType == null || !isConcreteType(targetType)) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                declaredAdapterType + " must declare a concrete JdbcValueAdapter target type"));
+                mapping, value(mapping, "handler"),
+                declaredHandlerType + " must declare a concrete TypeHandler target type"));
             return;
         }
         if (!types.isSameType(types.erasure(javaType), types.erasure(targetType))) {
             problems.add(new ValidationProblem(
-                mapping, value(mapping, "adapter"),
-                "JDBC value adapter target type " + targetType
+                mapping, value(mapping, "handler"),
+                "JDBC value type handler target type " + targetType
                     + " does not match declared Java type " + javaType));
         }
     }
@@ -231,15 +233,15 @@ final class JdbcTypeMappingsValidator {
         return type.getKind() != TypeKind.TYPEVAR && type.getKind() != TypeKind.WILDCARD;
     }
 
-    private TypeMirror adapterTarget(TypeMirror candidate) {
+    private TypeMirror handlerTarget(TypeMirror candidate) {
         if (candidate instanceof DeclaredType declaredType
-                && types.isSameType(types.erasure(candidate), types.erasure(adapterType))) {
+                && types.isSameType(types.erasure(candidate), types.erasure(handlerType))) {
             return declaredType.getTypeArguments().size() == 1
                 ? declaredType.getTypeArguments().getFirst()
                 : null;
         }
         for (TypeMirror supertype : types.directSupertypes(candidate)) {
-            TypeMirror target = adapterTarget(supertype);
+            TypeMirror target = handlerTarget(supertype);
             if (target != null) {
                 return target;
             }
@@ -255,6 +257,11 @@ final class JdbcTypeMappingsValidator {
     private String enumValue(AnnotationMirror annotation, String name) {
         AnnotationValue value = value(annotation, name);
         return value != null ? value.getValue().toString() : "<missing>";
+    }
+
+    private String stringValue(AnnotationMirror annotation, String name) {
+        AnnotationValue value = value(annotation, name);
+        return value == null ? "" : value.getValue().toString();
     }
 
     private AnnotationValue value(AnnotationMirror annotation, String name) {
@@ -273,7 +280,12 @@ final class JdbcTypeMappingsValidator {
     ) {
     }
 
-    record MappingDeclaration(TypeMirror javaType, String jdbcType, TypeMirror adapterType) {
+    record MappingDeclaration(
+        TypeMirror javaType,
+        String jdbcType,
+        String vendorTypeName,
+        TypeMirror handlerType
+    ) {
     }
 
     record ValidationProblem(

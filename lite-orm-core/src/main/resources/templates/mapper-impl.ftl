@@ -10,6 +10,8 @@ import org.liteorm.api.NonUniqueResultException;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
+import org.liteorm.api.StatementOptions;
+import org.liteorm.jdbc.JdbcTypeRouter;
 import org.liteorm.runtime.ResultValueConverters;
 import java.util.ArrayList;
 import java.util.List;

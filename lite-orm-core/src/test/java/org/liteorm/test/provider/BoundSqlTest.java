@@ -6,6 +6,7 @@ import org.liteorm.api.BoundSql;
 import org.liteorm.api.ConfigurationException;
 import org.liteorm.api.ParameterBinder;
 
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,9 +19,9 @@ class BoundSqlTest {
     @Test
     void preservesOrderedParametersAndDefensivelyCopiesList() {
         List<BoundParameter<?>> parameters = new ArrayList<>();
-        parameters.add(BoundParameter.of(1L));
+        parameters.add(BoundParameter.of(Long.class, 1L));
         BoundSql boundSql = new BoundSql("SELECT ?", parameters);
-        parameters.add(BoundParameter.of(2L));
+        parameters.add(BoundParameter.of(Long.class, 2L));
 
         assertEquals(1, boundSql.parameters().size());
         assertArrayEquals(new Object[]{1L}, boundSql.parameterValues());
@@ -31,11 +32,27 @@ class BoundSqlTest {
         ParameterBinder<String> binder = (statement, index, value) -> statement.setString(index, value);
         BoundSql boundSql = new BoundSql("SELECT ?, ?", List.of(
             BoundParameter.bound("custom", binder),
-            BoundParameter.of(2L)
+            BoundParameter.of(Long.class, 2L)
         ));
 
         assertArrayEquals(new Object[]{"custom", 2L}, boundSql.parameterValues());
         assertArrayEquals(new ParameterBinder<?>[]{binder, null}, boundSql.parameterBinders());
+    }
+
+    @Test
+    void preservesProviderParameterTypesForRuntimeRoutingIncludingNulls() {
+        BoundSql boundSql = new BoundSql("SELECT ?, ?", List.of(
+            BoundParameter.of(String.class, null, JDBCType.CLOB),
+            BoundParameter.of(Number.class, 2L)
+        ));
+
+        assertArrayEquals(new Class<?>[]{String.class, Number.class}, boundSql.parameterTypes());
+        assertArrayEquals(new JDBCType[]{JDBCType.CLOB, null}, boundSql.parameterJdbcTypes());
+    }
+
+    @Test
+    void rejectsDirectProviderParametersWithoutAnExplicitBinder() {
+        assertThrows(NullPointerException.class, () -> new BoundParameter<>("value", null));
     }
 
     @Test

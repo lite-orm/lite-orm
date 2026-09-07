@@ -278,7 +278,7 @@ interface DatabaseCompatibilityMapper {
     @GeneratedKey("id")
     @Insert("INSERT INTO compatibility_users (name, active, business_date, created_at, event_id, "
         + "uuid_value, local_time_value, offset_date_time_value, payload) "
-        + "VALUES (#{name}, #{active}, #{businessDate}, #{createdAt}, #{eventId}, #{uuid}, #{localTime}, "
+        + "VALUES (#{name}, #{active}, #{businessDate}, #{createdAt}, #{eventId}, #{uuid,jdbcType=VARCHAR}, #{localTime}, "
         + "#{offsetDateTime}, #{payload})")
     Long insert(
         @Param("name") String name,
@@ -294,7 +294,7 @@ interface DatabaseCompatibilityMapper {
     @Batch("INSERT INTO compatibility_users (id, name, active, business_date, created_at, event_id, "
         + "uuid_value, local_time_value, offset_date_time_value, payload) "
         + "VALUES (#{item.id}, #{item.name}, #{item.active}, #{item.businessDate}, #{item.createdAt}, "
-        + "#{item.eventId}, #{item.uuid}, #{item.localTime}, #{item.offsetDateTime}, #{item.payload})")
+        + "#{item.eventId}, #{item.uuid,jdbcType=VARCHAR}, #{item.localTime}, #{item.offsetDateTime}, #{item.payload})")
     int[] insertBatch(List<CompatibilityRecord> values);
 
     @Select("SELECT COUNT(*) FROM compatibility_users")

@@ -34,12 +34,12 @@ record MapperCompilationModel(
         String resultMappingCode,
         String resultMappingHelperCode,
         List<String> resultColumnLabels,
+        List<String> resultTypeNames,
         String providerClassName,
         String providerFieldName,
         String providerArgumentExpression,
-        List<AdapterField> adapterFields,
-        List<JdbcValueAdapterField> jdbcValueAdapterFields,
-        JdbcResultReader jdbcResultReader,
+        List<ExtensionField> extensionFields,
+        List<TypeHandlerField> typeHandlerFields,
         List<String> parameterBinderFields,
         String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
@@ -69,9 +69,8 @@ record MapperCompilationModel(
             String providerClassName,
             String providerFieldName,
             String providerArgumentExpression,
-            List<AdapterField> adapterFields,
-            List<JdbcValueAdapterField> jdbcValueAdapterFields,
-            JdbcResultReader jdbcResultReader,
+            List<ExtensionField> extensionFields,
+            List<TypeHandlerField> typeHandlerFields,
             List<String> parameterBinderFields,
             String rowMapperFieldName,
             List<SqlParameterParser.MethodParameter> methodParameters,
@@ -80,32 +79,27 @@ record MapperCompilationModel(
         ) {
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
                 sourceType, sqlTemplate, dynamic, null, resultType, resultMappingCode,
-                resultMappingHelperCode, resultColumnLabels, providerClassName, providerFieldName, providerArgumentExpression,
-                adapterFields, jdbcValueAdapterFields, jdbcResultReader,
+                resultMappingHelperCode, resultColumnLabels, List.of(), providerClassName, providerFieldName, providerArgumentExpression,
+                extensionFields, typeHandlerFields,
                 parameterBinderFields, rowMapperFieldName,
                 methodParameters, parameterBindings,
                 astNode, parameterList, null);
         }
     }
 
-    public record AdapterField(String typeName, String fieldName) {
+    public record ExtensionField(String typeName, String fieldName) {
     }
 
-    public record JdbcValueAdapterField(
+    public record TypeHandlerField(
         String typeName,
         String javaTypeName,
         String fieldName,
         String binderFieldName,
         String binderMethodName,
         String jdbcType,
+        String vendorTypeName,
         String initializer
     ) {
     }
 
-    public record JdbcResultReader(
-        String javaTypeName,
-        String methodName,
-        String body
-    ) {
-    }
 }

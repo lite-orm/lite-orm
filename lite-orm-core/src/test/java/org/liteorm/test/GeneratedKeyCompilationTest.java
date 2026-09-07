@@ -62,7 +62,7 @@ class GeneratedKeyCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toBigInteger(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("\"id\", null, null"));
+        assertTrue(generated.contains("new ExecutionPlan.TypeRouting(jdbcTypeRouter"));
     }
 
     @Test
@@ -96,7 +96,7 @@ class GeneratedKeyCompilationTest {
             "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
         assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
         assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
-        assertTrue(generated.contains("\"id\", null, insertRowMapper"));
+        assertTrue(generated.contains("insertRowMapper, StatementOptions.defaults()"));
     }
 
     @Test
@@ -165,7 +165,7 @@ class GeneratedKeyCompilationTest {
             class InsertProvider implements SqlProvider<String> {
                 public InsertProvider() {}
                 public BoundSql provide(String name) {
-                    return new BoundSql("INSERT INTO users (name) VALUES (?)", List.of(BoundParameter.of(name)));
+                    return new BoundSql("INSERT INTO users (name) VALUES (?)", List.of(BoundParameter.of(String.class, name)));
                 }
             }
             @Mapper interface GeneratedKeyProviderMapper {

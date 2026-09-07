@@ -40,22 +40,22 @@ _Avoid_: Parser stack trace, inferred XML declaration
 XML resolution that permits only LiteORM-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
-**JDBC type declaration**:
-Compile-time Mapper metadata that explicitly selects the JDBC type used for a parameter or result value without inspecting a live database schema.
-_Avoid_: Schema discovery, runtime type guessing
+**JDBC type router**:
+The immutable Mapper-package policy that selects a type handler from a declared Java type and JDBC type. It does not construct result objects or discover handlers from global runtime state.
+_Avoid_: JDBC value adapter, row mapper, global type-handler registry
 
-**JDBC value adapter**:
-A compile-time-selected typed mapping for one JDBC column value and one statement parameter. It does not map an entire result row and is never discovered through a runtime registry.
-_Avoid_: Row mapper, runtime type handler
+**Type handler**:
+A bidirectional conversion for one Java value and one JDBC column representation. It writes statement parameters and reads current result columns after the JDBC type router selects it.
+_Avoid_: JDBC value adapter, row mapper
 
 **JDBC type mappings**:
-An explicitly selected compile-time collection of Java-to-JDBC value mappings. A collection may define database-independent standard mappings or one database family's complete effective mapping set. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, routing, pagination, or generated-key policy.
-_Avoid_: Database dialect, JDBC plugin, type-handler registry
+An explicitly selected collection of Java-type, JDBC-type, and type-handler routes. A collection may define database-independent standard mappings or one database family's complete effective mapping set. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, DataSource routing, pagination, or generated-key policy.
+_Avoid_: Database dialect, JDBC plugin, global type-handler registry
 
 **Parameter binder**:
 A Mapper-parameter-specific strategy for writing one parameter value. It is an explicit exception for one parameter, not a package-wide value mapping and not a result-reading strategy.
-_Avoid_: JDBC value adapter, row mapper, global type handler
+_Avoid_: Type handler, row mapper, global type handler
 
 **Row mapper**:
 A Mapper-method-specific strategy for constructing one result object from the current result row. It may combine several columns and does not bind statement parameters.
-_Avoid_: JDBC value adapter, parameter binder, result-set interceptor
+_Avoid_: Type handler, parameter binder, result-set interceptor

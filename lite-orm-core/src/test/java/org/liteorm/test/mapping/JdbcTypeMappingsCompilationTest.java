@@ -24,7 +24,7 @@ class JdbcTypeMappingsCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void acceptsAConcreteAdapterWhoseValueTypeMatchesTheDeclaration() throws Exception {
+    void acceptsAConcreteTypeHandlerWhoseValueTypeMatchesTheDeclaration() throws Exception {
         Compilation result = compile("ValidMappings", """
             package org.liteorm.test.mappingfixture;
 
@@ -35,21 +35,21 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(
                 javaType = UUID.class,
                 jdbcType = JDBCType.OTHER,
-                adapter = ValidMappings.UuidAdapter.class
+                handler = ValidMappings.UuidTypeHandler.class
             )
             public final class ValidMappings implements JdbcTypeMappings {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType)
                             throws SQLException {
                         statement.setObject(index, value);
                     }
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+                    public UUID getResult(ResultSet resultSet, int columnIndex) throws SQLException {
                         return resultSet.getObject(columnIndex, UUID.class);
                     }
                 }
@@ -60,7 +60,7 @@ class JdbcTypeMappingsCompilationTest {
     }
 
     @Test
-    void rejectsAdapterWhoseValueTypeDoesNotMatchTheDeclaredJavaType() throws Exception {
+    void rejectsTypeHandlerWhoseValueTypeDoesNotMatchTheDeclaredJavaType() throws Exception {
         Compilation result = compile("MismatchedMappings", """
             package org.liteorm.test.mappingfixture;
 
@@ -70,21 +70,21 @@ class JdbcTypeMappingsCompilationTest {
             import java.sql.SQLException;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(
                 javaType = MismatchedMappings.Money.class,
                 jdbcType = JDBCType.DECIMAL,
-                adapter = MismatchedMappings.StringAdapter.class
+                handler = MismatchedMappings.StringTypeHandler.class
             )
             public final class MismatchedMappings implements JdbcTypeMappings {
                 public record Money(long minorUnits) {}
 
-                public static final class StringAdapter implements JdbcValueAdapter<String> {
-                    public StringAdapter() {}
+                public static final class StringTypeHandler implements TypeHandler<String> {
+                    public StringTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, String value, JDBCType jdbcType)
                             throws SQLException {}
-                    public String getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+                    public String getResult(ResultSet resultSet, int columnIndex) throws SQLException {
                         return resultSet.getString(columnIndex);
                     }
                 }
@@ -93,7 +93,7 @@ class JdbcTypeMappingsCompilationTest {
 
         assertFalse(result.succeeded(), result::diagnosticsText);
         assertTrue(result.diagnosticsText().contains(
-            "JDBC value adapter target type java.lang.String does not match declared Java type"),
+            "JDBC value type handler target type java.lang.String does not match declared Java type"),
             result::diagnosticsText);
     }
 
@@ -109,22 +109,22 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = DuplicateMappings.FirstAdapter.class)
+                handler = DuplicateMappings.FirstTypeHandler.class)
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = DuplicateMappings.SecondAdapter.class)
+                handler = DuplicateMappings.SecondTypeHandler.class)
             public final class DuplicateMappings implements JdbcTypeMappings {
-                public static final class FirstAdapter implements JdbcValueAdapter<UUID> {
-                    public FirstAdapter() {}
+                public static final class FirstTypeHandler implements TypeHandler<UUID> {
+                    public FirstTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
-                public static final class SecondAdapter implements JdbcValueAdapter<UUID> {
-                    public SecondAdapter() {}
+                public static final class SecondTypeHandler implements TypeHandler<UUID> {
+                    public SecondTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -135,7 +135,7 @@ class JdbcTypeMappingsCompilationTest {
     }
 
     @Test
-    void rejectsAdapterWithoutAPublicNoArgumentConstructor() throws Exception {
+    void rejectsTypeHandlerWithoutAPublicNoArgumentConstructor() throws Exception {
         Compilation result = compile("ConstructorMappings", """
             package org.liteorm.test.mappingfixture;
 
@@ -145,15 +145,15 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = ConstructorMappings.UuidAdapter.class)
+                handler = ConstructorMappings.UuidTypeHandler.class)
             public final class ConstructorMappings implements JdbcTypeMappings {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    private UuidAdapter(String configuration) {}
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    private UuidTypeHandler(String configuration) {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -164,7 +164,7 @@ class JdbcTypeMappingsCompilationTest {
     }
 
     @Test
-    void rejectsNonStaticNestedAdapter() throws Exception {
+    void rejectsNonStaticNestedTypeHandler() throws Exception {
         Compilation result = compile("NestedMappings", """
             package org.liteorm.test.mappingfixture;
 
@@ -174,27 +174,27 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = NestedMappings.UuidAdapter.class)
+                handler = NestedMappings.UuidTypeHandler.class)
             public final class NestedMappings implements JdbcTypeMappings {
-                public final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                public final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
 
         assertFalse(result.succeeded(), result::diagnosticsText);
         assertTrue(result.diagnosticsText().contains(
-            "nested JDBC value adapter must be static"), result::diagnosticsText);
+            "nested JDBC value type handler must be static"), result::diagnosticsText);
     }
 
     @Test
-    void rejectsAdapterEnclosedByANonPublicType() throws Exception {
-        Compilation result = compile("InaccessibleAdapterMappings", """
+    void rejectsTypeHandlerEnclosedByANonPublicType() throws Exception {
+        Compilation result = compile("InaccessibleTypeHandlerMappings", """
             package org.liteorm.test.mappingfixture;
 
             import java.sql.JDBCType;
@@ -203,17 +203,17 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = AdapterContainer.UuidAdapter.class)
-            public final class InaccessibleAdapterMappings implements JdbcTypeMappings {}
+                handler = TypeHandlerContainer.UuidTypeHandler.class)
+            public final class InaccessibleTypeHandlerMappings implements JdbcTypeMappings {}
 
-            final class AdapterContainer {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+            final class TypeHandlerContainer {
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -224,8 +224,8 @@ class JdbcTypeMappingsCompilationTest {
     }
 
     @Test
-    void rejectsAdapterWithANonConcreteValueType() throws Exception {
-        Compilation result = compile("GenericAdapterMappings", """
+    void rejectsTypeHandlerWithANonConcreteValueType() throws Exception {
+        Compilation result = compile("GenericTypeHandlerMappings", """
             package org.liteorm.test.mappingfixture;
 
             import java.sql.JDBCType;
@@ -234,16 +234,16 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = GenericAdapterMappings.RawAdapter.class)
-            public final class GenericAdapterMappings implements JdbcTypeMappings {
+                handler = GenericTypeHandlerMappings.RawTypeHandler.class)
+            public final class GenericTypeHandlerMappings implements JdbcTypeMappings {
                 @SuppressWarnings("rawtypes")
-                public static final class RawAdapter implements JdbcValueAdapter {
-                    public RawAdapter() {}
+                public static final class RawTypeHandler implements TypeHandler {
+                    public RawTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, Object value, JDBCType jdbcType) {}
-                    public Object getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public Object getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -262,15 +262,15 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = MutableMappings.UuidAdapter.class)
+                handler = MutableMappings.UuidTypeHandler.class)
             public class MutableMappings implements JdbcTypeMappings {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -291,15 +291,15 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = PackagePrivateMappings.UuidAdapter.class)
+                handler = PackagePrivateMappings.UuidTypeHandler.class)
             final class PackagePrivateMappings implements JdbcTypeMappings {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
@@ -320,17 +320,17 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             final class EnclosedMappings {
                 @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                    adapter = Mappings.UuidAdapter.class)
+                    handler = Mappings.UuidTypeHandler.class)
                 public static final class Mappings implements JdbcTypeMappings {
-                    public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                        public UuidAdapter() {}
+                    public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                        public UuidTypeHandler() {}
                         public void setNonNull(
                                 PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                        public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                        public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                     }
                 }
             }
@@ -342,8 +342,8 @@ class JdbcTypeMappingsCompilationTest {
     }
 
     @Test
-    void rejectsNonPublicAdapter() throws Exception {
-        Compilation result = compile("NonPublicAdapterMappings", """
+    void rejectsNonPublicTypeHandler() throws Exception {
+        Compilation result = compile("NonPublicTypeHandlerMappings", """
             package org.liteorm.test.mappingfixture;
 
             import java.sql.JDBCType;
@@ -352,27 +352,27 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = NonPublicAdapterMappings.UuidAdapter.class)
-            public final class NonPublicAdapterMappings implements JdbcTypeMappings {
-                static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                handler = NonPublicTypeHandlerMappings.UuidTypeHandler.class)
+            public final class NonPublicTypeHandlerMappings implements JdbcTypeMappings {
+                static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
 
         assertFalse(result.succeeded(), result::diagnosticsText);
         assertTrue(result.diagnosticsText().contains(
-            "must be a public concrete JDBC value adapter"), result::diagnosticsText);
+            "must be a public concrete JDBC type handler"), result::diagnosticsText);
     }
 
     @Test
-    void rejectsAbstractAdapter() throws Exception {
-        Compilation result = compile("AbstractAdapterMappings", """
+    void rejectsAbstractTypeHandler() throws Exception {
+        Compilation result = compile("AbstractTypeHandlerMappings", """
             package org.liteorm.test.mappingfixture;
 
             import java.sql.JDBCType;
@@ -381,27 +381,27 @@ class JdbcTypeMappingsCompilationTest {
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
             import org.liteorm.api.JdbcTypeMappings;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = AbstractAdapterMappings.UuidAdapter.class)
-            public final class AbstractAdapterMappings implements JdbcTypeMappings {
-                public abstract static class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                handler = AbstractTypeHandlerMappings.UuidTypeHandler.class)
+            public final class AbstractTypeHandlerMappings implements JdbcTypeMappings {
+                public abstract static class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);
 
         assertFalse(result.succeeded(), result::diagnosticsText);
         assertTrue(result.diagnosticsText().contains(
-            "must be a public concrete JDBC value adapter"), result::diagnosticsText);
+            "must be a public concrete JDBC type handler"), result::diagnosticsText);
     }
 
     @Test
-    void rejectsClassThatDoesNotImplementJdbcValueAdapter() throws Exception {
-        Compilation result = compile("UnrelatedAdapterMappings", """
+    void rejectsClassThatDoesNotImplementTypeHandler() throws Exception {
+        Compilation result = compile("UnrelatedTypeHandlerMappings", """
             package org.liteorm.test.mappingfixture;
 
             import java.sql.JDBCType;
@@ -410,8 +410,8 @@ class JdbcTypeMappingsCompilationTest {
             import org.liteorm.api.JdbcTypeMappings;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = String.class)
-            public final class UnrelatedAdapterMappings implements JdbcTypeMappings {}
+                handler = String.class)
+            public final class UnrelatedTypeHandlerMappings implements JdbcTypeMappings {}
             """);
 
         assertFalse(result.succeeded(), result::diagnosticsText);
@@ -427,15 +427,15 @@ class JdbcTypeMappingsCompilationTest {
             import java.sql.ResultSet;
             import java.util.UUID;
             import org.liteorm.annotation.JdbcTypeMapping;
-            import org.liteorm.api.JdbcValueAdapter;
+            import org.liteorm.api.TypeHandler;
 
             @JdbcTypeMapping(javaType = UUID.class, jdbcType = JDBCType.OTHER,
-                adapter = UnmarkedMappings.UuidAdapter.class)
+                handler = UnmarkedMappings.UuidTypeHandler.class)
             public final class UnmarkedMappings {
-                public static final class UuidAdapter implements JdbcValueAdapter<UUID> {
-                    public UuidAdapter() {}
+                public static final class UuidTypeHandler implements TypeHandler<UUID> {
+                    public UuidTypeHandler() {}
                     public void setNonNull(PreparedStatement statement, int index, UUID value, JDBCType jdbcType) {}
-                    public UUID getNullable(ResultSet resultSet, int columnIndex) { return null; }
+                    public UUID getResult(ResultSet resultSet, int columnIndex) { return null; }
                 }
             }
             """);

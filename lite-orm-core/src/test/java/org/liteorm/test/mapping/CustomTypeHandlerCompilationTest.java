@@ -18,14 +18,14 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class CustomAdapterCompilationTest {
+class CustomTypeHandlerCompilationTest {
 
     @TempDir
     Path temporaryDirectory;
 
     @Test
     void generatesDirectBinderAndRowMapperReferences() throws Exception {
-        Compilation result = compile("AdapterMapper", """
+        Compilation result = compile("TypeHandlerMapper", """
             package org.liteorm.test.mappingfixture;
 
             import org.liteorm.annotation.Mapper;
@@ -55,8 +55,8 @@ class CustomAdapterCompilationTest {
             }
 
             @Mapper
-            public interface AdapterMapper {
-                @Select("SELECT id, payload FROM adapter_values WHERE payload = #{payload}")
+            public interface TypeHandlerMapper {
+                @Select("SELECT id, payload FROM type_handler_values WHERE payload = #{payload}")
                 @UseRowMapper(UnsupportedShapeMapper.class)
                 List<UnsupportedShape> find(@UseParameterBinder(JsonBinder.class) JsonValue payload);
             }
@@ -64,7 +64,7 @@ class CustomAdapterCompilationTest {
 
         assertTrue(result.succeeded(), () -> result.diagnostics().toString());
         String generated = Files.readString(result.generatedDirectory()
-            .resolve("org/liteorm/test/mappingfixture/AdapterMapperImpl.java"));
+            .resolve("org/liteorm/test/mappingfixture/TypeHandlerMapperImpl.java"));
         assertTrue(generated.contains("private final org.liteorm.test.mappingfixture.JsonBinder findPayloadParameterBinder"), generated);
         assertTrue(generated.contains("private final org.liteorm.test.mappingfixture.UnsupportedShapeMapper findRowMapper"), generated);
         assertTrue(generated.contains("findPayloadParameterBinder"), generated);
@@ -95,7 +95,7 @@ class CustomAdapterCompilationTest {
 
             @Mapper
             public interface DynamicBinderMapper {
-                @Select({"<script>", "SELECT payload FROM adapter_values",
+                @Select({"<script>", "SELECT payload FROM type_handler_values",
                     "<if test='payload != null'>WHERE payload = #{payload}</if>", "</script>"})
                 String find(@UseParameterBinder(JsonBinder.class) JsonValue payload);
             }
@@ -191,6 +191,23 @@ class CustomAdapterCompilationTest {
     }
 
     @Test
+    void namesExplicitExtensionContractsInConstructionDiagnostics() throws Exception {
+        Compilation binderResult = compile("PrivateBinderMapper", source(
+            "Result find(@UseParameterBinder(PrivateBinder.class) JsonValue payload);",
+            "class PrivateBinder implements ParameterBinder<JsonValue> { private PrivateBinder() {} public void bind(PreparedStatement ps, int index, JsonValue value) throws SQLException {} }"));
+        assertFailure(
+            binderResult, "PrivateBinderMapper#find",
+            "parameter binder requires an accessible no-arg constructor");
+
+        Compilation rowMapperResult = compile("AbstractRowMapper", source(
+            "@UseRowMapper(AbstractMapper.class) Result find();",
+            "abstract class AbstractMapper implements RowMapper<Result> {}"));
+        assertFailure(
+            rowMapperResult, "AbstractRowMapper#find",
+            "row mapper must be a concrete accessible class");
+    }
+
+    @Test
     void rejectsWholeParameterBinderForDynamicPropertyExpression() throws Exception {
         Compilation result = compile("DynamicPropertyBinderMapper", """
             package org.liteorm.test.mappingfixture;
@@ -253,7 +270,7 @@ class CustomAdapterCompilationTest {
         assertFailure(result, "WriteRowMapper#update", "row mapper requires a SELECT method");
     }
 
-    private String source(String method, String adapter) {
+    private String source(String method, String handler) {
         return """
             package org.liteorm.test.mappingfixture;
             import org.liteorm.annotation.*;
@@ -264,7 +281,7 @@ class CustomAdapterCompilationTest {
             record Result(Long id) {}
             %s
             @Mapper public interface PLACEHOLDER { @Select("SELECT 1") %s }
-            """.formatted(adapter, method);
+            """.formatted(handler, method);
     }
 
     private void assertFailure(Compilation result, String location, String message) {

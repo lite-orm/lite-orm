@@ -1,5 +1,6 @@
 package org.liteorm.api;
 
+import java.sql.JDBCType;
 import java.util.List;
 
 public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
@@ -21,11 +22,23 @@ public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
         return boundSql;
     }
 
+    /** Returns parameter values in placeholder order. */
     public Object[] parameterValues() {
         return parameters.stream().map(BoundParameter::value).toArray(Object[]::new);
     }
 
+    /** Returns explicit binder slots in placeholder order. */
     public ParameterBinder<?>[] parameterBinders() {
         return parameters.stream().map(BoundParameter::binder).toArray(ParameterBinder<?>[]::new);
+    }
+
+    /** Returns declared Java types used by default runtime routing. */
+    public Class<?>[] parameterTypes() {
+        return parameters.stream().map(BoundParameter::javaType).toArray(Class<?>[]::new);
+    }
+
+    /** Returns optional JDBC representations used by default runtime routing. */
+    public JDBCType[] parameterJdbcTypes() {
+        return parameters.stream().map(BoundParameter::jdbcType).toArray(JDBCType[]::new);
     }
 }
