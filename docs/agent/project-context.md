@@ -16,7 +16,8 @@ Runtime responsibilities:
 - immutable execution plans and results;
 - `JdbcSqlExecutor`;
 - standalone transaction support;
-- built-in execution interceptors.
+- built-in execution interceptors;
+- database-independent standard JDBC type mappings.
 
 Current compiler responsibilities:
 
@@ -31,11 +32,11 @@ Registers generated Mapper implementations, binds Mapper packages to physical Da
 
 ### `lite-orm-postgresql-types`
 
-Provides the official compile-time PostgreSQL mapping collection for UUID, `LocalTime`, and `OffsetDateTime`. Mapper packages select `PostgreSqlJdbcTypeMappings` explicitly. The artifact does not supply the PostgreSQL driver and must not introduce processor, MyBatis, Testcontainers, test-support, discovery, or runtime-registry dependencies.
+Provides the complete official compile-time PostgreSQL mapping collection: shared standard mappings plus UUID, `LocalTime`, `OffsetDateTime`, `OffsetTime`, and national-character strings. Mapper packages select `PostgreSqlJdbcTypeMappings` explicitly. The artifact does not supply the PostgreSQL driver and must not introduce processor, MyBatis, Testcontainers, test-support, discovery, or runtime-registry dependencies.
 
 ### `lite-orm-mysql-types`
 
-Provides the official compile-time MySQL mapping collection for UUID, `LocalTime`, and `OffsetDateTime`. Mapper packages select `MySqlJdbcTypeMappings` explicitly. The artifact does not supply the MySQL driver and must not introduce processor, MyBatis, Testcontainers, test-support, discovery, or runtime-registry dependencies.
+Provides the complete official compile-time MySQL mapping collection: shared standard mappings plus UUID, `LocalTime`, `OffsetDateTime`, and national-character strings. Mapper packages select `MySqlJdbcTypeMappings` explicitly. The artifact does not supply the MySQL driver and must not introduce processor, MyBatis, Testcontainers, test-support, discovery, or runtime-registry dependencies.
 
 ### `lite-orm-examples/basic-mapper`
 
@@ -71,10 +72,10 @@ Mapper source
 ## Source-of-Truth Map
 
 - Product principles: `Design-Philosophy.md`
-- Core contract: `docs/core-ga-contract.md`
-- Extensions and Spring boundaries: `docs/extensions.md`
-- Migration boundary: `docs/mybatis-compatibility.md` and `docs/migration-guide.md`
-- Strategic direction: `docs/roadmap.md`
+- Core contract: `docs/reference/core-contract.md`
+- Extensions and Spring boundaries: `docs/reference/extensions.md`
+- Migration boundary: `docs/reference/mybatis-compatibility.md` and `docs/user/migration/from-mybatis.md`
+- Strategic direction: `docs/project/roadmap.md`
 - Active specifications and task sequence: GitHub Issues, configured by `docs/agents/issue-tracker.md`
 - Documentation ownership: `docs/agent/documentation-policy.md`
 

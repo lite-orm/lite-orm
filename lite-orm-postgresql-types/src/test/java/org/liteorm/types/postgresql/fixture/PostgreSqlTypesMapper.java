@@ -7,6 +7,7 @@ import org.liteorm.annotation.Select;
 
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.OffsetTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,6 +50,12 @@ public interface PostgreSqlTypesMapper {
 
     @Select("SELECT offset_date_time_value FROM postgresql_type_values WHERE id = #{id}")
     Optional<OffsetDateTime> findOptionalOffsetDateTime(@Param("id") long id);
+
+    @Insert("INSERT INTO postgresql_offset_time_values (id, value) VALUES (#{id}, #{value})")
+    int insertOffsetTime(@Param("id") long id, @Param("value") OffsetTime value);
+
+    @Select("SELECT value FROM postgresql_offset_time_values WHERE id = #{id}")
+    OffsetTime findOffsetTime(@Param("id") long id);
 
     @Insert("INSERT INTO postgresql_type_values "
         + "(id, uuid_value, local_time_value, offset_date_time_value) "

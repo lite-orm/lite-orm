@@ -12,10 +12,15 @@ suites=(
   org.liteorm.types.postgresql.PostgreSqlUuidMappingTest
   org.liteorm.types.postgresql.PostgreSqlLocalTimeMappingTest
   org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeMappingTest
+  org.liteorm.types.postgresql.PostgreSqlOffsetTimeMappingTest
+  org.liteorm.types.postgresql.PostgreSqlStandardScalarMappingTest
+  org.liteorm.types.postgresql.PostgreSqlTemporalExclusionEvidenceTest
   org.liteorm.types.postgresql.PostgreSqlCompositeMappingTest
   org.liteorm.types.mysql.MySqlUuidMappingTest
   org.liteorm.types.mysql.MySqlLocalTimeMappingTest
   org.liteorm.types.mysql.MySqlOffsetDateTimeMappingTest
+  org.liteorm.types.mysql.MySqlStandardScalarMappingTest
+  org.liteorm.types.mysql.MySqlTemporalExclusionEvidenceTest
   org.liteorm.types.mysql.MySqlCompositeMappingTest
   org.liteorm.spring.boot.PostgresPackageDataSourceExecutionTest
   org.liteorm.spring.boot.MySqlPackageDataSourceExecutionTest

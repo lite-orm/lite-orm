@@ -97,14 +97,15 @@ record MapperCompilationModel(
         String fieldName,
         String binderFieldName,
         String binderMethodName,
-        String jdbcType
+        String jdbcType,
+        String initializer
     ) {
     }
 
     public record JdbcResultReader(
         String javaTypeName,
-        String adapterFieldName,
-        String methodName
+        String methodName,
+        String body
     ) {
     }
 }

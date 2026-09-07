@@ -2,6 +2,8 @@
 
 LiteORM keeps generated Mapper code as the default. Extensions are narrow, explicit escape hatches for cases that cannot remain fully generated.
 
+For the top-level mental model and a decision diagram, start with [Choosing a Value or Row Mapping](../user/core/mapping.md). This document owns the precise validation and lifecycle contracts.
+
 ## Guarantee Levels
 
 | Path | Compile-time guarantees | Runtime work |
@@ -96,7 +98,7 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 
 ## JDBC Type Mappings
 
-A `JdbcTypeMappings` implementation declares the Java-to-JDBC value mappings for one database family. Each repeatable `@JdbcTypeMapping` entry identifies one Java type, one `JDBCType`, and one concrete `JdbcValueAdapter<T>`.
+A `JdbcTypeMappings` implementation declares one coherent collection of Java-to-JDBC value mappings. A collection may be database-independent or define the complete effective mappings for one database family. Each repeatable `@JdbcTypeMapping` entry identifies one Java type, one `JDBCType`, and one concrete `JdbcValueAdapter<T>`.
 
 Every package that directly contains a Mapper selects exactly one collection in its own `package-info.java`:
 
@@ -107,20 +109,35 @@ package com.example.user.mapper;
 import org.liteorm.annotation.UseJdbcTypeMappings;
 ```
 
+An application may add one explicit package-scoped override collection without copying the official base collection:
+
+```java
+@UseJdbcTypeMappings(
+    value = PostgreSqlJdbcTypeMappings.class,
+    overrides = ApplicationJdbcTypeMappings.class
+)
+package com.example.user.mapper;
+
+import org.liteorm.annotation.UseJdbcTypeMappings;
+import org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings;
+```
+
 - A mapping collection is a public final class that implements `JdbcTypeMappings`.
 - An adapter is public, concrete, independently constructible, and generic for the declared Java type.
 - Nested adapters are static and expose a public no-argument constructor.
-- Selection is exact-package only. It is not inherited from a parent or child package, and Mapper-level overrides are not supported.
+- Selection is exact-package only. It is not inherited from a parent or child package, and Mapper-interface selection is not supported.
 - Source and dependency-supplied collections and adapters receive the same compile-time validation.
 - Generated code creates one instance of each selected adapter used by a Mapper and reuses it for that Mapper instance. Adapters must therefore be stateless, thread-safe, or externally synchronized.
-- LiteORM owns null parameter binding; `JdbcValueAdapter.setNonNull` receives only non-null values.
-- Null parameters use the selected declaration's `JDBCType` vendor number. Non-null parameters call `setNonNull` directly, and supported scalar results call `getNullable` directly while the `ResultSet` remains active.
+- `JdbcValueAdapter.setNonNull` receives only non-null values.
+- Null parameters call the adapter's default `setNull` implementation with the selected `JDBCType`. An adapter may override null binding only for a documented driver incompatibility.
+- Non-null parameters call `setNonNull` directly, and supported scalar results call `getNullable` directly while the `ResultSet` remains active.
 - `JdbcValueAdapter.getNullable` reads one column from the current result row while JDBC resources remain active.
 - Duplicate Java-type and JDBC-type declarations fail compilation.
+- The base and optional override collection are validated independently. An override replaces the exact same Java-type and `JDBCType` key or appends a new key. An appended alternative does not change the base collection's inferred `JDBCType`; use declared `jdbcType` metadata to select it. More than one override collection fails compilation.
 - Generated Mappers expose the selected collection identity through `JdbcTypeMappingsMetadata` without changing their single-`SqlExecutor` constructor.
 - Mapping collections are declarative metadata. Selection and adapter wiring use no runtime registry, discovery, reflection, `ServiceLoader`, or command-line profile.
 
-When a selected collection does not uniquely declare a mapping for a Java type, the existing built-in mapping contract remains in effect. The complete Java-type and `JDBCType` resolution policy is tracked separately from package selection.
+The compiler does not discover or append another collection. Official database collections therefore declare their complete effective mapping sets while reusing Core adapter implementations. When the effective collection does not uniquely declare a mapping for a Java type, only the built-in direct JDBC mappings and enum synthesis remain available.
 
 PostgreSQL applications can use the official `lite-orm-postgresql-types` artifact and select its collection explicitly:
 
@@ -132,7 +149,7 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 import org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings;
 ```
 
-The application supplies the PostgreSQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-ga-contract.md#26-official-postgresql-type-mappings) owns the supported mapping set and exact semantic guarantees.
+The application supplies the PostgreSQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-contract.md#26-official-postgresql-type-mappings) owns the supported mapping set and exact semantic guarantees.
 
 MySQL applications can use the official `lite-orm-mysql-types` artifact and select its collection explicitly:
 
@@ -144,7 +161,7 @@ import org.liteorm.annotation.UseJdbcTypeMappings;
 import org.liteorm.types.mysql.MySqlJdbcTypeMappings;
 ```
 
-The application supplies the MySQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-ga-contract.md#27-official-mysql-type-mappings) owns the supported mapping set and exact semantic guarantees.
+The application supplies the MySQL JDBC driver. The artifact does not enable auto-discovery or add a runtime registry. The [Core GA contract](core-contract.md#27-official-mysql-type-mappings) owns the supported mapping set and exact semantic guarantees.
 
 ## Row Mapper
 
@@ -153,6 +170,7 @@ Use `@UseRowMapper` on a query method with a concrete `RowMapper<T>`.
 - Use it for a one-row shape unsupported by scalar, record, or JavaBean generation.
 - The mapper generic type must match the method's single result or `List<T>` element type.
 - Explicit row mapping takes precedence over built-in mapping.
+- A row mapper is a method-level, read-only escape hatch. It does not replace parameter binding or the package's JDBC value mappings for other methods.
 - The row mapper runs only after `ResultSet.next()` succeeds.
 - Generated code owns one mapper instance and passes a direct reference.
 
