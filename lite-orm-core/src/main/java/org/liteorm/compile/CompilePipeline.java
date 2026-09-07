@@ -128,7 +128,8 @@ final class CompilePipeline {
                     + " [Mapper=" + mapperInterface.getQualifiedName() + "]"
             ).at(mapperInterface);
         }
-        TypeMirror selectedType = annotationTypeValue(selections.getFirst(), "value");
+        AnnotationMirror selection = selections.getFirst();
+        TypeMirror selectedType = annotationTypeValue(selection, "value");
         TypeElement selectedMappings = (TypeElement) typeUtils.asElement(selectedType);
         if (selectedMappings == null) {
             throw invalidJdbcTypeMappingsSelection(
@@ -144,7 +145,65 @@ final class CompilePipeline {
                 mapperPackage.getQualifiedName().toString(),
                 validation.problems().getFirst().message());
         }
-        return new JdbcTypeMappingsSelection(selectedMappings, validation.declarations());
+        List<TypeMirror> overrideTypes = annotationTypeArrayValue(selection, "overrides");
+        if (overrideTypes.size() > 1) {
+            throw invalidJdbcTypeMappingsSelection(
+                mapperInterface,
+                mapperPackage.getQualifiedName().toString(),
+                "at most one override JdbcTypeMappings collection may be selected");
+        }
+        List<JdbcTypeMappingsValidator.MappingDeclaration> declarations = validation.declarations();
+        if (!overrideTypes.isEmpty()) {
+            TypeMirror overrideType = overrideTypes.getFirst();
+            TypeElement overrideMappings = (TypeElement) typeUtils.asElement(overrideType);
+            if (overrideMappings == null) {
+                throw invalidJdbcTypeMappingsSelection(
+                    mapperInterface,
+                    mapperPackage.getQualifiedName().toString(),
+                    overrideType + " could not be resolved");
+            }
+            JdbcTypeMappingsValidator.ValidationResult overrideValidation =
+                jdbcTypeMappingsValidator.inspect(overrideMappings);
+            if (!overrideValidation.problems().isEmpty()) {
+                throw invalidJdbcTypeMappingsSelection(
+                    mapperInterface,
+                    mapperPackage.getQualifiedName().toString(),
+                    overrideValidation.problems().getFirst().message());
+            }
+            declarations = mergeMappings(declarations, overrideValidation.declarations());
+        }
+        return new JdbcTypeMappingsSelection(
+            selectedMappings, validation.declarations(), declarations);
+    }
+
+    private List<JdbcTypeMappingsValidator.MappingDeclaration> mergeMappings(
+            List<JdbcTypeMappingsValidator.MappingDeclaration> baseDeclarations,
+            List<JdbcTypeMappingsValidator.MappingDeclaration> overrideDeclarations) {
+        List<JdbcTypeMappingsValidator.MappingDeclaration> merged = new ArrayList<>(baseDeclarations);
+        for (JdbcTypeMappingsValidator.MappingDeclaration override : overrideDeclarations) {
+            int existingIndex = -1;
+            for (int index = 0; index < merged.size(); index++) {
+                if (sameMappingKey(merged.get(index), override)) {
+                    existingIndex = index;
+                    break;
+                }
+            }
+            if (existingIndex >= 0) {
+                merged.set(existingIndex, override);
+            } else {
+                merged.add(override);
+            }
+        }
+        return List.copyOf(merged);
+    }
+
+    private boolean sameMappingKey(
+            JdbcTypeMappingsValidator.MappingDeclaration first,
+            JdbcTypeMappingsValidator.MappingDeclaration second) {
+        return first.javaType() != null
+            && second.javaType() != null
+            && typeUtils.isSameType(typeUtils.erasure(first.javaType()), typeUtils.erasure(second.javaType()))
+            && first.jdbcType().equals(second.jdbcType());
     }
 
     private CompileException invalidJdbcTypeMappingsSelection(
@@ -157,6 +216,7 @@ final class CompilePipeline {
 
     private record JdbcTypeMappingsSelection(
         TypeElement type,
+        List<JdbcTypeMappingsValidator.MappingDeclaration> baseDeclarations,
         List<JdbcTypeMappingsValidator.MappingDeclaration> declarations
     ) {
     }
@@ -325,6 +385,11 @@ final class CompilePipeline {
         ExecutionPlan.StatementType statementType = providerBinding == null
             ? mapStatementType(sqlInfo.sqlType())
             : providerBinding.statementType();
+        if (declaredResultJdbcType(method) != null
+                && statementType != ExecutionPlan.StatementType.SELECT) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @ResultJdbcType requires a SELECT statement");
+        }
         CursorMethod cursorMethod = analyzeCursorMethod(
             mapperInterface, method, resolvedMethodType, statementType);
 
@@ -352,14 +417,29 @@ final class CompilePipeline {
             }
         }
 
-        AdapterBindings adapterBindings = analyzeAdapterBindings(
-            mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
-            methodParameters, parameterResult.bindings(), jdbcTypeMappings);
-        validateJdbcParameterTypes(
-            mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
-            methodParameters, parameterResult.bindings(), jdbcTypeMappings);
+        AdapterBindings adapterBindings;
+        try {
+            adapterBindings = analyzeAdapterBindings(
+                mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
+                methodParameters, parameterResult.bindings(), jdbcTypeMappings);
+            validateJdbcParameterTypes(
+                mapperInterface, method, resolvedMethodType, cursorMethod, sqlInfo, providerBinding,
+                methodParameters, parameterResult.bindings(), jdbcTypeMappings);
+        } catch (IllegalArgumentException exception) {
+            throw new CompileException("Failed to resolve SQL parameters for "
+                + mapperInterface.getQualifiedName() + "#" + method.getSimpleName() + ": "
+                + exception.getMessage(), exception);
+        }
+        if (declaredResultJdbcType(method) != null
+                && (cursorMethod != null || adapterBindings.rowMapperFieldName() != null)) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @ResultJdbcType requires a direct scalar result");
+        }
         adapterBindings = addSelectedResultReader(
             method, resolvedMethodType, cursorMethod, statementType, adapterBindings, jdbcTypeMappings);
+        adapterBindings = addGeneratedCompositeResultReader(
+            mapperInterface, method, resolvedMethodType, cursorMethod,
+            statementType, adapterBindings, jdbcTypeMappings);
 
         // Build the normalized method model.
         String methodName = method.getSimpleName().toString();
@@ -494,9 +574,11 @@ final class CompilePipeline {
                 TypeMirror parameterType = resolveParameterExpressionType(
                     binding.expression(), visibleParameterTypes);
                 JdbcTypeMappingsValidator.MappingDeclaration mapping =
-                    selectedMapping(parameterType, jdbcTypeMappings);
+                    selectedMapping(parameterType, binding.jdbcType(), jdbcTypeMappings);
                 MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField =
-                    mapping == null ? null : jdbcValueAdapterField(mapping, jdbcTypeMappings);
+                    mapping == null
+                        ? enumJdbcValueAdapterField(parameterType, binding.jdbcType())
+                        : jdbcValueAdapterField(mapping, jdbcTypeMappings);
                 addJdbcValueAdapterField(jdbcValueAdapterFields, jdbcValueAdapterField);
                 binderFields.add(jdbcValueAdapterField == null
                     ? null : jdbcValueAdapterField.binderFieldName());
@@ -570,7 +652,9 @@ final class CompilePipeline {
         if (node instanceof AstNode.TextNode textNode) {
             Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
             while (matcher.find()) {
-                String expression = matcher.group(1).trim();
+                SqlParameterParser.ParameterExpression parameterExpression =
+                    SqlParameterParser.parseParameterExpression(matcher.group(1));
+                String expression = parameterExpression.expression();
                 String root = expression.split("\\.", 2)[0];
                 MapperCompilationModel.AdapterField parameterAdapter = parameterAdapters.get(root);
                 if (parameterAdapter != null) {
@@ -584,9 +668,11 @@ final class CompilePipeline {
                 }
                 TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
                 JdbcTypeMappingsValidator.MappingDeclaration mapping =
-                    selectedMapping(parameterType, jdbcTypeMappings);
+                    selectedMapping(parameterType, parameterExpression.jdbcType(), jdbcTypeMappings);
                 MapperCompilationModel.JdbcValueAdapterField field =
-                    mapping == null ? null : jdbcValueAdapterField(mapping, jdbcTypeMappings);
+                    mapping == null
+                        ? enumJdbcValueAdapterField(parameterType, parameterExpression.jdbcType())
+                        : jdbcValueAdapterField(mapping, jdbcTypeMappings);
                 addJdbcValueAdapterField(jdbcValueAdapterFields, field);
                 binderFields.add(field == null ? null : field.binderFieldName());
             }
@@ -645,19 +731,26 @@ final class CompilePipeline {
             CursorMethod cursorMethod,
             ExecutionPlan.StatementType statementType,
             AdapterBindings adapterBindings,
-            JdbcTypeMappingsSelection jdbcTypeMappings) {
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
         if (statementType != ExecutionPlan.StatementType.SELECT
                 || cursorMethod != null
                 || adapterBindings.rowMapperFieldName() != null) {
             return adapterBindings;
         }
         TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
+        String declaredJdbcType = declaredResultJdbcType(method);
         JdbcTypeMappingsValidator.MappingDeclaration mapping =
-            selectedMapping(resultType, jdbcTypeMappings);
-        if (mapping == null) {
+            selectedMapping(resultType, declaredJdbcType, jdbcTypeMappings);
+        MapperCompilationModel.JdbcValueAdapterField field = mapping == null
+            ? enumJdbcValueAdapterField(resultType, declaredJdbcType)
+            : jdbcValueAdapterField(mapping, jdbcTypeMappings);
+        if (declaredJdbcType != null && field == null) {
+            throw new CompileException(method + ": no JDBC type mapping exists for "
+                + resultType + " + " + declaredJdbcType);
+        }
+        if (field == null) {
             return adapterBindings;
         }
-        MapperCompilationModel.JdbcValueAdapterField field = jdbcValueAdapterField(mapping, jdbcTypeMappings);
         List<MapperCompilationModel.JdbcValueAdapterField> fields =
             new ArrayList<>(adapterBindings.jdbcValueAdapterFields());
         addJdbcValueAdapterField(fields, field);
@@ -666,10 +759,220 @@ final class CompilePipeline {
             adapterBindings.adapterFields(),
             List.copyOf(fields),
             new MapperCompilationModel.JdbcResultReader(
-                resultType.toString(), field.fieldName(), readerMethodName),
+                resultType.toString(), readerMethodName,
+                "return " + field.fieldName() + ".getNullable(resultSet, 1);\n"),
             adapterBindings.parameterBinderFields(),
             "this::" + readerMethodName
         );
+    }
+
+    private AdapterBindings addGeneratedCompositeResultReader(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod,
+            ExecutionPlan.StatementType statementType,
+            AdapterBindings adapterBindings,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+        if (statementType != ExecutionPlan.StatementType.SELECT
+                || cursorMethod != null
+                || adapterBindings.rowMapperFieldName() != null) {
+            return adapterBindings;
+        }
+        TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
+        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
+        if (resultElement == null) {
+            return adapterBindings;
+        }
+
+        List<MapperCompilationModel.JdbcValueAdapterField> fields =
+            new ArrayList<>(adapterBindings.jdbcValueAdapterFields());
+        GeneratedCompositeReader reader = resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD
+            ? generateRecordJdbcResultReader(
+                mapperInterface, method, resultElement, resultType.toString(), fields, jdbcTypeMappings)
+            : generateJavaBeanJdbcResultReader(
+                mapperInterface, method, resultElement, resultType.toString(), fields, jdbcTypeMappings);
+        if (reader == null) {
+            return adapterBindings;
+        }
+        String readerMethodName = "read" + capitalize(method.getSimpleName().toString()) + "Result";
+        return new AdapterBindings(
+            adapterBindings.adapterFields(),
+            List.copyOf(fields),
+            new MapperCompilationModel.JdbcResultReader(
+                resultType.toString(), readerMethodName, reader.body()),
+            adapterBindings.parameterBinderFields(),
+            "this::" + readerMethodName
+        );
+    }
+
+    private GeneratedCompositeReader generateRecordJdbcResultReader(
+            TypeElement mapperInterface,
+            ExecutableElement mapperMethod,
+            TypeElement resultElement,
+            String resultType,
+            List<MapperCompilationModel.JdbcValueAdapterField> fields,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+        List<? extends javax.lang.model.element.RecordComponentElement> components =
+            resultElement.getRecordComponents();
+        List<String> labels = new ArrayList<>(components.size());
+        List<String> values = new ArrayList<>(components.size());
+        boolean usesAdapter = false;
+        for (int index = 0; index < components.size(); index++) {
+            var component = components.get(index);
+            labels.add(resultColumnLabel(component, component.getSimpleName().toString()));
+            MappingValue mappingValue = generatedJdbcResultValue(
+                mapperInterface, mapperMethod,
+                "nested record component " + resultType + "." + component.getSimpleName(),
+                component.asType(), component, index, fields, jdbcTypeMappings);
+            values.add(mappingValue.expression());
+            usesAdapter |= mappingValue.usesAdapter();
+        }
+        if (!usesAdapter) {
+            return null;
+        }
+        String body = generateResultColumnResolution(labels)
+            + "return new " + resultType + "(" + String.join(", ", values) + ");\n";
+        return new GeneratedCompositeReader(body);
+    }
+
+    private GeneratedCompositeReader generateJavaBeanJdbcResultReader(
+            TypeElement mapperInterface,
+            ExecutableElement mapperMethod,
+            TypeElement resultElement,
+            String resultType,
+            List<MapperCompilationModel.JdbcValueAdapterField> fields,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+        boolean hasAccessibleNoArgConstructor = resultElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
+            .map(ExecutableElement.class::cast)
+            .anyMatch(constructor -> constructor.getParameters().isEmpty()
+                && !constructor.getModifiers().contains(Modifier.PRIVATE));
+        if (!hasAccessibleNoArgConstructor) {
+            return null;
+        }
+        List<VariableElement> beanFields = resultElement.getEnclosedElements().stream()
+            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
+            .map(VariableElement.class::cast)
+            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
+            .toList();
+        if (beanFields.isEmpty()) {
+            return null;
+        }
+
+        List<String> labels = new ArrayList<>(beanFields.size());
+        List<String> assignments = new ArrayList<>(beanFields.size());
+        boolean usesAdapter = false;
+        for (int index = 0; index < beanFields.size(); index++) {
+            VariableElement field = beanFields.get(index);
+            String fieldName = field.getSimpleName().toString();
+            String setterName = "set" + capitalize(fieldName);
+            ExecutableElement setter = resultElement.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
+                .filter(candidate -> candidate.getModifiers().contains(Modifier.PUBLIC))
+                .filter(candidate -> candidate.getParameters().size() == 1)
+                .findFirst()
+                .orElse(null);
+            if (setter == null) {
+                return null;
+            }
+            TypeMirror parameterType = setter.getParameters().getFirst().asType();
+            labels.add(resultColumnLabel(field, fieldName));
+            MappingValue mappingValue = generatedJdbcResultValue(
+                mapperInterface, mapperMethod,
+                "nested object property " + resultType + "." + fieldName,
+                parameterType, field, index, fields, jdbcTypeMappings);
+            assignments.add("mapped." + setterName + "(" + mappingValue.expression() + ");\n");
+            usesAdapter |= mappingValue.usesAdapter();
+        }
+        if (!usesAdapter) {
+            return null;
+        }
+        String body = generateResultColumnResolution(labels)
+            + resultType + " mapped = new " + resultType + "();\n"
+            + String.join("", assignments)
+            + "return mapped;\n";
+        return new GeneratedCompositeReader(body);
+    }
+
+    private MappingValue generatedJdbcResultValue(
+            TypeElement mapperInterface,
+            ExecutableElement mapperMethod,
+            String location,
+            TypeMirror javaType,
+            Element declaration,
+            int columnIndex,
+            List<MapperCompilationModel.JdbcValueAdapterField> fields,
+            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+        String declaredJdbcType = declaredResultJdbcType(declaration);
+        JdbcTypeMappingsValidator.MappingDeclaration mapping =
+            selectedMapping(javaType, declaredJdbcType, jdbcTypeMappings);
+        if (mapping != null) {
+            MapperCompilationModel.JdbcValueAdapterField adapterField =
+                jdbcValueAdapterField(mapping, jdbcTypeMappings);
+            addJdbcValueAdapterField(fields, adapterField);
+            return new MappingValue(
+                adapterField.fieldName() + ".getNullable(resultSet, resultColumnIndexes["
+                    + columnIndex + "])",
+                true);
+        }
+        String expression = generateValueMapping(
+            javaType.toString(),
+            "resultSet.getObject(resultColumnIndexes[" + columnIndex + "])",
+            declaredJdbcType);
+        if (expression == null) {
+            throw unsupportedResultMapping(
+                mapperInterface, mapperMethod, location + " (" + javaType + ")");
+        }
+        return new MappingValue(expression, false);
+    }
+
+    private String generateResultColumnResolution(List<String> labels) {
+        StringBuilder code = new StringBuilder();
+        code.append("int[] resultColumnIndexes = new int[").append(labels.size()).append("];\n");
+        code.append("java.sql.ResultSetMetaData resultMetadata = resultSet.getMetaData();\n");
+        code.append("for (int columnIndex = 1; columnIndex <= resultMetadata.getColumnCount(); columnIndex++) {\n");
+        code.append("    String columnLabel = resultMetadata.getColumnLabel(columnIndex);\n");
+        code.append("    if (columnLabel == null || columnLabel.isBlank()) {\n");
+        code.append("        columnLabel = resultMetadata.getColumnName(columnIndex);\n");
+        code.append("    }\n");
+        for (int index = 0; index < labels.size(); index++) {
+            String condition = index == 0 ? "if" : "else if";
+            code.append("    ").append(condition).append(" (")
+                .append(javaStringLiteral(labels.get(index))).append(".equalsIgnoreCase(columnLabel)) {\n");
+            code.append("        if (resultColumnIndexes[").append(index).append("] != 0) {\n");
+            code.append("            throw new java.sql.SQLException(")
+                .append(javaStringLiteral("Duplicate result column label: " + labels.get(index)))
+                .append(");\n");
+            code.append("        }\n");
+            code.append("        resultColumnIndexes[").append(index).append("] = columnIndex;\n");
+            code.append("    }\n");
+        }
+        code.append("}\n");
+        for (int index = 0; index < labels.size(); index++) {
+            code.append("if (resultColumnIndexes[").append(index).append("] == 0) {\n");
+            code.append("    throw new java.sql.SQLException(")
+                .append(javaStringLiteral("Required result column is missing: " + labels.get(index)))
+                .append(");\n");
+            code.append("}\n");
+        }
+        return code.toString();
+    }
+
+    private String javaStringLiteral(String value) {
+        return "\"" + value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t") + "\"";
+    }
+
+    private String declaredResultJdbcType(Element element) {
+        AnnotationMirror annotation = findAnnotation(element, "org.liteorm.annotation.ResultJdbcType");
+        return annotation == null ? null : annotationEnumValue(annotation, "value");
     }
 
     private TypeMirror mappedResultType(TypeMirror returnType) {
@@ -752,7 +1055,7 @@ final class CompilePipeline {
         }
         for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
             validateJdbcParameterExpression(
-                binding.expression(), parameterTypes, binderRoots, location, jdbcTypeMappings);
+                binding.expression(), binding.jdbcType(), parameterTypes, binderRoots, location, jdbcTypeMappings);
         }
     }
 
@@ -765,8 +1068,11 @@ final class CompilePipeline {
         if (node instanceof AstNode.TextNode textNode) {
             Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
             while (matcher.find()) {
+                SqlParameterParser.ParameterExpression parameterExpression =
+                    SqlParameterParser.parseParameterExpression(matcher.group(1));
                 validateJdbcParameterExpression(
-                    matcher.group(1).trim(), visibleTypes, binderRoots, location, jdbcTypeMappings);
+                    parameterExpression.expression(), parameterExpression.jdbcType(),
+                    visibleTypes, binderRoots, location, jdbcTypeMappings);
             }
             return;
         }
@@ -793,6 +1099,7 @@ final class CompilePipeline {
 
     private void validateJdbcParameterExpression(
             String expression,
+            String declaredJdbcType,
             Map<String, TypeMirror> visibleTypes,
             Set<String> binderRoots,
             String location,
@@ -802,8 +1109,28 @@ final class CompilePipeline {
             return;
         }
         TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
+        List<JdbcTypeMappingsValidator.MappingDeclaration> matchingMappings =
+            matchingMappings(parameterType, jdbcTypeMappings);
+        JdbcTypeMappingsValidator.MappingDeclaration selectedMapping =
+            selectedMapping(parameterType, declaredJdbcType, jdbcTypeMappings);
+        if (declaredJdbcType != null
+                && selectedMapping == null
+                && enumJdbcValueAdapterField(parameterType, declaredJdbcType) == null) {
+            throw new CompileException(location + ": no JDBC type mapping exists for "
+                + parameterType + " + " + declaredJdbcType);
+        }
+        if (declaredJdbcType == null && matchingMappings.size() > 1
+                && selectedMapping == null
+                && !usesDefaultCanonicalJdbcBinding(parameterType)) {
+            String jdbcTypes = matchingMappings.stream()
+                .map(JdbcTypeMappingsValidator.MappingDeclaration::jdbcType)
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+            throw new CompileException(location + ": JDBC parameter expression " + expression + " of type "
+                + parameterType + " matches multiple JDBC type mappings " + jdbcTypes
+                + "; declare jdbcType explicitly");
+        }
         if (parameterType == null || isSupportedJdbcParameterType(parameterType)
-                || selectedMapping(parameterType, jdbcTypeMappings) != null) {
+                || selectedMapping != null) {
             return;
         }
         throw new CompileException(location + ": JDBC parameter expression " + expression + " has unsupported type "
@@ -871,15 +1198,111 @@ final class CompilePipeline {
 
     private JdbcTypeMappingsValidator.MappingDeclaration selectedMapping(
             TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
+        return selectedMapping(javaType, null, jdbcTypeMappings);
+    }
+
+    private JdbcTypeMappingsValidator.MappingDeclaration selectedMapping(
+            TypeMirror javaType,
+            String declaredJdbcType,
+            JdbcTypeMappingsSelection jdbcTypeMappings) {
+        List<JdbcTypeMappingsValidator.MappingDeclaration> matches = matchingMappings(javaType, jdbcTypeMappings)
+            .stream()
+            .filter(mapping -> declaredJdbcType == null || declaredJdbcType.equals(mapping.jdbcType()))
+            .toList();
+        if (matches.size() == 1 || declaredJdbcType != null) {
+            return matches.size() == 1 ? matches.getFirst() : null;
+        }
+        String canonicalJdbcType = canonicalJdbcType(javaType, jdbcTypeMappings);
+        List<JdbcTypeMappingsValidator.MappingDeclaration> canonicalMatches = matches.stream()
+            .filter(mapping -> mapping.jdbcType().equals(canonicalJdbcType))
+            .toList();
+        return canonicalMatches.size() == 1 ? canonicalMatches.getFirst() : null;
+    }
+
+    private String canonicalJdbcType(
+            TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
+        List<JdbcTypeMappingsValidator.MappingDeclaration> baseMatches =
+            matchingMappings(javaType, jdbcTypeMappings.baseDeclarations());
+        if (baseMatches.size() == 1) {
+            return baseMatches.getFirst().jdbcType();
+        }
+        String standardCanonicalJdbcType = canonicalJdbcType(javaType);
+        long canonicalBaseMatches = baseMatches.stream()
+            .filter(mapping -> mapping.jdbcType().equals(standardCanonicalJdbcType))
+            .count();
+        return canonicalBaseMatches == 1 || baseMatches.isEmpty()
+            ? standardCanonicalJdbcType
+            : null;
+    }
+
+    private String canonicalJdbcType(TypeMirror javaType) {
         if (javaType == null) {
             return null;
         }
-        List<JdbcTypeMappingsValidator.MappingDeclaration> matches = jdbcTypeMappings.declarations().stream()
+        if (javaType.getKind() == TypeKind.ARRAY) {
+            TypeMirror componentType = ((ArrayType) javaType).getComponentType();
+            if (componentType.getKind() == TypeKind.BYTE
+                    || "java.lang.Byte".equals(componentType.toString())) {
+                return "VARBINARY";
+            }
+        }
+        if (javaType instanceof DeclaredType declaredType
+                && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM) {
+            return "VARCHAR";
+        }
+        return switch (javaType.toString()) {
+            case "byte", "java.lang.Byte" -> "TINYINT";
+            case "short", "java.lang.Short" -> "SMALLINT";
+            case "int", "java.lang.Integer", "java.time.Year", "java.time.Month" -> "INTEGER";
+            case "long", "java.lang.Long" -> "BIGINT";
+            case "float", "java.lang.Float" -> "FLOAT";
+            case "double", "java.lang.Double" -> "DOUBLE";
+            case "boolean", "java.lang.Boolean" -> "BOOLEAN";
+            case "char", "java.lang.Character" -> "CHAR";
+            case "java.lang.String", "java.time.YearMonth" -> "VARCHAR";
+            case "java.math.BigDecimal", "java.math.BigInteger" -> "DECIMAL";
+            case "java.time.LocalDate", "java.sql.Date", "java.time.chrono.JapaneseDate" -> "DATE";
+            case "java.time.LocalTime", "java.sql.Time" -> "TIME";
+            case "java.time.LocalDateTime", "java.time.Instant", "java.util.Date", "java.sql.Timestamp" ->
+                "TIMESTAMP";
+            case "java.time.OffsetDateTime" -> "TIMESTAMP_WITH_TIMEZONE";
+            case "java.util.UUID" -> "OTHER";
+            default -> null;
+        };
+    }
+
+    private boolean usesDefaultCanonicalJdbcBinding(TypeMirror javaType) {
+        if (javaType == null || javaType.getKind().isPrimitive()) {
+            return javaType != null;
+        }
+        if (javaType.getKind() == TypeKind.ARRAY) {
+            return ((ArrayType) javaType).getComponentType().getKind() == TypeKind.BYTE;
+        }
+        return switch (javaType.toString()) {
+            case "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long",
+                "java.lang.Float", "java.lang.Double", "java.lang.Boolean", "java.lang.Character",
+                "java.lang.String", "java.math.BigDecimal", "java.time.LocalDate",
+                "java.time.LocalDateTime", "java.time.Instant" -> true;
+            default -> false;
+        };
+    }
+
+    private List<JdbcTypeMappingsValidator.MappingDeclaration> matchingMappings(
+            TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
+        return matchingMappings(javaType, jdbcTypeMappings.declarations());
+    }
+
+    private List<JdbcTypeMappingsValidator.MappingDeclaration> matchingMappings(
+            TypeMirror javaType,
+            List<JdbcTypeMappingsValidator.MappingDeclaration> declarations) {
+        if (javaType == null) {
+            return List.of();
+        }
+        return declarations.stream()
             .filter(mapping -> mapping.javaType() != null)
             .filter(mapping -> typeUtils.isSameType(
                 typeUtils.erasure(mapping.javaType()), typeUtils.erasure(javaType)))
             .toList();
-        return matches.size() == 1 ? matches.getFirst() : null;
     }
 
     private MapperCompilationModel.JdbcValueAdapterField jdbcValueAdapterField(
@@ -894,8 +1317,43 @@ final class CompilePipeline {
             "jdbcValueAdapter" + declarationId,
             "jdbcValueParameterBinder" + declarationId,
             "bindJdbcValue" + declarationId,
-            mapping.jdbcType()
+            mapping.jdbcType(),
+            null
         );
+    }
+
+    private MapperCompilationModel.JdbcValueAdapterField enumJdbcValueAdapterField(
+            TypeMirror javaType, String declaredJdbcType) {
+        if (!isEnumType(javaType)) {
+            return null;
+        }
+        String jdbcType = declaredJdbcType == null ? "VARCHAR" : declaredJdbcType;
+        String adapterName;
+        if ("VARCHAR".equals(jdbcType)) {
+            adapterName = "EnumNameJdbcValueAdapter";
+        } else if ("INTEGER".equals(jdbcType)) {
+            adapterName = "EnumOrdinalJdbcValueAdapter";
+        } else {
+            return null;
+        }
+        String javaTypeName = javaType.toString();
+        String identifier = javaTypeName.replaceAll("[^A-Za-z0-9]", "_") + "_" + jdbcType.toLowerCase();
+        String rawAdapterType = "org.liteorm.jdbc.StandardJdbcTypeMappings." + adapterName;
+        String adapterType = rawAdapterType + "<" + javaTypeName + ">";
+        return new MapperCompilationModel.JdbcValueAdapterField(
+            adapterType,
+            javaTypeName,
+            "enumJdbcValueAdapter_" + identifier,
+            "enumJdbcValueParameterBinder_" + identifier,
+            "bindEnumJdbcValue_" + identifier,
+            jdbcType,
+            "new " + rawAdapterType + "<>(" + javaTypeName + ".class)"
+        );
+    }
+
+    private boolean isEnumType(TypeMirror javaType) {
+        return javaType instanceof DeclaredType declaredType
+            && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM;
     }
 
     private void addJdbcValueAdapterField(
@@ -1087,6 +1545,18 @@ final class CompilePipeline {
 
     private TypeMirror annotationTypeValue(AnnotationMirror annotation, String name) {
         return (TypeMirror) annotationValue(annotation, name).getValue();
+    }
+
+    private List<TypeMirror> annotationTypeArrayValue(AnnotationMirror annotation, String name) {
+        Object value = annotationValue(annotation, name).getValue();
+        if (!(value instanceof List<?> values)) {
+            return List.of();
+        }
+        return values.stream()
+            .map(AnnotationValue.class::cast)
+            .map(AnnotationValue::getValue)
+            .map(TypeMirror.class::cast)
+            .toList();
     }
 
     private String annotationEnumValue(AnnotationMirror annotation, String name) {
@@ -1395,7 +1865,7 @@ final class CompilePipeline {
             case "int", "java.lang.Integer", "long", "java.lang.Long",
                 "short", "java.lang.Short", "byte", "java.lang.Byte",
                 "double", "java.lang.Double", "float", "java.lang.Float",
-                "java.math.BigDecimal", "java.lang.String" -> true;
+                "java.math.BigDecimal", "java.math.BigInteger", "java.lang.String" -> true;
             default -> false;
         };
     }
@@ -1531,6 +2001,7 @@ final class CompilePipeline {
             case "java.lang.Double", "double" -> "ResultValueConverters.toDouble(" + valueExpression + ")";
             case "java.lang.Float", "float" -> "ResultValueConverters.toFloat(" + valueExpression + ")";
             case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + valueExpression + ")";
+            case "java.math.BigInteger" -> "ResultValueConverters.toBigInteger(" + valueExpression + ")";
             case "java.lang.Boolean", "boolean" -> "ResultValueConverters.toBoolean(" + valueExpression + ")";
             case "java.lang.Character", "char" -> "ResultValueConverters.toCharacter(" + valueExpression + ")";
             case "java.time.LocalDate" -> "ResultValueConverters.toLocalDate(" + valueExpression + ")";
@@ -1540,18 +2011,41 @@ final class CompilePipeline {
             case "java.time.LocalTime" -> "ResultValueConverters.toLocalTime(" + valueExpression + ")";
             case "java.time.OffsetDateTime" -> "ResultValueConverters.toOffsetDateTime(" + valueExpression + ")";
             case "byte[]" -> "(byte[])" + valueExpression;
+            case "java.lang.Byte[]" -> "ResultValueConverters.toBoxedBytes(" + valueExpression + ")";
+            case "java.util.Date" -> "ResultValueConverters.toUtilDate(" + valueExpression + ")";
+            case "java.sql.Date" -> "ResultValueConverters.toSqlDate(" + valueExpression + ")";
+            case "java.sql.Time" -> "ResultValueConverters.toSqlTime(" + valueExpression + ")";
+            case "java.sql.Timestamp" -> "ResultValueConverters.toSqlTimestamp(" + valueExpression + ")";
+            case "java.time.Year" -> "ResultValueConverters.toYear(" + valueExpression + ")";
+            case "java.time.Month" -> "ResultValueConverters.toMonth(" + valueExpression + ")";
+            case "java.time.YearMonth" -> "ResultValueConverters.toYearMonth(" + valueExpression + ")";
+            case "java.time.chrono.JapaneseDate" ->
+                "ResultValueConverters.toJapaneseDate(" + valueExpression + ")";
             default -> null;
         };
     }
 
     private String generateValueMapping(String objectType, String valueExpression) {
+        return generateValueMapping(objectType, valueExpression, null);
+    }
+
+    private String generateValueMapping(
+            String objectType, String valueExpression, String declaredJdbcType) {
         String scalarMapping = generateScalarMapping(objectType, valueExpression);
         if (scalarMapping != null) {
-            return scalarMapping;
+            return declaredJdbcType == null ? scalarMapping : null;
         }
         TypeElement typeElement = elementUtils.getTypeElement(objectType);
         if (typeElement != null && typeElement.getKind() == javax.lang.model.element.ElementKind.ENUM) {
-            return valueExpression + " == null ? null : " + objectType + ".valueOf("
+            if ("INTEGER".equals(declaredJdbcType)) {
+                return "ResultValueConverters.toEnumOrdinal(" + valueExpression + ", "
+                    + objectType + ".class)";
+            }
+            if (declaredJdbcType != null && !"VARCHAR".equals(declaredJdbcType)) {
+                return null;
+            }
+            return valueExpression + " == null ? null : " + valueExpression + " instanceof " + objectType
+                + " ? (" + objectType + ")" + valueExpression + " : " + objectType + ".valueOf("
                 + valueExpression + ".toString())";
         }
         return null;
@@ -1578,7 +2072,8 @@ final class CompilePipeline {
             }
             
             String convertedValue = generateValueMapping(
-                componentType, "row[resultColumnIndexes[" + i + "]]");
+                componentType, "row[resultColumnIndexes[" + i + "]]",
+                declaredResultJdbcType(component));
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested record component " + objectType + "." + componentName
@@ -1640,7 +2135,8 @@ final class CompilePipeline {
                     objectType + " is missing public setter " + setterName));
             String parameterType = setter.getParameters().get(0).asType().toString();
             String convertedValue = generateValueMapping(
-                parameterType, "row[resultColumnIndexes[" + index + "]]");
+                parameterType, "row[resultColumnIndexes[" + index + "]]",
+                declaredResultJdbcType(field));
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");
@@ -1673,6 +2169,12 @@ final class CompilePipeline {
     }
 
     private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {
+    }
+
+    private record GeneratedCompositeReader(String body) {
+    }
+
+    private record MappingValue(String expression, boolean usesAdapter) {
     }
 
     private record CursorMethod(

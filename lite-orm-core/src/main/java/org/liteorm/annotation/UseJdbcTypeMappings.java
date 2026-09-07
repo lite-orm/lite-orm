@@ -9,7 +9,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Selects the JDBC type mappings collection for one Mapper package.
+ * Selects the base JDBC type mappings collection and optional application override for one Mapper package.
  */
 @Documented
 @Target(ElementType.PACKAGE)
@@ -17,7 +17,14 @@ import java.lang.annotation.Target;
 public @interface UseJdbcTypeMappings {
 
     /**
-     * Returns the selected JDBC type mappings collection.
+     * Returns the selected complete base JDBC type mappings collection.
      */
     Class<? extends JdbcTypeMappings> value();
+
+    /**
+     * Returns the optional application mapping collection that overrides the selected base collection.
+     *
+     * <p>At most one override collection may be selected.</p>
+     */
+    Class<? extends JdbcTypeMappings>[] overrides() default {};
 }

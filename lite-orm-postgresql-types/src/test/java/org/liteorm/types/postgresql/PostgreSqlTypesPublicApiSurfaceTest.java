@@ -18,12 +18,19 @@ class PostgreSqlTypesPublicApiSurfaceTest {
         "org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings",
         "org.liteorm.types.postgresql.PostgreSqlLocalTimeJdbcValueAdapter",
         "org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeJdbcValueAdapter",
+        "org.liteorm.types.postgresql.PostgreSqlOffsetTimeJdbcValueAdapter",
         "org.liteorm.types.postgresql.PostgreSqlUuidJdbcValueAdapter"
+    );
+    private static final Set<String> SUPPORTED_PUBLIC_NESTED_TYPES = Set.of(
+        "org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings$NationalStringJdbcValueAdapter"
     );
 
     @Test
     void exposesOnlyTheOfficialCollectionAndItsAdapters() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
+        assertEquals(
+            new TreeSet<>(SUPPORTED_PUBLIC_NESTED_TYPES),
+            discoverPublicNestedTypes(PostgreSqlJdbcTypeMappings.class));
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {
@@ -47,5 +54,12 @@ class PostgreSqlTypesPublicApiSurfaceTest {
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException("Cannot inspect compiled type " + className, exception);
         }
+    }
+
+    private Set<String> discoverPublicNestedTypes(Class<?> owner) {
+        return java.util.Arrays.stream(owner.getDeclaredClasses())
+            .filter(type -> Modifier.isPublic(type.getModifiers()))
+            .map(Class::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
     }
 }

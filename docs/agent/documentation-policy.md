@@ -7,6 +7,14 @@
 
 ## Document Types
 
+### Project Entry Point
+
+Root `README.md` and `README_cn.md` provide a short introduction, the top-level execution model, module inventory, and links into the documentation tree. They do not own detailed setup, extension, compatibility, or benchmark content.
+
+### User Guide
+
+Task-oriented documentation under `docs/user/`, grouped by product module or integration. User guides explain how to apply the contracts and must not duplicate normative tables.
+
 ### Contract
 
 Defines behavior that code, users, or integrations may rely on. A contract must link to executable tests or verification commands.
@@ -21,7 +29,7 @@ Records benchmark or compatibility results with reproducible commands, environme
 
 ### Active Plan
 
-Describes unfinished work. Specifications and implementation tickets live in GitHub Issues and are not product contracts. `docs/roadmap.md` records strategic order only.
+Describes unfinished work. Specifications and implementation tickets live in GitHub Issues and are not product contracts. `docs/project/roadmap.md` records strategic order only.
 
 ## Lifecycle Rules
 
@@ -35,13 +43,28 @@ Describes unfinished work. Specifications and implementation tickets live in Git
 ## Ownership
 
 - `Design-Philosophy.md` owns durable principles and non-goals.
-- `docs/core-ga-contract.md` owns runtime and Mapper contracts.
-- `docs/extensions.md` owns extension and Spring boundaries.
-- `docs/mybatis-compatibility.md` owns compatibility classification.
-- `docs/migration-guide.md` owns manual migration guidance.
+- `docs/user/` owns task-oriented user guidance organized by module.
+- `docs/reference/core-contract.md` owns runtime and Mapper contracts.
+- `docs/reference/extensions.md` owns extension and Spring boundaries.
+- `docs/reference/mybatis-compatibility.md` owns compatibility classification.
+- `docs/user/migration/from-mybatis.md` owns manual migration guidance.
 - `docs/benchmarks/` owns reproducible performance evidence.
-- `docs/roadmap.md` owns strategic delivery order.
+- `docs/project/roadmap.md` owns strategic delivery order.
 - GitHub Issues own active specifications, dependency edges, acceptance criteria, and implementation status.
+
+## Information Architecture
+
+```text
+README.md / README_cn.md     short project entry points
+docs/user/                   user guides grouped by module
+docs/reference/              normative contracts and compatibility
+docs/adr/                    durable architecture decisions
+docs/benchmarks/             reproducible evidence
+docs/project/                roadmap and project-level material
+docs/agent/ and docs/agents/ contributor and agent workflow
+```
+
+Only `README_cn.md` is localized for now. All files under `docs/` remain English unless a dedicated localization structure is introduced later.
 
 ## Review Checklist
 

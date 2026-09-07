@@ -72,7 +72,7 @@ H2 is reserved for the controlled JMH benchmark fixture and must not be used for
 - `README_cn.md` and other explicitly localized files may use their target language.
 - Update the owning contract, not several copies of the same fact.
 - Delete superseded plans and reviews after their durable conclusions move into a contract or philosophy document.
-- Keep roadmap direction in `docs/roadmap.md` and delivery state in GitHub Issues.
+- Keep roadmap direction in `docs/project/roadmap.md` and delivery state in GitHub Issues.
 - Run the link and language checks documented in `docs/agent/documentation-policy.md`.
 
 ## Commit Messages

@@ -4,6 +4,7 @@ import org.liteorm.annotation.Param;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -84,8 +85,8 @@ final class SqlParameterParser {
         Matcher matcher = HASH_PARAM_PATTERN.matcher(sql);
         int parameterIndex = 1;
         while (matcher.find()) {
-            String expression = matcher.group(1).trim();
-            bindings.add(resolveBinding(expression, aliasLookup, parameterIndex++));
+            ParameterExpression parameterExpression = parseParameterExpression(matcher.group(1));
+            bindings.add(resolveBinding(parameterExpression, aliasLookup, parameterIndex++));
             matcher.appendReplacement(processedSql, "?");
         }
         matcher.appendTail(processedSql);
@@ -129,7 +130,11 @@ final class SqlParameterParser {
         return toJavaAccess(expression, methodParameters, aliasLookup, strictRootValidation, localRoots);
     }
 
-    private ParameterBinding resolveBinding(String expression, Map<String, MethodParameter> aliasLookup, int index) {
+    private ParameterBinding resolveBinding(
+            ParameterExpression parameterExpression,
+            Map<String, MethodParameter> aliasLookup,
+            int index) {
+        String expression = parameterExpression.expression();
         MethodParameter rootParameter = aliasLookup.get(expression.split("\\.", 2)[0]);
         List<MethodParameter> uniqueParameters = new ArrayList<>(new LinkedHashSet<>(aliasLookup.values()));
         String accessCode = toJavaAccess(
@@ -144,7 +149,38 @@ final class SqlParameterParser {
         if (rootParameter == null) {
             throw new IllegalArgumentException("Unknown SQL parameter root: " + root);
         }
-        return new ParameterBinding(index, expression, accessCode, rootParameter.typeName());
+        return new ParameterBinding(
+            index, expression, accessCode, rootParameter.typeName(), parameterExpression.jdbcType());
+    }
+
+    static ParameterExpression parseParameterExpression(String content) {
+        String[] parts = content.split(",", -1);
+        String expression = parts[0].trim();
+        if (expression.isEmpty()) {
+            throw new IllegalArgumentException("SQL parameter expression must not be blank");
+        }
+        String jdbcType = null;
+        for (int index = 1; index < parts.length; index++) {
+            String attribute = parts[index].trim();
+            int equals = attribute.indexOf('=');
+            if (equals < 1 || equals == attribute.length() - 1) {
+                throw new IllegalArgumentException("Malformed SQL parameter attribute: " + attribute);
+            }
+            String name = attribute.substring(0, equals).trim();
+            String value = attribute.substring(equals + 1).trim();
+            if (!"jdbcType".equals(name)) {
+                throw new IllegalArgumentException("Unsupported SQL parameter attribute: " + name);
+            }
+            if (jdbcType != null) {
+                throw new IllegalArgumentException("Duplicate SQL parameter jdbcType attribute");
+            }
+            try {
+                jdbcType = JDBCType.valueOf(value).name();
+            } catch (IllegalArgumentException invalidJdbcType) {
+                throw new IllegalArgumentException("Unknown JDBCType in SQL parameter: " + value);
+            }
+        }
+        return new ParameterExpression(expression, jdbcType);
     }
 
     private String toJavaAccess(String expression, List<MethodParameter> methodParameters,
@@ -213,7 +249,14 @@ final class SqlParameterParser {
         int index,
         String expression,
         String accessCode,
-        String typeName
+        String typeName,
+        String jdbcType
     ) {
+        public ParameterBinding(int index, String expression, String accessCode, String typeName) {
+            this(index, expression, accessCode, typeName, null);
+        }
+    }
+
+    record ParameterExpression(String expression, String jdbcType) {
     }
 }

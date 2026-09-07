@@ -25,6 +25,7 @@ class PublicApiSurfaceTest {
         "org.liteorm.annotation.JdbcTypeMapping",
         "org.liteorm.annotation.Mapper",
         "org.liteorm.annotation.Param",
+        "org.liteorm.annotation.ResultJdbcType",
         "org.liteorm.annotation.Select",
         "org.liteorm.annotation.Update",
         "org.liteorm.annotation.UseParameterBinder",
@@ -68,15 +69,39 @@ class PublicApiSurfaceTest {
         "org.liteorm.interceptor.LoggingExecutionInterceptor",
         "org.liteorm.interceptor.SlowQueryExecutionInterceptor",
         "org.liteorm.jdbc.JdbcSqlExecutor",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings",
         "org.liteorm.runtime.ResultValueConverters",
         "org.liteorm.transaction.SimpleConnectionHandleFactory",
         "org.liteorm.transaction.SimpleTransactionDomainGuard",
         "org.liteorm.transaction.SimpleTransactionalExecutor"
     );
+    private static final Set<String> SUPPORTED_STANDARD_MAPPING_ADAPTERS = Set.of(
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$BigIntegerJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$BoxedByteArrayJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumNameJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumOrdinalJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$JapaneseDateJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$MonthJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlDateJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimeJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimestampJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateOnlyJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilTimeOnlyJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearMonthJdbcValueAdapter"
+    );
 
     @Test
     void exposesOnlySupportedTopLevelTypes() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
+    }
+
+    @Test
+    void protectsGeneratedCodeVisibleStandardMappingAdapters() throws Exception {
+        assertEquals(
+            new TreeSet<>(SUPPORTED_STANDARD_MAPPING_ADAPTERS),
+            discoverPublicNestedTypes("org.liteorm.jdbc.StandardJdbcTypeMappings"));
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {
@@ -100,5 +125,12 @@ class PublicApiSurfaceTest {
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException("Cannot inspect compiled type " + className, exception);
         }
+    }
+
+    private Set<String> discoverPublicNestedTypes(String ownerClassName) throws ClassNotFoundException {
+        return java.util.Arrays.stream(Class.forName(ownerClassName).getDeclaredClasses())
+            .filter(type -> Modifier.isPublic(type.getModifiers()))
+            .map(Class::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
     }
 }

@@ -88,7 +88,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Maintain one authoritative owner for each project fact.
 - Update documentation in the same change as the contract it describes.
 - Delete completed implementation plans and superseded architecture snapshots instead of presenting them as current guidance.
-- Keep `docs/roadmap.md` strategic and free of implementation checklists. Track specifications, dependencies, and completion state in GitHub Issues.
+- Keep `docs/project/roadmap.md` strategic and free of implementation checklists. Track specifications, dependencies, and completion state in GitHub Issues.
 - Update `docs/README.md` when adding, moving, replacing, or deleting documentation.
 
 ## Commit Policy

@@ -125,8 +125,13 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         for (MapperCompilationModel.JdbcValueAdapterField field : jdbcValueAdapterFields.values()) {
             builder.append("    private final ")
                 .append(classReference(packageName, field.typeName())).append(" ")
-                .append(field.fieldName()).append(" = new ")
-                .append(classReference(packageName, field.typeName())).append("();\n");
+                .append(field.fieldName()).append(" = ");
+            if (field.initializer() == null) {
+                builder.append("new ").append(classReference(packageName, field.typeName())).append("()");
+            } else {
+                builder.append(field.initializer());
+            }
+            builder.append(";\n");
             if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
                 builder.append("    private final ParameterBinder<")
                     .append(classReference(packageName, field.javaTypeName())).append("> ")
@@ -179,25 +184,22 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                         java.sql.PreparedStatement statement, int index, %s value)
                         throws java.sql.SQLException {
                     if (value == null) {
-                        statement.setNull(index, java.sql.JDBCType.%s.getVendorTypeNumber());
+                        %s.setNull(statement, index, java.sql.JDBCType.%s);
                         return;
                     }
                     %s.setNonNull(statement, index, value, java.sql.JDBCType.%s);
                 }
             """.formatted(
-                field.binderMethodName(), javaType, field.jdbcType(), field.fieldName(), field.jdbcType());
+                field.binderMethodName(), javaType, field.fieldName(), field.jdbcType(),
+                field.fieldName(), field.jdbcType());
     }
 
     private String generateJdbcResultReader(
             MapperCompilationModel.JdbcResultReader reader, String packageName) {
-        return """
-                private %s %s(java.sql.ResultSet resultSet) throws java.sql.SQLException {
-                    return %s.getNullable(resultSet, 1);
-                }
-            """.formatted(
-                classReference(packageName, reader.javaTypeName()),
-                reader.methodName(),
-                reader.adapterFieldName());
+        return "    private " + classReference(packageName, reader.javaTypeName()) + " "
+            + reader.methodName() + "(java.sql.ResultSet resultSet) throws java.sql.SQLException {\n"
+            + reader.body().indent(8)
+            + "    }\n";
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {
@@ -301,6 +303,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             case "double", "java.lang.Double" -> "ResultValueConverters.toDouble(" + key + ")";
             case "float", "java.lang.Float" -> "ResultValueConverters.toFloat(" + key + ")";
             case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + key + ")";
+            case "java.math.BigInteger" -> "ResultValueConverters.toBigInteger(" + key + ")";
             case "java.lang.String" -> "ResultValueConverters.toStringValue(" + key + ")";
             default -> throw new IllegalStateException(
                 "Unsupported generated-key return type: " + methodModel.returnType());
@@ -604,11 +607,14 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         int cursor = 0;
         Matcher hashMatcher = HASH_PARAM_PATTERN.matcher(text);
         while (hashMatcher.find()) {
+            SqlParameterParser.ParameterExpression parameterExpression =
+                SqlParameterParser.parseParameterExpression(hashMatcher.group(1));
             String literal = text.substring(cursor, hashMatcher.start());
             appendLiteral(code, literal, sqlVar, indent);
             code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", \"?\");\n");
             code.append(indent).append(paramsVar).append(".add(")
-                .append(toJavaAccess(hashMatcher.group(1).trim(), methodModel, false, localRoots)).append(");\n");
+                .append(toJavaAccess(parameterExpression.expression(), methodModel, false, localRoots))
+                .append(");\n");
             code.append(indent).append(bindersVar).append(".add(")
                 .append(binderExpression(methodModel, parameterBinders)).append(");\n");
             cursor = hashMatcher.end();

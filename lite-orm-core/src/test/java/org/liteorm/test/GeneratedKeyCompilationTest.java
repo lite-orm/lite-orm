@@ -29,6 +29,7 @@ class GeneratedKeyCompilationTest {
             package org.liteorm.test.generatedkeyfixture;
 
             import java.math.BigDecimal;
+            import java.math.BigInteger;
             import org.liteorm.annotation.GeneratedKey;
             import org.liteorm.annotation.Insert;
             import org.liteorm.annotation.Mapper;
@@ -44,6 +45,7 @@ class GeneratedKeyCompilationTest {
                 @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Double insertDouble(String name);
                 @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") Float insertFloat(String name);
                 @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") BigDecimal insertDecimal(String name);
+                @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") BigInteger insertBigInteger(String name);
                 @GeneratedKey("id") @Insert("INSERT INTO users (name) VALUES (#{name})") String insertString(String name);
             }
             """);
@@ -58,6 +60,7 @@ class GeneratedKeyCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toDouble(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toFloat(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("ResultValueConverters.toBigInteger(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("\"id\", null, null"));
     }

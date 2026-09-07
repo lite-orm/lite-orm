@@ -85,18 +85,18 @@ Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at c
 
 ### 2.5 Mapper-Package JDBC Type Mappings
 
-Every package that directly contains a Mapper must declare exactly one `@UseJdbcTypeMappings` selection in that package's `package-info.java`. Selection is exact-package only: parent-package inheritance, child-package inheritance, Mapper-level overrides, compiler profiles, classpath auto-detection, registries, reflection lookup, and `ServiceLoader` discovery are not supported.
+Every package that directly contains a Mapper must declare exactly one `@UseJdbcTypeMappings` selection in that package's `package-info.java`. Selection is exact-package only: parent-package inheritance, child-package inheritance, Mapper-interface selection, compiler profiles, classpath auto-detection, registries, reflection lookup, and `ServiceLoader` discovery are not supported.
 
-The selected public final `JdbcTypeMappings` collection and every declared `JdbcValueAdapter<T>` are resolved and validated during compilation, whether supplied as current sources or ordinary dependencies. A generated Mapper:
+The selected public final base `JdbcTypeMappings` collection and every declared `JdbcValueAdapter<T>` are resolved and validated during compilation, whether supplied as current sources or ordinary dependencies. The compiler does not append Core mappings implicitly. `@UseJdbcTypeMappings.overrides` may select zero or one application collection. The compiler validates the base and override independently, loads the base first, and then replaces an exact Java-type and `JDBCType` key with the override declaration or appends a new key. Duplicate keys inside either collection fail compilation. A generated Mapper:
 
 - still exposes only its public `SqlExecutor` constructor;
 - exposes the stable selected collection class through `JdbcTypeMappingsMetadata`;
 - creates at most one instance of each selected adapter it uses and reuses that instance;
-- binds null with the resolved `JDBCType` vendor number;
+- calls the adapter's default null binding with the resolved `JDBCType`; an adapter may override null binding only for a documented driver incompatibility;
 - calls `setNonNull` directly for non-null selected parameters;
 - calls `getNullable` directly for supported selected scalar results.
 
-Adapters reused by generated Mapper instances must be stateless, thread-safe, or externally synchronized. Java types without one uniquely selected declaration continue through the built-in mapping contract. The complete Java-type and `JDBCType` resolution policy is owned by the JDBC type compatibility work rather than package selection.
+Adapters reused by generated Mapper instances must be stateless, thread-safe, or externally synchronized. Declared `jdbcType` placeholder metadata selects an exact Java-type and `JDBCType` pair. Without metadata, the base collection determines the inferred representation: a Java type with one base declaration keeps that declaration's `JDBCType` after overrides are merged, so an appended alternative cannot silently change the default. When the base declares several representations, the unique canonical `JDBCType` wins; otherwise compilation rejects the ambiguity and requires an explicit declaration. An exact-key override replaces the selected adapter without changing that key. Unknown, malformed, duplicate, and unsupported placeholder attributes are compiler errors.
 
 The package selection contract is verified by:
 
@@ -109,15 +109,18 @@ mvn -pl lite-orm-core -am -Dtest=JdbcTypeMappingsSelectionCompilationTest \
 
 `lite-orm-postgresql-types` is the official PostgreSQL mapping artifact. Applications add it alongside Core, provide their chosen PostgreSQL JDBC driver, and explicitly select `PostgreSqlJdbcTypeMappings` from every package that directly contains PostgreSQL Mappers. Adding the artifact to the classpath alone has no effect.
 
-The current collection declares exactly these mappings:
+The complete collection declares every database-independent mapping in section 2.8 plus these PostgreSQL-specific mappings:
 
 | Java type | JDBC type | PostgreSQL representation | Guaranteed semantics |
 | --- | --- | --- | --- |
 | `UUID` | `OTHER` | Native `uuid` | The UUID value and null are preserved. |
 | `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
 | `OffsetDateTime` | `TIMESTAMP_WITH_TIMEZONE` | `timestamp(p) with time zone` | The represented instant and column precision are preserved. The original offset is not preserved. |
+| `OffsetTime` | `TIME_WITH_TIMEZONE` | `time(p) with time zone` | The local time, offset, null, and column precision are preserved. pgjdbc requires untyped JDBC 4.2 `setObject` for non-null values. |
+| `String` | `NCHAR` | Unicode character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NCHAR` in `setNull`. |
+| `String` | `NVARCHAR` | Unicode varying-character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NVARCHAR` in `setNull`. |
 
-The collection and adapters are ordinary compile-time dependencies. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Remaining deterministic non-resource types and complete Java-type/JDBC-type resolution belong to the follow-up compatibility contract. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
 
 The artifact contract is verified by:
 
@@ -133,15 +136,19 @@ scripts/verify-postgresql-types-dependencies.sh
 
 `lite-orm-mysql-types` is the official MySQL mapping artifact. Applications add it alongside Core, provide their chosen MySQL JDBC driver, and explicitly select `MySqlJdbcTypeMappings` from every package that directly contains MySQL Mappers. Adding the artifact to the classpath alone has no effect.
 
-The current collection declares exactly these mappings:
+The complete collection declares every database-independent mapping in section 2.8 plus these MySQL-specific mappings:
 
 | Java type | JDBC type | MySQL representation | Guaranteed semantics |
 | --- | --- | --- | --- |
 | `UUID` | `CHAR` | `CHAR(36)` | The canonical UUID value and null are preserved. `BINARY(16)` remains an explicit custom mapping. |
 | `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
 | `OffsetDateTime` | `TIMESTAMP` | `timestamp(p)` | The represented instant and column precision are preserved. The original offset is not preserved; normal MySQL connection and session time-zone conversion applies. |
+| `String` | `NCHAR` | National character column | The value and null are preserved through the JDBC national-string methods. |
+| `String` | `NVARCHAR` | National varying-character column | The value and null are preserved through the JDBC national-string methods. |
 
-The collection and adapters are ordinary compile-time dependencies. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Remaining deterministic non-resource types and complete Java-type/JDBC-type resolution belong to the follow-up compatibility contract. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+
+MySQL `TIME` has no offset component, so `OffsetTime` is custom-mapping-only and requires an application-chosen representation such as text or multiple columns. `ZonedDateTime` is custom-mapping-only for both PostgreSQL and MySQL because their timestamp types do not preserve a Java `ZoneId`; an explicit adapter must define whether to store text, normalize to an offset or instant, or use additional columns.
 
 The artifact contract is verified by:
 
@@ -155,7 +162,26 @@ scripts/verify-mysql-types-dependencies.sh
 
 ### 2.8 Built-In JDBC Types
 
-Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum values, `BigDecimal`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, and `byte[]`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
+Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum names, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, `java.util.Date`, the three `java.sql` date/time types, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
+
+The database-independent standard mappings currently use these canonical JDBC types:
+
+| Java type | Canonical JDBC type | Representation |
+| --- | --- | --- |
+| `BigInteger` | `DECIMAL` | Arbitrary-precision integral `BigDecimal` value |
+| `Byte[]` | `VARBINARY` | Boxed form of the JDBC byte array |
+| `java.util.Date` | `TIMESTAMP` | Canonical timestamp with the same epoch milliseconds |
+| `java.util.Date` | `DATE` | Explicit date-only representation selected with `jdbcType=DATE` or `@ResultJdbcType(JDBCType.DATE)` |
+| `java.util.Date` | `TIME` | Explicit time-only representation selected with `jdbcType=TIME` or `@ResultJdbcType(JDBCType.TIME)` |
+| `java.sql.Date` | `DATE` | JDBC date |
+| `java.sql.Time` | `TIME` | JDBC time |
+| `java.sql.Timestamp` | `TIMESTAMP` | JDBC timestamp |
+| `Year` | `INTEGER` | ISO year number |
+| `Month` | `INTEGER` | ISO month number from 1 through 12 |
+| `YearMonth` | `VARCHAR` | ISO `uuuu-MM` text |
+| `JapaneseDate` | `DATE` | Equivalent ISO date |
+
+Enums use their declared name with canonical `VARCHAR` mapping. A parameter placeholder may opt into zero-based ordinal binding with `jdbcType=INTEGER`. An enum scalar, list element, optional element, record component, or JavaBean field may opt into ordinal reading with `@ResultJdbcType(JDBCType.INTEGER)`. Other enum JDBC types require an explicit custom mapping.
 
 The frozen cross-database representations are:
 
@@ -164,8 +190,10 @@ The frozen cross-database representations are:
 | `UUID` | Native UUID column | `CHAR(36)` | Canonical UUID value and null are preserved. MySQL uses the 36-character representation. `BINARY(16)` requires an explicit `ParameterBinder` and `RowMapper`. |
 | `LocalTime` | `TIME(p)` | `TIME(p)` | The value is preserved to the precision declared by the column. JDBC `TIME` columns are read through the JDBC 4.2 `LocalTime` contract so fractional seconds are not lost through `java.sql.Time`. |
 | `OffsetDateTime` | Time-zone-aware timestamp | `TIMESTAMP(p)` | The represented instant and column precision are preserved. The original offset is not preserved. MySQL connection and session time-zone configuration participates in its normal `TIMESTAMP` conversion. |
+| `OffsetTime` | `TIME(p) WITH TIME ZONE` | Custom mapping only | PostgreSQL preserves local time and offset. MySQL `TIME` cannot preserve the offset. |
+| `String` with `NCHAR` or `NVARCHAR` | `setString`/`getString`; null as `VARCHAR` | JDBC national-string methods | National-character values and null are preserved with the driver-compatible API. |
 
-Built-in parameters continue through the fixed executor binding path. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
+Standard and database-family adapters are selected at compilation and called directly by generated Mappers. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
 
 The executable type contract is verified by:
 
@@ -173,6 +201,10 @@ The executable type contract is verified by:
 mvn -pl lite-orm-core -am -Dtest=JdbcTypeCompilationTest,ResultValueConvertersTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -pl lite-orm-core -am -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl lite-orm-postgresql-types,lite-orm-mysql-types -am \
+  -Dtest=PostgreSqlStandardScalarMappingTest,MySqlStandardScalarMappingTest,\
+PostgreSqlTemporalExclusionEvidenceTest,MySqlTemporalExclusionEvidenceTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

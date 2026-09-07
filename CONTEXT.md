@@ -49,5 +49,13 @@ A compile-time-selected typed mapping for one JDBC column value and one statemen
 _Avoid_: Row mapper, runtime type handler
 
 **JDBC type mappings**:
-An explicitly selected compile-time collection of Java-to-JDBC value mappings for one database family. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, routing, pagination, or generated-key policy.
+An explicitly selected compile-time collection of Java-to-JDBC value mappings. A collection may define database-independent standard mappings or one database family's complete effective mapping set. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, routing, pagination, or generated-key policy.
 _Avoid_: Database dialect, JDBC plugin, type-handler registry
+
+**Parameter binder**:
+A Mapper-parameter-specific strategy for writing one parameter value. It is an explicit exception for one parameter, not a package-wide value mapping and not a result-reading strategy.
+_Avoid_: JDBC value adapter, row mapper, global type handler
+
+**Row mapper**:
+A Mapper-method-specific strategy for constructing one result object from the current result row. It may combine several columns and does not bind statement parameters.
+_Avoid_: JDBC value adapter, parameter binder, result-set interceptor

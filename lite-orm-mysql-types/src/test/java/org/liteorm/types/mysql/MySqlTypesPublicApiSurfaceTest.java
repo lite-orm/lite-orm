@@ -20,10 +20,16 @@ class MySqlTypesPublicApiSurfaceTest {
         "org.liteorm.types.mysql.MySqlOffsetDateTimeJdbcValueAdapter",
         "org.liteorm.types.mysql.MySqlUuidJdbcValueAdapter"
     );
+    private static final Set<String> SUPPORTED_PUBLIC_NESTED_TYPES = Set.of(
+        "org.liteorm.types.mysql.MySqlJdbcTypeMappings$NationalStringJdbcValueAdapter"
+    );
 
     @Test
     void exposesOnlyTheOfficialCollectionAndItsAdapters() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
+        assertEquals(
+            new TreeSet<>(SUPPORTED_PUBLIC_NESTED_TYPES),
+            discoverPublicNestedTypes(MySqlJdbcTypeMappings.class));
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {
@@ -47,5 +53,12 @@ class MySqlTypesPublicApiSurfaceTest {
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException("Cannot inspect compiled type " + className, exception);
         }
+    }
+
+    private Set<String> discoverPublicNestedTypes(Class<?> owner) {
+        return java.util.Arrays.stream(owner.getDeclaredClasses())
+            .filter(type -> Modifier.isPublic(type.getModifiers()))
+            .map(Class::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
     }
 }

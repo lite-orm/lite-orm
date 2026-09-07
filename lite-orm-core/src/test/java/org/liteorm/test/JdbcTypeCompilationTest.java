@@ -127,6 +127,123 @@ class JdbcTypeCompilationTest {
     }
 
     @Test
+    void generatesRecordAndJavaBeanMappingsForStandardScalarTypes() throws Exception {
+        CompilationResult result = compile("StandardJdbcTypeMapper", """
+            package org.liteorm.test.jdbctypefixture;
+
+            import java.math.BigInteger;
+            import java.time.Month;
+            import java.time.Year;
+            import java.time.YearMonth;
+            import java.time.chrono.JapaneseDate;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+
+            record StandardJdbcTypes(
+                BigInteger integerValue,
+                Byte[] binaryValue,
+                java.util.Date utilDate,
+                java.sql.Date sqlDate,
+                java.sql.Time sqlTime,
+                java.sql.Timestamp sqlTimestamp,
+                Year yearValue,
+                Month monthValue,
+                YearMonth yearMonthValue,
+                JapaneseDate japaneseDate
+            ) {}
+
+            class StandardJdbcTypeBean {
+                private BigInteger integerValue;
+                private YearMonth yearMonthValue;
+
+                StandardJdbcTypeBean() {}
+
+                public void setIntegerValue(BigInteger integerValue) {
+                    this.integerValue = integerValue;
+                }
+
+                public void setYearMonthValue(YearMonth yearMonthValue) {
+                    this.yearMonthValue = yearMonthValue;
+                }
+            }
+
+            @Mapper
+            interface StandardJdbcTypeMapper {
+                @Select("SELECT integer_value, binary_value, util_date, sql_date, sql_time, "
+                    + "sql_timestamp, year_value, month_value, year_month_value, japanese_date FROM values_table")
+                StandardJdbcTypes find();
+
+                @Select("SELECT integer_value, year_month_value FROM values_table")
+                StandardJdbcTypeBean findBean();
+            }
+            """);
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/jdbctypefixture/StandardJdbcTypeMapperImpl.java"));
+        assertTrue(generated.contains("ResultValueConverters.toBigInteger("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toBoxedBytes("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toUtilDate("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toSqlDate("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toSqlTime("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toSqlTimestamp("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toYear("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toMonth("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toYearMonth("), generated);
+        assertTrue(generated.contains("ResultValueConverters.toJapaneseDate("), generated);
+        assertTrue(generated.contains("mapped.setIntegerValue(ResultValueConverters.toBigInteger("), generated);
+        assertTrue(generated.contains("mapped.setYearMonthValue(ResultValueConverters.toYearMonth("), generated);
+    }
+
+    @Test
+    void generatesExplicitOrdinalEnumMappingsForRecordAndJavaBeanProperties() throws Exception {
+        CompilationResult result = compile("OrdinalEnumPropertyMapper", """
+            package org.liteorm.test.jdbctypefixture;
+
+            import java.sql.JDBCType;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.ResultJdbcType;
+            import org.liteorm.annotation.Select;
+
+            enum Status { ACTIVE, DISABLED }
+
+            record StatusRecord(
+                Status nameValue,
+                @ResultJdbcType(JDBCType.INTEGER) Status ordinalValue
+            ) {}
+
+            class StatusBean {
+                @ResultJdbcType(JDBCType.INTEGER)
+                private Status ordinalValue;
+
+                StatusBean() {}
+
+                public void setOrdinalValue(Status ordinalValue) {
+                    this.ordinalValue = ordinalValue;
+                }
+            }
+
+            @Mapper
+            interface OrdinalEnumPropertyMapper {
+                @Select("SELECT name_value, ordinal_value FROM values_table")
+                StatusRecord findRecord();
+
+                @Select("SELECT ordinal_value FROM values_table")
+                StatusBean findBean();
+            }
+            """);
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/jdbctypefixture/OrdinalEnumPropertyMapperImpl.java"));
+        assertTrue(generated.contains(
+            "ResultValueConverters.toEnumOrdinal(resultRow[resultColumnIndexes[1]], "
+                + "org.liteorm.test.jdbctypefixture.Status.class)"), generated);
+        assertTrue(generated.contains(
+            "mapped.setOrdinalValue(ResultValueConverters.toEnumOrdinal("), generated);
+    }
+
+    @Test
     void rejectsUnsupportedJdbcResultTypeWithRowMapperGuidance() throws Exception {
         CompilationResult result = compile("UnsupportedJdbcTypeMapper", """
             package org.liteorm.test.jdbctypefixture;
