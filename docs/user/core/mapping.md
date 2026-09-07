@@ -137,12 +137,23 @@ A row mapper is read-only and method-specific. It should not be used to establis
 
 Driver objects such as `Blob`, `Clob`, `NClob`, `SQLXML`, and JDBC `Array` are valid only while their JDBC lifecycle remains open. LiteORM therefore exposes ordinary results as detached Java values:
 
-| JDBC value | Mapper result | Requirement |
+Use these rules to decide whether `@ResultJdbcType` is required:
+
+- Do not declare it for ordinary character columns. A `String` result uses its default character mapping.
+- Always declare it when the result is known to be `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, or `ARRAY`. The Java result type alone cannot distinguish these representations from its default mapping.
+- Do not declare it when a custom `@UseRowMapper` owns the result. The row mapper reads the ResultSet directly and is responsible for the selected JDBC access method and resource lifecycle.
+
+| Database result | Mapper result | Required declaration |
 | --- | --- | --- |
-| `BLOB` | `byte[]` | Declare `@ResultJdbcType(JDBCType.BLOB)` and select a collection that supports it. |
-| `CLOB` / `NCLOB` | `String` | Declare the matching result JDBC type and select a supporting collection. |
-| `SQLXML` | `String` | Declare `@ResultJdbcType(JDBCType.SQLXML)` and select a supporting collection. |
-| `ARRAY` | `Object[]` | Declare `@ResultJdbcType(JDBCType.ARRAY)`; support is database-specific. |
+| Ordinary character column | `String` | None |
+| `BLOB` | `byte[]` | `@ResultJdbcType(JDBCType.BLOB)` |
+| `CLOB` | `String` | `@ResultJdbcType(JDBCType.CLOB)` |
+| `NCLOB` | `String` | `@ResultJdbcType(JDBCType.NCLOB)` |
+| `SQLXML` | `String` | `@ResultJdbcType(JDBCType.SQLXML)` |
+| `ARRAY` | `Object[]` | `@ResultJdbcType(JDBCType.ARRAY)` |
+| Result owned by `@UseRowMapper` | Row-mapper result type | None; the row mapper owns JDBC access and cleanup |
+
+The selected package mapping collection must support the declared JDBC type. `ARRAY` support is database-specific.
 
 LiteORM materializes the value and releases the driver resource before closing the ResultSet, statement, and connection handle. There is no hidden materialization threshold: the practical bounds are available JVM memory and the maximum Java array or string size. Use streaming for values that should not be fully retained in memory.
 
