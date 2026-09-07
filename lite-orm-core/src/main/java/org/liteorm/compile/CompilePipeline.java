@@ -392,6 +392,7 @@ final class CompilePipeline {
         }
         CursorMethod cursorMethod = analyzeCursorMethod(
             mapperInterface, method, resolvedMethodType, statementType);
+        validateLifecycleBoundResult(mapperInterface, method, resolvedMethodType, cursorMethod);
 
         List<VariableElement> executionParameters = new ArrayList<>();
         List<TypeMirror> executionParameterTypes = new ArrayList<>();
@@ -739,6 +740,18 @@ final class CompilePipeline {
         }
         TypeMirror resultType = mappedResultType(resolvedMethodType.getReturnType());
         String declaredJdbcType = declaredResultJdbcType(method);
+        if ("ARRAY".equals(declaredJdbcType) && "java.lang.Object[]".equals(resultType.toString())) {
+            String readerMethodName = "read" + capitalize(method.getSimpleName().toString()) + "Result";
+            return new AdapterBindings(
+                adapterBindings.adapterFields(),
+                adapterBindings.jdbcValueAdapterFields(),
+                new MapperCompilationModel.JdbcResultReader(
+                    resultType.toString(), readerMethodName,
+                    "return ResultValueConverters.materializeJdbcArray(resultSet, 1);\n"),
+                adapterBindings.parameterBinderFields(),
+                "this::" + readerMethodName
+            );
+        }
         JdbcTypeMappingsValidator.MappingDeclaration mapping =
             selectedMapping(resultType, declaredJdbcType, jdbcTypeMappings);
         MapperCompilationModel.JdbcValueAdapterField field = mapping == null
@@ -986,6 +999,22 @@ final class CompilePipeline {
         return returnType;
     }
 
+    private void validateLifecycleBoundResult(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            ExecutableType resolvedMethodType,
+            CursorMethod cursorMethod) throws CompileException {
+        if (cursorMethod != null) {
+            return;
+        }
+        String resultType = typeUtils.erasure(
+            mappedResultType(resolvedMethodType.getReturnType())).toString();
+        if (resultType.equals("java.io.InputStream") || resultType.equals("java.io.Reader")) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": InputStream and Reader results require callback-scoped cursor consumption");
+        }
+    }
+
     private Map<String, TypeMirror> resolvedParameterTypes(
             ExecutableElement method,
             ExecutableType resolvedMethodType,
@@ -1109,6 +1138,12 @@ final class CompilePipeline {
             return;
         }
         TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
+        if ("ARRAY".equals(declaredJdbcType)
+                && parameterType != null
+                && "java.lang.Object[]".equals(parameterType.toString())) {
+            throw new CompileException(location
+                + ": Object[] + ARRAY parameters require @UseParameterBinder");
+        }
         List<JdbcTypeMappingsValidator.MappingDeclaration> matchingMappings =
             matchingMappings(parameterType, jdbcTypeMappings);
         JdbcTypeMappingsValidator.MappingDeclaration selectedMapping =

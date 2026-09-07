@@ -119,8 +119,11 @@ The complete collection declares every database-independent mapping in section 2
 | `OffsetTime` | `TIME_WITH_TIMEZONE` | `time(p) with time zone` | The local time, offset, null, and column precision are preserved. pgjdbc requires untyped JDBC 4.2 `setObject` for non-null values. |
 | `String` | `NCHAR` | Unicode character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NCHAR` in `setNull`. |
 | `String` | `NVARCHAR` | Unicode varying-character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NVARCHAR` in `setNull`. |
+| `String` | `SQLXML` | Native `xml` | The XML text and null are preserved; the driver `SQLXML` resource is released before execution cleanup. |
 
-The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+PostgreSQL `ARRAY` scalar results declared as `Object[]` with `@ResultJdbcType(JDBCType.ARRAY)` are materialized before the driver array is released. ARRAY parameters require an explicit `@UseParameterBinder`, because the JDBC element type name cannot be inferred safely from `Object[]`. PostgreSQL large objects use database-specific representations and are not exposed as Core `BLOB`, `CLOB`, or `NCLOB` mappings.
+
+The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution.
 
 The artifact contract is verified by:
 
@@ -145,8 +148,13 @@ The complete collection declares every database-independent mapping in section 2
 | `OffsetDateTime` | `TIMESTAMP` | `timestamp(p)` | The represented instant and column precision are preserved. The original offset is not preserved; normal MySQL connection and session time-zone conversion applies. |
 | `String` | `NCHAR` | National character column | The value and null are preserved through the JDBC national-string methods. |
 | `String` | `NVARCHAR` | National varying-character column | The value and null are preserved through the JDBC national-string methods. |
+| `byte[]` | `BLOB` | `BLOB` family, including `LONGBLOB` | The bytes and null are preserved; the driver `Blob` is released before execution cleanup. |
+| `String` | `CLOB` | Text family, including `LONGTEXT` | The text and null are preserved; the driver `Clob` is released before execution cleanup. |
+| `String` | `NCLOB` | National/Unicode text family | The text and null are preserved; the driver `NClob` is released before execution cleanup. |
 
-The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+MySQL has no official LiteORM `SQLXML` or JDBC `ARRAY` mapping. Applications that choose a vendor-specific representation must provide explicit typed mapping code.
+
+The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution.
 
 MySQL `TIME` has no offset component, so `OffsetTime` is custom-mapping-only and requires an application-chosen representation such as text or multiple columns. `ZonedDateTime` is custom-mapping-only for both PostgreSQL and MySQL because their timestamp types do not preserve a Java `ZoneId`; an explicit adapter must define whether to store text, normalize to an offset or instant, or use additional columns.
 
@@ -164,12 +172,16 @@ scripts/verify-mysql-types-dependencies.sh
 
 Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum names, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, `java.util.Date`, the three `java.sql` date/time types, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
 
-The database-independent standard mappings currently use these canonical JDBC types:
+The database-independent standard collection declares these canonical and explicit JDBC mappings:
 
-| Java type | Canonical JDBC type | Representation |
+| Java type | JDBC type | Representation |
 | --- | --- | --- |
 | `BigInteger` | `DECIMAL` | Arbitrary-precision integral `BigDecimal` value |
 | `Byte[]` | `VARBINARY` | Boxed form of the JDBC byte array |
+| `byte[]` | `BLOB` | Explicit lifecycle-safe BLOB representation |
+| `String` | `CLOB` | Explicit lifecycle-safe character LOB representation |
+| `String` | `NCLOB` | Explicit lifecycle-safe national-character LOB representation |
+| `String` | `SQLXML` | Explicit lifecycle-safe SQLXML representation |
 | `java.util.Date` | `TIMESTAMP` | Canonical timestamp with the same epoch milliseconds |
 | `java.util.Date` | `DATE` | Explicit date-only representation selected with `jdbcType=DATE` or `@ResultJdbcType(JDBCType.DATE)` |
 | `java.util.Date` | `TIME` | Explicit time-only representation selected with `jdbcType=TIME` or `@ResultJdbcType(JDBCType.TIME)` |
@@ -194,6 +206,16 @@ The frozen cross-database representations are:
 | `String` with `NCHAR` or `NVARCHAR` | `setString`/`getString`; null as `VARCHAR` | JDBC national-string methods | National-character values and null are preserved with the driver-compatible API. |
 
 Standard and database-family adapters are selected at compilation and called directly by generated Mappers. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
+
+#### Lifecycle-bound values
+
+Ordinary `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, and JDBC `ARRAY` results never expose their driver-owned objects. Generated mapping materializes them as `byte[]`, `String`, or `Object[]` and calls the JDBC resource's `free()` method before executor cleanup. A materialization failure remains primary; a failure from `free()` and later ResultSet, statement, or connection-handle cleanup is attached as a suppressed failure in ownership order.
+
+Ordinary materialization has no configurable or hidden size threshold. It is bounded only by the Java array or string size and available JVM memory; a JDBC LOB length greater than `Integer.MAX_VALUE` is rejected. Large values that should not be held fully in memory must use callback-scoped streaming instead.
+
+Direct `InputStream` and `Reader` Mapper result types, including list or optional elements, are rejected at compilation because they would escape a closed ResultSet. Streaming uses `@UseRowMapper` to obtain the stream or reader and consumes it only inside the existing `CursorCallback<T, R>` scope. The callback result may escape; the stream, reader, cursor, and driver resources may not. No second streaming callback abstraction exists.
+
+JDBC ARRAY results use `Object[]` with `@ResultJdbcType(JDBCType.ARRAY)`. ARRAY parameters require an explicit `@UseParameterBinder` that knows the database element type and creates the vendor-compatible JDBC array.
 
 The executable type contract is verified by:
 

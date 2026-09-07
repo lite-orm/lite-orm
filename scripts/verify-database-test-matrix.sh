@@ -16,12 +16,14 @@ suites=(
   org.liteorm.types.postgresql.PostgreSqlStandardScalarMappingTest
   org.liteorm.types.postgresql.PostgreSqlTemporalExclusionEvidenceTest
   org.liteorm.types.postgresql.PostgreSqlCompositeMappingTest
+  org.liteorm.types.postgresql.PostgreSqlLifecycleBoundMappingTest
   org.liteorm.types.mysql.MySqlUuidMappingTest
   org.liteorm.types.mysql.MySqlLocalTimeMappingTest
   org.liteorm.types.mysql.MySqlOffsetDateTimeMappingTest
   org.liteorm.types.mysql.MySqlStandardScalarMappingTest
   org.liteorm.types.mysql.MySqlTemporalExclusionEvidenceTest
   org.liteorm.types.mysql.MySqlCompositeMappingTest
+  org.liteorm.types.mysql.MySqlLifecycleBoundMappingTest
   org.liteorm.spring.boot.PostgresPackageDataSourceExecutionTest
   org.liteorm.spring.boot.MySqlPackageDataSourceExecutionTest
   org.liteorm.spring.boot.PostgresLiteOrmAutoConfigurationTest

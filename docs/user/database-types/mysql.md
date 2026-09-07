@@ -39,9 +39,11 @@ Selection is exact-package only. LiteORM does not discover this artifact from th
 
 ## Supported Mappings
 
-The collection is complete: it declares the database-independent mappings for `BigInteger`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`, plus MySQL mappings for `UUID`, `LocalTime`, `OffsetDateTime`, and explicit `NCHAR`/`NVARCHAR` strings. National-character values use the JDBC `setNString` and `getNString` methods. The [Core GA contract](../../reference/core-contract.md#27-official-mysql-type-mappings) is the authoritative source for JDBC types, MySQL representations, and guaranteed semantics.
+The collection is complete: it declares the database-independent mappings for `BigInteger`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`, plus MySQL mappings for `UUID`, `LocalTime`, `OffsetDateTime`, explicit `NCHAR`/`NVARCHAR` strings, `byte[] + BLOB`, `String + CLOB`, and `String + NCLOB`. National-character values use the JDBC `setNString` and `getNString` methods. LOB results materialize as detached Java values and release the driver resource before JDBC cleanup. The [Core GA contract](../../reference/core-contract.md#27-official-mysql-type-mappings) is the authoritative source for JDBC types, MySQL representations, and guaranteed semantics.
 
-Database-independent declarations reuse Core adapter implementations; the compiler does not append Core mappings implicitly. Applications can select one explicit override collection through `@UseJdbcTypeMappings.overrides`. Generated Mappers create one instance of each used adapter, bind null with the resolved JDBC type, and call adapters directly. Lifecycle-bound JDBC values remain outside this artifact's current scope.
+MySQL has no official LiteORM `SQLXML` or JDBC `ARRAY` mapping. Direct `InputStream` and `Reader` results are rejected; large values must be consumed through a callback-scoped cursor and `@UseRowMapper`. Ordinary materialization has no hidden threshold and is bounded by JVM memory and Java array/string limits.
+
+Database-independent declarations reuse Core adapter implementations; the compiler does not append Core mappings implicitly. Applications can select one explicit override collection through `@UseJdbcTypeMappings.overrides`. Generated Mappers create one instance of each used adapter, bind null with the resolved JDBC type, and call adapters directly.
 
 ## Verification
 

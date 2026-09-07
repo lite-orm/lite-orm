@@ -112,6 +112,11 @@ import java.util.UUID;
     jdbcType = JDBCType.NVARCHAR,
     adapter = PostgreSqlJdbcTypeMappings.NationalStringJdbcValueAdapter.class
 )
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.SQLXML,
+    adapter = StandardJdbcTypeMappings.SqlXmlJdbcValueAdapter.class
+)
 public final class PostgreSqlJdbcTypeMappings implements JdbcTypeMappings {
 
     /**

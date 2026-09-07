@@ -6,10 +6,14 @@ import org.liteorm.api.JdbcValueAdapter;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.JDBCType;
+import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.Year;
@@ -31,6 +35,26 @@ import java.time.chrono.JapaneseDate;
     javaType = Byte[].class,
     jdbcType = JDBCType.VARBINARY,
     adapter = StandardJdbcTypeMappings.BoxedByteArrayJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = byte[].class,
+    jdbcType = JDBCType.BLOB,
+    adapter = StandardJdbcTypeMappings.BlobJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.CLOB,
+    adapter = StandardJdbcTypeMappings.ClobJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.NCLOB,
+    adapter = StandardJdbcTypeMappings.NClobJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.SQLXML,
+    adapter = StandardJdbcTypeMappings.SqlXmlJdbcValueAdapter.class
 )
 @JdbcTypeMapping(
     javaType = java.util.Date.class,
@@ -85,6 +109,158 @@ import java.time.chrono.JapaneseDate;
 public final class StandardJdbcTypeMappings implements JdbcTypeMappings {
 
     private StandardJdbcTypeMappings() {
+    }
+
+    /** Materializes JDBC BLOB values as byte arrays before releasing the driver resource. */
+    public static final class BlobJdbcValueAdapter implements JdbcValueAdapter<byte[]> {
+
+        /** Creates a stateless adapter. */
+        public BlobJdbcValueAdapter() {
+        }
+
+        @Override
+        public void setNonNull(
+                PreparedStatement statement, int index, byte[] value, JDBCType jdbcType) throws SQLException {
+            statement.setBytes(index, value);
+        }
+
+        @Override
+        public byte[] getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+            Blob blob = resultSet.getBlob(columnIndex);
+            if (blob == null) {
+                return null;
+            }
+            byte[] value;
+            try {
+                long length = blob.length();
+                if (length > Integer.MAX_VALUE) {
+                    throw new SQLException("BLOB length exceeds the maximum Java byte array size: " + length);
+                }
+                value = blob.getBytes(1, (int) length);
+            } catch (SQLException | RuntimeException | Error failure) {
+                try {
+                    blob.free();
+                } catch (SQLException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+                throw failure;
+            }
+            blob.free();
+            return value;
+        }
+    }
+
+    /** Materializes JDBC CLOB values as strings before releasing the driver resource. */
+    public static final class ClobJdbcValueAdapter implements JdbcValueAdapter<String> {
+
+        /** Creates a stateless adapter. */
+        public ClobJdbcValueAdapter() {
+        }
+
+        @Override
+        public void setNonNull(
+                PreparedStatement statement, int index, String value, JDBCType jdbcType) throws SQLException {
+            statement.setString(index, value);
+        }
+
+        @Override
+        public String getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+            Clob clob = resultSet.getClob(columnIndex);
+            if (clob == null) {
+                return null;
+            }
+            String value;
+            try {
+                long length = clob.length();
+                if (length > Integer.MAX_VALUE) {
+                    throw new SQLException("CLOB length exceeds the maximum Java string size: " + length);
+                }
+                value = clob.getSubString(1, (int) length);
+            } catch (SQLException | RuntimeException | Error failure) {
+                try {
+                    clob.free();
+                } catch (SQLException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+                throw failure;
+            }
+            clob.free();
+            return value;
+        }
+    }
+
+    /** Materializes JDBC NCLOB values as strings before releasing the driver resource. */
+    public static final class NClobJdbcValueAdapter implements JdbcValueAdapter<String> {
+
+        /** Creates a stateless adapter. */
+        public NClobJdbcValueAdapter() {
+        }
+
+        @Override
+        public void setNonNull(
+                PreparedStatement statement, int index, String value, JDBCType jdbcType) throws SQLException {
+            statement.setNString(index, value);
+        }
+
+        @Override
+        public String getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+            NClob nclob = resultSet.getNClob(columnIndex);
+            if (nclob == null) {
+                return null;
+            }
+            String value;
+            try {
+                long length = nclob.length();
+                if (length > Integer.MAX_VALUE) {
+                    throw new SQLException("NCLOB length exceeds the maximum Java string size: " + length);
+                }
+                value = nclob.getSubString(1, (int) length);
+            } catch (SQLException | RuntimeException | Error failure) {
+                try {
+                    nclob.free();
+                } catch (SQLException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+                throw failure;
+            }
+            nclob.free();
+            return value;
+        }
+    }
+
+    /** Materializes JDBC SQLXML values as strings before releasing the driver resource. */
+    public static final class SqlXmlJdbcValueAdapter implements JdbcValueAdapter<String> {
+
+        /** Creates a stateless adapter. */
+        public SqlXmlJdbcValueAdapter() {
+        }
+
+        @Override
+        public void setNonNull(
+                PreparedStatement statement, int index, String value, JDBCType jdbcType) throws SQLException {
+            statement.setString(index, value);
+        }
+
+        @Override
+        public String getNullable(ResultSet resultSet, int columnIndex) throws SQLException {
+            SQLXML sqlxml = resultSet.getSQLXML(columnIndex);
+            if (sqlxml == null) {
+                return null;
+            }
+            String value;
+            try {
+                value = sqlxml.getString();
+            } catch (SQLException | RuntimeException | Error failure) {
+                try {
+                    sqlxml.free();
+                } catch (SQLException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+                throw failure;
+            }
+            sqlxml.free();
+            return value;
+        }
     }
 
     /** Maps enum constants through their declared names. */

@@ -15,9 +15,11 @@ import org.liteorm.api.StatementOptions;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
 import org.liteorm.jdbc.JdbcSqlExecutor;
+import org.liteorm.jdbc.StandardJdbcTypeMappings;
 
 import java.lang.reflect.Proxy;
 import java.sql.BatchUpdateException;
+import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -645,6 +647,47 @@ class JdbcSqlExecutorTest {
             new Throwable[]{resultSetCloseFailure, statementCloseFailure, transactionCloseFailure},
             executionFailure.getSuppressed());
         assertFalse(failure.getMessage().contains("customer-secret"));
+    }
+
+    @Test
+    void preservesJdbcValueReadFailureAndResourceReleaseFailureDuringMapping() {
+        SQLException readFailure = new SQLException("blob read failed");
+        SQLException blobReleaseFailure = new SQLException("blob release failed");
+        SQLException rowsCloseFailure = new SQLException("rows close failed");
+        SQLException statementCloseFailure = new SQLException("statement close failed");
+        IllegalStateException handleCloseFailure = new IllegalStateException("handle close failed");
+        Blob blob = proxy(Blob.class, (method, args) -> switch (method) {
+            case "length" -> 3L;
+            case "getBytes" -> throw readFailure;
+            case "free" -> throw blobReleaseFailure;
+            default -> null;
+        });
+        int[] cursor = {-1};
+        ResultSet rows = proxy(ResultSet.class, (method, args) -> switch (method) {
+            case "next" -> ++cursor[0] == 0;
+            case "getBlob" -> blob;
+            case "close" -> throw rowsCloseFailure;
+            default -> null;
+        });
+        PreparedStatement statement = statement(
+            new ArrayList<>(), rows, 0, null, null, statementCloseFailure);
+        Connection connection = connection(new ArrayList<>(), statement);
+        ConnectionHandleFactory handles = () -> connectionHandle(
+            connection, handleCloseFailure, new ArrayList<>());
+        StandardJdbcTypeMappings.BlobJdbcValueAdapter adapter =
+            new StandardJdbcTypeMappings.BlobJdbcValueAdapter();
+
+        SqlExecutionException failure = assertThrows(SqlExecutionException.class, () ->
+            new JdbcSqlExecutor(handles).execute(selectPlan(resultSet -> adapter.getNullable(resultSet, 1))));
+
+        assertSame(readFailure, failure.getCause());
+        assertEquals(ExecutionPhase.MAPPING, failure.getPhase());
+        assertEquals(JdbcExecutionState.EXECUTED, failure.getExecutionState());
+        assertArrayEquals(
+            new Throwable[]{
+                blobReleaseFailure, rowsCloseFailure, statementCloseFailure, handleCloseFailure
+            },
+            readFailure.getSuppressed());
     }
 
     @Test

@@ -77,12 +77,16 @@ class PublicApiSurfaceTest {
     );
     private static final Set<String> SUPPORTED_STANDARD_MAPPING_ADAPTERS = Set.of(
         "org.liteorm.jdbc.StandardJdbcTypeMappings$BigIntegerJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$BlobJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$BoxedByteArrayJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$ClobJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumNameJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumOrdinalJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$JapaneseDateJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$MonthJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$NClobJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlDateJdbcValueAdapter",
+        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlXmlJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimeJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimestampJdbcValueAdapter",
         "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateJdbcValueAdapter",

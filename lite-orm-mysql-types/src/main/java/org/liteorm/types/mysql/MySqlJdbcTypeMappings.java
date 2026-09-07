@@ -106,6 +106,21 @@ import java.util.UUID;
     jdbcType = JDBCType.NVARCHAR,
     adapter = MySqlJdbcTypeMappings.NationalStringJdbcValueAdapter.class
 )
+@JdbcTypeMapping(
+    javaType = byte[].class,
+    jdbcType = JDBCType.BLOB,
+    adapter = StandardJdbcTypeMappings.BlobJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.CLOB,
+    adapter = StandardJdbcTypeMappings.ClobJdbcValueAdapter.class
+)
+@JdbcTypeMapping(
+    javaType = String.class,
+    jdbcType = JDBCType.NCLOB,
+    adapter = StandardJdbcTypeMappings.NClobJdbcValueAdapter.class
+)
 public final class MySqlJdbcTypeMappings implements JdbcTypeMappings {
 
     /** Maps national-character values through the JDBC national string methods. */

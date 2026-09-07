@@ -93,6 +93,72 @@ class CursorCompilationTest {
             """, "cursor callback result type java.lang.Integer does not match Mapper return type java.lang.String");
     }
 
+    @Test
+    void rejectsLifecycleBoundStreamsOutsideCursorCallbacks() throws Exception {
+        assertFailure("EscapingInputStreamMapper", """
+            import java.io.InputStream;
+            import java.sql.*;
+            import org.liteorm.api.RowMapper;
+            class StreamMapper implements RowMapper<InputStream> {
+                public StreamMapper() {}
+                public InputStream map(ResultSet rows) throws SQLException { return rows.getBinaryStream(1); }
+            }
+            @Mapper interface EscapingInputStreamMapper {
+                @Select("SELECT payload FROM values_table") @UseRowMapper(StreamMapper.class)
+                InputStream scan();
+            }
+            """, "InputStream and Reader results require callback-scoped cursor consumption");
+        assertFailure("EscapingReaderMapper", """
+            import java.io.Reader;
+            import java.sql.*;
+            import org.liteorm.api.RowMapper;
+            class ReaderMapper implements RowMapper<Reader> {
+                public ReaderMapper() {}
+                public Reader map(ResultSet rows) throws SQLException { return rows.getCharacterStream(1); }
+            }
+            @Mapper interface EscapingReaderMapper {
+                @Select("SELECT payload FROM values_table") @UseRowMapper(ReaderMapper.class)
+                Reader scan();
+            }
+            """, "InputStream and Reader results require callback-scoped cursor consumption");
+    }
+
+    @Test
+    void allowsCallbackScopedStreamConsumption() throws Exception {
+        Compilation result = compile("StreamCursorMapper", """
+            package org.liteorm.test.cursorfixture;
+
+            import java.io.InputStream;
+            import java.io.Reader;
+            import java.sql.*;
+            import org.liteorm.annotation.*;
+            import org.liteorm.api.CursorCallback;
+            import org.liteorm.api.RowMapper;
+
+            class StreamMapper implements RowMapper<InputStream> {
+                public StreamMapper() {}
+                public InputStream map(ResultSet rows) throws SQLException { return rows.getBinaryStream(1); }
+            }
+            class ReaderMapper implements RowMapper<Reader> {
+                public ReaderMapper() {}
+                public Reader map(ResultSet rows) throws SQLException { return rows.getCharacterStream(1); }
+            }
+
+            @Mapper interface StreamCursorMapper {
+                @Select("SELECT payload FROM values_table") @UseRowMapper(StreamMapper.class)
+                Integer scanBinary(CursorCallback<InputStream, Integer> callback);
+
+                @Select("SELECT payload FROM values_table") @UseRowMapper(ReaderMapper.class)
+                Integer scanText(CursorCallback<Reader, Integer> callback);
+            }
+            """);
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/cursorfixture/StreamCursorMapperImpl.java"));
+        assertTrue(generated.contains("return sqlExecutor.queryCursor(executionPlan, callback);"), generated);
+    }
+
     private void assertFailure(String typeName, String body, String expectedMessage) throws Exception {
         Compilation result = compile(typeName, """
             package org.liteorm.test.cursorfixture;

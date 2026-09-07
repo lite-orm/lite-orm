@@ -133,6 +133,29 @@ Use it when one result object needs custom construction from the current row, es
 
 A row mapper is read-only and method-specific. It should not be used to establish a reusable JDBC representation for a scalar Java type.
 
+## Lifecycle-Bound JDBC Values
+
+Driver objects such as `Blob`, `Clob`, `NClob`, `SQLXML`, and JDBC `Array` are valid only while their JDBC lifecycle remains open. LiteORM therefore exposes ordinary results as detached Java values:
+
+| JDBC value | Mapper result | Requirement |
+| --- | --- | --- |
+| `BLOB` | `byte[]` | Declare `@ResultJdbcType(JDBCType.BLOB)` and select a collection that supports it. |
+| `CLOB` / `NCLOB` | `String` | Declare the matching result JDBC type and select a supporting collection. |
+| `SQLXML` | `String` | Declare `@ResultJdbcType(JDBCType.SQLXML)` and select a supporting collection. |
+| `ARRAY` | `Object[]` | Declare `@ResultJdbcType(JDBCType.ARRAY)`; support is database-specific. |
+
+LiteORM materializes the value and releases the driver resource before closing the ResultSet, statement, and connection handle. There is no hidden materialization threshold: the practical bounds are available JVM memory and the maximum Java array or string size. Use streaming for values that should not be fully retained in memory.
+
+An `InputStream` or `Reader` cannot be a direct, list, or optional Mapper result. Consume it inside the existing cursor callback scope with a method-level row mapper:
+
+```java
+@UseRowMapper(BinaryStreamRowMapper.class)
+@Select("SELECT payload FROM documents")
+Long consume(CursorCallback<InputStream, Long> callback);
+```
+
+The row mapper obtains the stream from the current ResultSet row; the callback must finish consuming it before returning. Do not retain the stream, reader, or cursor after the callback. JDBC ARRAY parameters are also explicit: annotate the whole parameter with `@UseParameterBinder` so application code can supply the database element type and create the correct driver array.
+
 ### Does a Row Mapper Replace JDBC Type Mappings?
 
 Only on the result side of the annotated query method.
@@ -201,6 +224,6 @@ The runtime distinction is therefore mechanical:
 - Use a parameter binder when the exception belongs to one parameter rather than the package's type policy.
 - Use a row mapper only as the method-level, read-only escape hatch when the exception belongs to one result shape rather than one column value.
 - A row mapper replaces only the annotated method's result mapping; it does not replace parameter binding or the package's mapping policy.
-- Use raw JDBC when the application must own streaming, vendor resources, multi-row aggregation, or lifecycle behavior outside these interfaces.
+- Use callback-scoped cursor consumption for supported stream/reader results; use raw JDBC when the application must own vendor resources or lifecycle behavior outside these interfaces.
 
 The exact validation, lifecycle, null-binding, visibility, and concurrency requirements remain defined by the [Extension Contracts](../../reference/extensions.md).

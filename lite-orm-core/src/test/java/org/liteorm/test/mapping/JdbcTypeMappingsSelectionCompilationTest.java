@@ -1284,6 +1284,192 @@ class JdbcTypeMappingsSelectionCompilationTest {
     }
 
     @Test
+    void appliesSelectedBlobMaterializationMapping() throws Exception {
+        Compilation result = compile(
+            standardPackageSelection("org.liteorm.test.selection.blob"),
+            new SourceFile(
+                "org/liteorm/test/selection/blob/BlobMapper.java",
+                """
+                    package org.liteorm.test.selection.blob;
+
+                    import java.sql.JDBCType;
+                    import org.liteorm.annotation.Insert;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.Param;
+                    import org.liteorm.annotation.ResultJdbcType;
+                    import org.liteorm.annotation.Select;
+
+                    @Mapper
+                    public interface BlobMapper {
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=BLOB})")
+                        int insert(@Param("value") byte[] value);
+
+                        @ResultJdbcType(JDBCType.BLOB)
+                        @Select("SELECT value FROM values_table")
+                        byte[] findValue();
+                    }
+                    """));
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/selection/blob/BlobMapperImpl.java"));
+        assertEquals(1, countOccurrences(generated,
+            "new org.liteorm.jdbc.StandardJdbcTypeMappings.BlobJdbcValueAdapter()"), generated);
+        assertTrue(generated.contains(
+            ".setNull(statement, index, java.sql.JDBCType.BLOB)"), generated);
+        assertTrue(generated.contains("getNullable(resultSet, 1)"), generated);
+    }
+
+    @Test
+    void appliesSelectedTextResourceMaterializationMappings() throws Exception {
+        Compilation result = compile(
+            standardPackageSelection("org.liteorm.test.selection.textresources"),
+            new SourceFile(
+                "org/liteorm/test/selection/textresources/TextResourceMapper.java",
+                """
+                    package org.liteorm.test.selection.textresources;
+
+                    import java.sql.JDBCType;
+                    import org.liteorm.annotation.Insert;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.Param;
+                    import org.liteorm.annotation.ResultJdbcType;
+                    import org.liteorm.annotation.Select;
+
+                    @Mapper
+                    public interface TextResourceMapper {
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=CLOB})")
+                        int insertClob(@Param("value") String value);
+
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=NCLOB})")
+                        int insertNClob(@Param("value") String value);
+
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=SQLXML})")
+                        int insertSqlXml(@Param("value") String value);
+
+                        @ResultJdbcType(JDBCType.CLOB)
+                        @Select("SELECT value FROM values_table")
+                        String findClob();
+
+                        @ResultJdbcType(JDBCType.NCLOB)
+                        @Select("SELECT value FROM values_table")
+                        String findNClob();
+
+                        @ResultJdbcType(JDBCType.SQLXML)
+                        @Select("SELECT value FROM values_table")
+                        String findSqlXml();
+                    }
+                    """));
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/selection/textresources/TextResourceMapperImpl.java"));
+        assertTrue(generated.contains("StandardJdbcTypeMappings.ClobJdbcValueAdapter"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.NClobJdbcValueAdapter"), generated);
+        assertTrue(generated.contains("StandardJdbcTypeMappings.SqlXmlJdbcValueAdapter"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.CLOB"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.NCLOB"), generated);
+        assertTrue(generated.contains("java.sql.JDBCType.SQLXML"), generated);
+    }
+
+    @Test
+    void generatesLifecycleSafeJdbcArrayResultReader() throws Exception {
+        Compilation result = compile(
+            standardPackageSelection("org.liteorm.test.selection.jdbcarray"),
+            new SourceFile(
+                "org/liteorm/test/selection/jdbcarray/JdbcArrayMapper.java",
+                """
+                    package org.liteorm.test.selection.jdbcarray;
+
+                    import java.sql.JDBCType;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.ResultJdbcType;
+                    import org.liteorm.annotation.Select;
+
+                    @Mapper
+                    public interface JdbcArrayMapper {
+                        @ResultJdbcType(JDBCType.ARRAY)
+                        @Select("SELECT value FROM values_table")
+                        Object[] findValue();
+                    }
+                    """));
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+        String generated = Files.readString(result.generatedDirectory().resolve(
+            "org/liteorm/test/selection/jdbcarray/JdbcArrayMapperImpl.java"));
+        assertTrue(generated.contains(
+            "return ResultValueConverters.materializeJdbcArray(resultSet, 1);"), generated);
+    }
+
+    @Test
+    void rejectsJdbcArrayParametersWithoutExplicitBinder() throws Exception {
+        Compilation result = compile(
+            standardPackageSelection("org.liteorm.test.selection.jdbcarrayparameter"),
+            new SourceFile(
+                "org/liteorm/test/selection/jdbcarrayparameter/JdbcArrayParameterMapper.java",
+                """
+                    package org.liteorm.test.selection.jdbcarrayparameter;
+
+                    import org.liteorm.annotation.Insert;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.Param;
+
+                    @Mapper
+                    public interface JdbcArrayParameterMapper {
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=ARRAY})")
+                        int insert(@Param("value") Object[] value);
+                    }
+                    """));
+
+        assertFalse(result.succeeded(), result::diagnosticsText);
+        assertTrue(result.diagnosticsText().contains(
+            "Object[] + ARRAY parameters require @UseParameterBinder"), result::diagnosticsText);
+    }
+
+    @Test
+    void allowsJdbcArrayParametersWithExplicitBinder() throws Exception {
+        Compilation result = compile(
+            standardPackageSelection("org.liteorm.test.selection.jdbcarraybinder"),
+            new SourceFile(
+                "org/liteorm/test/selection/jdbcarraybinder/TextArrayBinder.java",
+                """
+                    package org.liteorm.test.selection.jdbcarraybinder;
+
+                    import java.sql.PreparedStatement;
+                    import java.sql.SQLException;
+                    import org.liteorm.api.ParameterBinder;
+
+                    public final class TextArrayBinder implements ParameterBinder<Object[]> {
+                        public TextArrayBinder() {}
+
+                        @Override
+                        public void bind(PreparedStatement statement, int index, Object[] value)
+                                throws SQLException {
+                            statement.setArray(index,
+                                statement.getConnection().createArrayOf("text", value));
+                        }
+                    }
+                    """),
+            new SourceFile(
+                "org/liteorm/test/selection/jdbcarraybinder/JdbcArrayBinderMapper.java",
+                """
+                    package org.liteorm.test.selection.jdbcarraybinder;
+
+                    import org.liteorm.annotation.Insert;
+                    import org.liteorm.annotation.Mapper;
+                    import org.liteorm.annotation.UseParameterBinder;
+
+                    @Mapper
+                    public interface JdbcArrayBinderMapper {
+                        @Insert("INSERT INTO values_table (value) VALUES (#{value,jdbcType=ARRAY})")
+                        int insert(@UseParameterBinder(TextArrayBinder.class) Object[] value);
+                    }
+                    """));
+
+        assertTrue(result.succeeded(), result::diagnosticsText);
+    }
+
+    @Test
     void appliesSelectedStandardLegacyDateMappings() throws Exception {
         Compilation result = compile(
             standardPackageSelection("org.liteorm.test.selection.legacydate"),

@@ -2,7 +2,10 @@ package org.liteorm.runtime;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -208,6 +211,31 @@ public final class ResultValueConverters {
         if (value instanceof Date date) return JapaneseDate.from(date.toLocalDate());
         if (value instanceof LocalDate localDate) return JapaneseDate.from(localDate);
         throw unsupported(value, JapaneseDate.class);
+    }
+
+    /** Materializes a JDBC ARRAY before releasing its driver-owned resource. */
+    public static Object[] materializeJdbcArray(ResultSet resultSet, int columnIndex) throws SQLException {
+        Array array = resultSet.getArray(columnIndex);
+        if (array == null) {
+            return null;
+        }
+        Object[] value;
+        try {
+            Object materialized = array.getArray();
+            if (!(materialized instanceof Object[] objectArray)) {
+                throw new SQLException("JDBC ARRAY did not materialize as an object array");
+            }
+            value = objectArray;
+        } catch (SQLException | RuntimeException | Error failure) {
+            try {
+                array.free();
+            } catch (SQLException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+        array.free();
+        return value;
     }
 
     /** Converts a zero-based JDBC numeric value to one constant of the supplied enum type. */
