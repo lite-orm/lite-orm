@@ -17,13 +17,10 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`user/core/extensions.md`](user/core/extensions.md): decision guide for typed extension points and raw JDBC.
 - [`user/core/standalone.md`](user/core/standalone.md): standalone JDBC assembly and callback transactions.
 
-### Integrations and Database Types
+### Integrations
 
 - [`user/spring/README.md`](user/spring/README.md): Spring guide index.
 - [`user/spring/spring-boot.md`](user/spring/spring-boot.md): Mapper registration, named DataSource binding, and Spring transactions.
-- [`user/database-types/README.md`](user/database-types/README.md): database type-module index.
-- [`user/database-types/postgresql.md`](user/database-types/postgresql.md): PostgreSQL mapping artifact installation and behavior.
-- [`user/database-types/mysql.md`](user/database-types/mysql.md): MySQL mapping artifact installation and behavior.
 
 ### Migration
 

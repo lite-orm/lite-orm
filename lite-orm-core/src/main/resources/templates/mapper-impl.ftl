@@ -3,8 +3,6 @@ package ${packageName};
 import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.BoundSql;
 import org.liteorm.api.ExecutionPlan;
-import org.liteorm.api.JdbcTypeMappings;
-import org.liteorm.api.JdbcTypeMappingsMetadata;
 import org.liteorm.api.MappingException;
 import org.liteorm.api.NonUniqueResultException;
 import org.liteorm.api.ParameterBinder;
@@ -20,17 +18,12 @@ import java.util.List;
  * Generated Mapper implementation.
  * Contains compile-time SQL binding and result mapping without reflection.
  */
-public class ${implClassName} implements ${interfaceName}, JdbcTypeMappingsMetadata {
+public class ${implClassName} implements ${interfaceName} {
 
     private final SqlExecutor sqlExecutor;
 
     public ${implClassName}(SqlExecutor sqlExecutor) {
         this.sqlExecutor = java.util.Objects.requireNonNull(sqlExecutor, "sqlExecutor");
-    }
-
-    @Override
-    public Class<? extends JdbcTypeMappings> jdbcTypeMappings() {
-        return ${jdbcTypeMappingsClassName}.class;
     }
 
 ${generatedMethods}

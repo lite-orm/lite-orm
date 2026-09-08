@@ -252,7 +252,7 @@ class JdbcTypeCompilationTest {
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(sourceFile)));
+                MapperCompilationTestSupport.compilationUnits(List.of(sourceFile)));
             var task = compiler.getTask(null, manager, diagnostics, List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

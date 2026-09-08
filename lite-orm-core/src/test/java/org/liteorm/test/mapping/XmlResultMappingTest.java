@@ -74,7 +74,7 @@ class XmlResultMappingTest {
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(
                 diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                org.liteorm.test.MapperCompilationTestSupport.withJdbcTypeMappingsSelection(
+                org.liteorm.test.MapperCompilationTestSupport.compilationUnits(
                     List.of(source)));
             var task = compiler.getTask(null, manager, diagnostics, List.of(
                 "--release", "21",
@@ -217,7 +217,7 @@ class XmlResultMappingTest {
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(
                 diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                org.liteorm.test.MapperCompilationTestSupport.withJdbcTypeMappingsSelection(
+                org.liteorm.test.MapperCompilationTestSupport.compilationUnits(
                     List.of(source)));
             var task = compiler.getTask(null, manager, diagnostics, List.of(
                 "--release", "21",

@@ -61,8 +61,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             dataModel.put("packageName", compilationModel.packageName());
             dataModel.put("interfaceName", compilationModel.interfaceName());
             dataModel.put("implClassName", compilationModel.implementationName());
-            dataModel.put("jdbcTypeMappingsClassName", classReference(
-                compilationModel.packageName(), compilationModel.jdbcTypeMappingsClassName()));
             dataModel.put("generatedMethods", generateMethods(
                 compilationModel.methods(), compilationModel.packageName()));
 
@@ -111,44 +109,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateMethods(
             List<MapperCompilationModel.MethodModel> methods, String packageName) throws GenerationException {
         StringBuilder builder = new StringBuilder();
-        Map<String, MapperCompilationModel.TypeHandlerField> typeHandlerFields =
-            new java.util.LinkedHashMap<>();
-        Set<String> referencedJdbcBinderFields = new LinkedHashSet<>();
-        for (MapperCompilationModel.MethodModel method : methods) {
-            for (MapperCompilationModel.TypeHandlerField field : method.typeHandlerFields()) {
-                typeHandlerFields.putIfAbsent(field.fieldName(), field);
-            }
-            method.parameterBinderFields().stream()
-                .filter(java.util.Objects::nonNull)
-                .forEach(referencedJdbcBinderFields::add);
-        }
-        for (MapperCompilationModel.TypeHandlerField field : typeHandlerFields.values()) {
-            builder.append("    private final ")
-                .append(classReference(packageName, field.typeName())).append(" ")
-                .append(field.fieldName()).append(" = ");
-            if (field.initializer() == null) {
-                builder.append("new ").append(classReference(packageName, field.typeName())).append("()");
-            } else {
-                builder.append(field.initializer());
-            }
-            builder.append(";\n");
-            if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
-                builder.append("    private final ParameterBinder<")
-                    .append(classReference(packageName, field.javaTypeName())).append("> ")
-                    .append(field.binderFieldName()).append(" = this::")
-                    .append(field.binderMethodName()).append(";\n");
-            }
-        }
-        builder.append("    private final TypeHandlerManager typeHandlerManager = new TypeHandlerManager(List.of(");
-        builder.append(typeHandlerFields.values().stream()
-            .map(field -> "TypeHandlerManager.mapping("
-                + classReference(packageName, field.javaTypeName()) + ".class, java.sql.JDBCType."
-                + field.jdbcType() + ", "
-                + (field.vendorTypeName() == null || field.vendorTypeName().isBlank()
-                    ? "" : javaString(field.vendorTypeName()) + ", ")
-                + field.fieldName() + ")")
-            .collect(java.util.stream.Collectors.joining(", ")));
-        builder.append("));\n");
+        builder.append("    private final TypeHandlerManager typeHandlerManager = new TypeHandlerManager();\n");
         for (MapperCompilationModel.MethodModel method : methods) {
             if (method.providerClassName() != null) {
                 builder.append("    private final ").append(method.providerClassName()).append(" ")
@@ -161,15 +122,9 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(extensionField.typeName()).append("();\n");
             }
         }
-        if (!typeHandlerFields.isEmpty()
-                || methods.stream().anyMatch(method -> method.providerClassName() != null
-                    || !method.extensionFields().isEmpty())) {
+        if (methods.stream().anyMatch(method -> method.providerClassName() != null
+                || !method.extensionFields().isEmpty())) {
             builder.append("\n");
-        }
-        for (MapperCompilationModel.TypeHandlerField field : typeHandlerFields.values()) {
-            if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
-                builder.append(generateJdbcValueBinder(field, packageName)).append("\n");
-            }
         }
         for (MapperCompilationModel.MethodModel method : methods) {
             builder.append(generateMethodImpl(method)).append("\n");
@@ -178,24 +133,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             }
         }
         return builder.toString();
-    }
-
-    private String generateJdbcValueBinder(
-            MapperCompilationModel.TypeHandlerField field, String packageName) {
-        String javaType = classReference(packageName, field.javaTypeName());
-        return """
-                private void %s(
-                        java.sql.PreparedStatement statement, int index, %s value)
-                        throws java.sql.SQLException {
-                    if (value == null) {
-                        %s.setNull(statement, index, java.sql.JDBCType.%s);
-                        return;
-                    }
-                    %s.setNonNull(statement, index, value, java.sql.JDBCType.%s);
-                }
-            """.formatted(
-                field.binderMethodName(), javaType, field.fieldName(), field.jdbcType(),
-                field.fieldName(), field.jdbcType());
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {

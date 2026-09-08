@@ -17,7 +17,6 @@ import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlExecutor;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.StatementOptions;
-import org.liteorm.api.TypeHandler;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -295,7 +294,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         if (rowMapper != null) {
             generatedKey = rowMapper.map(generatedKeys);
         } else if (typeRouting != null && typeRouting.resultTypes().length == 1) {
-            TypeHandler<?> handler = typeRouting.manager().resolveResult(
+            TypeHandlerManager.ResultHandler handler = typeRouting.manager().resolveResult(
                 metadata, 1, typeRouting.resultTypes()[0]);
             generatedKey = handler.getResult(generatedKeys, 1);
         } else {
@@ -381,12 +380,12 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             columns.add(new ResultColumn(label, column - 1));
         }
-        TypeHandler<?>[] handlers = resolveResultHandlers(metadata, columns, typeRouting);
+        TypeHandlerManager.ResultHandler[] handlers = resolveResultHandlers(metadata, columns, typeRouting);
         List<Object[]> rows = new ArrayList<>();
         while (resultSet.next()) {
             Object[] row = new Object[columnCount];
             for (int column = 1; column <= columnCount; column++) {
-                TypeHandler<?> handler = handlers[column - 1];
+                TypeHandlerManager.ResultHandler handler = handlers[column - 1];
                 row[column - 1] = handler == null
                     ? readColumnValue(resultSet, metadata, column)
                     : handler.getResult(resultSet, column);
@@ -396,11 +395,12 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return new QueryRows(columns, rows);
     }
 
-    private TypeHandler<?>[] resolveResultHandlers(
+    private TypeHandlerManager.ResultHandler[] resolveResultHandlers(
             ResultSetMetaData metadata,
             List<ResultColumn> columns,
             ExecutionPlan.TypeRouting typeRouting) throws SQLException {
-        TypeHandler<?>[] handlers = new TypeHandler<?>[columns.size()];
+        TypeHandlerManager.ResultHandler[] handlers =
+            new TypeHandlerManager.ResultHandler[columns.size()];
         if (typeRouting == null) {
             return handlers;
         }

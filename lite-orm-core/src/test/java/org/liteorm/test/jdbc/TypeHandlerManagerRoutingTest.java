@@ -1,9 +1,7 @@
 package org.liteorm.test.jdbc;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.api.TypeHandler;
 import org.liteorm.jdbc.TypeHandlerManager;
-import org.liteorm.jdbc.StandardJdbcTypeMappings;
 
 import java.lang.reflect.Proxy;
 import java.sql.JDBCType;
@@ -11,20 +9,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TypeHandlerManagerRoutingTest {
 
     @Test
-    void handlesStandardValuesInBothDirectionsWithoutConfiguredMappings() throws Exception {
+    void handlesStandardValuesInBothDirections() throws Exception {
         AtomicReference<String> written = new AtomicReference<>();
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> {
             if (method.equals("setString")) {
@@ -37,144 +33,82 @@ class TypeHandlerManagerRoutingTest {
         TypeHandlerManager manager = new TypeHandlerManager();
 
         manager.setParameter(statement, 1, "Alice", String.class, null);
-        TypeHandler<String> resultHandler = manager.resolveResult(
-            metadata(JDBCType.VARCHAR), 1, String.class);
+        Object result = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, String.class)
+            .getResult(resultSet, 1);
 
         assertEquals("Alice", written.get());
-        assertEquals("Alice", resultHandler.getResult(resultSet, 1));
-    }
-
-    @Test
-    void routesBothDirectionsThroughOneTypeHandler() throws Exception {
-        AtomicReference<String> written = new AtomicReference<>();
-        TypeHandler<String> handler = new TypeHandler<>() {
-            @Override
-            public void setNonNull(
-                    PreparedStatement statement, int index, String value, JDBCType jdbcType) {
-                written.set(value);
-            }
-
-            @Override
-            public String getResult(ResultSet resultSet, int columnIndex) {
-                return "handled";
-            }
-        };
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(String.class, JDBCType.CLOB, handler)));
-        PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> null);
-        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
-            case "getColumnType" -> JDBCType.CLOB.getVendorTypeNumber();
-            case "getColumnTypeName" -> "CLOB";
-            default -> null;
-        });
-        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> null);
-
-        manager.setParameter(statement, 1, "value", String.class, JDBCType.CLOB);
-        TypeHandler<String> resolved = manager.resolveResult(metadata, 1, String.class);
-
-        assertEquals("value", written.get());
-        assertSame(handler, resolved);
-        assertEquals("handled", resolved.getResult(resultSet, 1));
+        assertEquals("Alice", result);
     }
 
     @Test
     void resolvesResultMetadataOnceThenReusesTheHandler() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();
-        TypeHandler<String> handler = new TypeHandler<>() {
-            @Override
-            public void setNonNull(
-                    PreparedStatement statement, int index, String value, JDBCType jdbcType) {
-            }
-
-            @Override
-            public String getResult(ResultSet resultSet, int columnIndex) {
-                return "value";
-            }
-        };
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(String.class, JDBCType.VARCHAR, handler)));
-        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
-            case "getColumnType" -> {
+        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> {
+            if (method.equals("getColumnType")) {
                 metadataReads.incrementAndGet();
-                yield JDBCType.VARCHAR.getVendorTypeNumber();
+                return JDBCType.VARCHAR.getVendorTypeNumber();
             }
-            case "getColumnTypeName" -> "VARCHAR";
-            default -> null;
+            return null;
         });
-        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> null);
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) ->
+            method.equals("getObject") ? "value" : null);
 
-        TypeHandler<String> resolved = manager.resolveResult(metadata, 1, String.class);
-        resolved.getResult(resultSet, 1);
-        resolved.getResult(resultSet, 1);
+        TypeHandlerManager.ResultHandler handler =
+            new TypeHandlerManager().resolveResult(metadata, 1, String.class);
+        handler.getResult(resultSet, 1);
+        handler.getResult(resultSet, 1);
 
         assertEquals(1, metadataReads.get());
     }
 
     @Test
-    void infersEnumNameOrOrdinalFromResultMetadata() throws Exception {
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(
-                Status.class, JDBCType.VARCHAR,
-                new StandardJdbcTypeMappings.EnumNameTypeHandler<>(Status::valueOf)),
-            TypeHandlerManager.mapping(
-                Status.class, JDBCType.INTEGER,
-                new StandardJdbcTypeMappings.EnumOrdinalTypeHandler<>(Status.values()))));
-        AtomicReference<Object> value = new AtomicReference<>();
-        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
-            case "getObject" -> value.get();
-            case "getString" -> value.get().toString();
-            case "getInt" -> ((Number) value.get()).intValue();
-            case "wasNull" -> value.get() == null;
-            default -> null;
-        });
+    void leavesEnumValuesForGeneratedEnumConversion() throws Exception {
+        AtomicReference<Object> value = new AtomicReference<>("ACTIVE");
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) ->
+            method.equals("getObject") ? value.get() : null);
+        TypeHandlerManager manager = new TypeHandlerManager();
 
-        value.set("ACTIVE");
-        TypeHandler<Status> nameHandler = manager.resolveResult(
-            metadata(JDBCType.VARCHAR), 1, Status.class);
-        assertEquals(Status.ACTIVE, nameHandler.getResult(resultSet, 1));
-
+        Object name = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, Status.class)
+            .getResult(resultSet, 1);
         value.set(1);
-        TypeHandler<Status> ordinalHandler = manager.resolveResult(
-            metadata(JDBCType.INTEGER), 1, Status.class);
-        assertEquals(Status.DISABLED, ordinalHandler.getResult(resultSet, 1));
+        Object ordinal = manager.resolveResult(metadata(JDBCType.INTEGER), 1, Status.class)
+            .getResult(resultSet, 1);
+
+        assertEquals("ACTIVE", name);
+        assertEquals(1, ordinal);
     }
 
     @Test
-    void reportsActionableResultContextWhenNoRouteExists() {
-        TypeHandlerManager manager = new TypeHandlerManager(List.of());
+    void reportsRowMapperWhenNoStandardResultRouteExists() {
         ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
             case "getColumnType" -> JDBCType.OTHER.getVendorTypeNumber();
-            case "getColumnTypeName" -> "money";
             case "getColumnLabel" -> "amount";
             default -> null;
         });
 
         SQLException failure = assertThrows(SQLException.class, () ->
-            manager.resolveResult(metadata, 1, Money.class));
+            new TypeHandlerManager().resolveResult(metadata, 1, Money.class));
 
-        assertEquals(
-            "No TypeHandler for " + Money.class.getName()
-                + " + OTHER at result column 1 'amount' (vendor type money). "
-                + "Add a matching @JdbcTypeMapping TypeHandler or use @UseRowMapper.",
-            failure.getMessage());
+        assertTrue(failure.getMessage().contains(Money.class.getName()), failure::getMessage);
+        assertTrue(failure.getMessage().contains("OTHER"), failure::getMessage);
+        assertTrue(failure.getMessage().contains("result column 1 'amount'"), failure::getMessage);
+        assertTrue(failure.getMessage().contains("@UseRowMapper"), failure::getMessage);
     }
 
     @Test
-    void reportsParameterBinderWhenNoStandardParameterHandlerExists() {
-        TypeHandlerManager manager = new TypeHandlerManager();
+    void reportsParameterBinderWhenNoStandardParameterRouteExists() {
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> null);
 
         SQLException failure = assertThrows(SQLException.class, () ->
-            manager.setParameter(statement, 1, new Money(1), Money.class, JDBCType.OTHER));
+            new TypeHandlerManager().setParameter(
+                statement, 1, new Money(1), Money.class, JDBCType.OTHER));
 
-        assertEquals(
-            "No TypeHandler for " + Money.class.getName()
-                + " + OTHER. Use @UseParameterBinder for custom parameter conversion.",
-            failure.getMessage());
+        assertTrue(failure.getMessage().contains(Money.class.getName()), failure::getMessage);
+        assertTrue(failure.getMessage().contains("@UseParameterBinder"), failure::getMessage);
     }
 
     @Test
-    void bindsNullFromTheDeclaredJavaTypeWithoutAnExplicitJdbcType() throws Exception {
+    void bindsNullFromTheDeclaredJavaType() throws Exception {
         AtomicReference<Object> writtenJdbcType = new AtomicReference<>();
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> {
             if (method.equals("setNull")) {
@@ -189,81 +123,16 @@ class TypeHandlerManagerRoutingTest {
     }
 
     @Test
-    void reportsParameterBinderWhenNoDefaultJdbcTypeExists() {
-        TypeHandlerManager manager = new TypeHandlerManager();
-        PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> null);
-
+    void rejectsLifecycleJdbcTypesFromStandardScalarRouting() {
         SQLException failure = assertThrows(SQLException.class, () ->
-            manager.setParameter(statement, 1, new Money(1), Money.class, null));
+            new TypeHandlerManager().resolveResult(metadata(JDBCType.CLOB), 1, String.class));
 
-        assertEquals(
-            "No default TypeHandler for " + Money.class.getName()
-                + ". Use @UseParameterBinder for custom parameter conversion.",
-            failure.getMessage());
+        assertTrue(failure.getMessage().contains("No standard TypeHandler"), failure::getMessage);
+        assertTrue(failure.getMessage().contains("@UseRowMapper"), failure::getMessage);
     }
 
     @Test
-    void reportsTargetTypeAndRowMapperForAnUnknownDriverJdbcType() {
-        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
-            case "getColumnType" -> Integer.MAX_VALUE;
-            case "getColumnTypeName" -> "mystery";
-            case "getColumnLabel" -> "payload";
-            default -> null;
-        });
-
-        SQLException failure = assertThrows(SQLException.class, () ->
-            new TypeHandlerManager().resolveResult(metadata, 1, String.class));
-
-        assertEquals(
-            "Driver reported unsupported JDBC type " + Integer.MAX_VALUE
-                + " (mystery) for result column 1 'payload' targeting java.lang.String. "
-                + "Use @UseRowMapper for custom result conversion.",
-            failure.getMessage());
-    }
-
-    @Test
-    void prefersAnExactVendorTypeRouteOverAGenericJdbcRoute() throws Exception {
-        TypeHandler<Money> genericHandler = handler(new Money(1));
-        TypeHandler<Money> vendorHandler = handler(new Money(2));
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(Money.class, JDBCType.OTHER, genericHandler),
-            TypeHandlerManager.mapping(Money.class, JDBCType.OTHER, "money", vendorHandler)));
-        ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
-            case "getColumnType" -> JDBCType.OTHER.getVendorTypeNumber();
-            case "getColumnTypeName" -> "MONEY";
-            case "getColumnLabel" -> "amount";
-            default -> null;
-        });
-
-        assertSame(vendorHandler, manager.resolveResult(metadata, 1, Money.class));
-    }
-
-    @Test
-    void rejectsAmbiguousCompatibleRoutes() {
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(byte[].class, JDBCType.BINARY, handler(new byte[0])),
-            TypeHandlerManager.mapping(byte[].class, JDBCType.LONGVARBINARY, handler(new byte[0]))));
-
-        SQLException failure = assertThrows(SQLException.class, () ->
-            manager.resolveResult(metadata(JDBCType.VARBINARY), 1, byte[].class));
-
-        assertTrue(failure.getMessage().contains("Ambiguous TypeHandlers"), failure::getMessage);
-        assertTrue(failure.getMessage().contains("BINARY"), failure::getMessage);
-        assertTrue(failure.getMessage().contains("LONGVARBINARY"), failure::getMessage);
-    }
-
-    @Test
-    void doesNotTreatLifecycleJdbcTypesAsOrdinaryScalarRoutes() {
-        TypeHandlerManager manager = new TypeHandlerManager(List.of());
-
-        SQLException failure = assertThrows(SQLException.class, () ->
-            manager.resolveResult(metadata(JDBCType.CLOB), 1, String.class));
-
-        assertTrue(failure.getMessage().contains("No TypeHandler"), failure::getMessage);
-    }
-
-    @Test
-    void writesCharacterUuidWithoutDiscoveringTheDatabaseProduct() throws Exception {
+    void writesCharacterUuidWithoutDatabaseProductRouting() throws Exception {
         AtomicReference<String> methodCalled = new AtomicReference<>();
         AtomicReference<Object> written = new AtomicReference<>();
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> {
@@ -275,25 +144,11 @@ class TypeHandlerManagerRoutingTest {
         });
         UUID value = UUID.randomUUID();
 
-        new TypeHandlerManager(List.of()).setParameter(
+        new TypeHandlerManager().setParameter(
             statement, 1, value, UUID.class, JDBCType.VARCHAR);
 
         assertEquals("setString", methodCalled.get());
         assertEquals(value.toString(), written.get());
-    }
-
-    private <T> TypeHandler<T> handler(T result) {
-        return new TypeHandler<>() {
-            @Override
-            public void setNonNull(
-                    PreparedStatement statement, int index, T value, JDBCType jdbcType) {
-            }
-
-            @Override
-            public T getResult(ResultSet resultSet, int columnIndex) {
-                return result;
-            }
-        };
     }
 
     private ResultSetMetaData metadata(JDBCType jdbcType) {

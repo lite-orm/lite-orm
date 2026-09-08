@@ -15,7 +15,6 @@ record MapperCompilationModel(
     String interfaceName,
     String implementationName,
     String qualifiedInterfaceName,
-    String jdbcTypeMappingsClassName,
     List<MethodModel> methods
 ) {
 
@@ -39,7 +38,6 @@ record MapperCompilationModel(
         String providerFieldName,
         String providerArgumentExpression,
         List<ExtensionField> extensionFields,
-        List<TypeHandlerField> typeHandlerFields,
         List<String> parameterBinderFields,
         String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
@@ -70,7 +68,6 @@ record MapperCompilationModel(
             String providerFieldName,
             String providerArgumentExpression,
             List<ExtensionField> extensionFields,
-            List<TypeHandlerField> typeHandlerFields,
             List<String> parameterBinderFields,
             String rowMapperFieldName,
             List<SqlParameterParser.MethodParameter> methodParameters,
@@ -80,26 +77,13 @@ record MapperCompilationModel(
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
                 sourceType, sqlTemplate, dynamic, null, resultType, resultMappingCode,
                 resultMappingHelperCode, resultColumnLabels, List.of(), providerClassName, providerFieldName, providerArgumentExpression,
-                extensionFields, typeHandlerFields,
-                parameterBinderFields, rowMapperFieldName,
+                extensionFields, parameterBinderFields, rowMapperFieldName,
                 methodParameters, parameterBindings,
                 astNode, parameterList, null);
         }
     }
 
     public record ExtensionField(String typeName, String fieldName) {
-    }
-
-    public record TypeHandlerField(
-        String typeName,
-        String javaTypeName,
-        String fieldName,
-        String binderFieldName,
-        String binderMethodName,
-        String jdbcType,
-        String vendorTypeName,
-        String initializer
-    ) {
     }
 
 }

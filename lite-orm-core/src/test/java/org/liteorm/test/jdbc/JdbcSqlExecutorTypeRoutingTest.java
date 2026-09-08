@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
-import org.liteorm.api.TypeHandler;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 import org.liteorm.jdbc.TypeHandlerManager;
 
@@ -27,20 +26,7 @@ class JdbcSqlExecutorTypeRoutingTest {
     void routesParametersAndResolvesResultHandlerOncePerResultSet() {
         AtomicReference<String> written = new AtomicReference<>();
         AtomicInteger metadataTypeReads = new AtomicInteger();
-        TypeHandler<String> handler = new TypeHandler<>() {
-            @Override
-            public void setNonNull(
-                    PreparedStatement statement, int index, String value, JDBCType jdbcType) {
-                written.set(value + ":" + jdbcType);
-            }
-
-            @Override
-            public String getResult(ResultSet resultSet, int columnIndex) throws SQLException {
-                return "handled-" + resultSet.getObject(columnIndex);
-            }
-        };
-        TypeHandlerManager manager = new TypeHandlerManager(List.of(
-            TypeHandlerManager.mapping(String.class, JDBCType.VARCHAR, handler)));
+        TypeHandlerManager manager = new TypeHandlerManager();
         ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
             case "getColumnCount" -> 1;
             case "getColumnLabel", "getColumnName" -> "name";
@@ -60,6 +46,10 @@ class JdbcSqlExecutorTypeRoutingTest {
         });
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> switch (method) {
             case "executeQuery" -> resultSet;
+            case "setString" -> {
+                written.set((String) arguments[1]);
+                yield null;
+            }
             default -> null;
         });
         Connection connection = proxy(Connection.class, (method, arguments) ->
@@ -81,10 +71,10 @@ class JdbcSqlExecutorTypeRoutingTest {
 
         SqlResult result = new JdbcSqlExecutor(() -> handle).execute(plan);
 
-        assertEquals("Alice:VARCHAR", written.get());
+        assertEquals("Alice", written.get());
         assertEquals(1, metadataTypeReads.get());
-        assertEquals("handled-row0", result.getQueryResults().get(0)[0]);
-        assertEquals("handled-row1", result.getQueryResults().get(1)[0]);
+        assertEquals("row0", result.getQueryResults().get(0)[0]);
+        assertEquals("row1", result.getQueryResults().get(1)[0]);
     }
 
     @SuppressWarnings("unchecked")

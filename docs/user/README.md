@@ -10,7 +10,7 @@ LiteORM documentation is organized by the task or module a user is working with.
 ## Core
 
 - [Core guides](core/README.md): compilation, mapping, extensions, and standalone runtime.
-- [Choosing a value or row mapping](core/mapping.md): choose between JDBC type mappings, parameter binders, generated result mapping, and row mappers.
+- [Choosing a value or row mapping](core/mapping.md): choose between standard routing, parameter binders, generated result mapping, and row mappers.
 - [Choosing an extension](core/extensions.md): select the narrowest provider, binder, mapper, interceptor, decorator, or raw-JDBC boundary.
 - [Standalone JDBC](core/standalone.md): assemble generated Mappers without Spring.
 
@@ -18,9 +18,6 @@ LiteORM documentation is organized by the task or module a user is working with.
 
 - [Spring guides](spring/README.md): Spring-owned assembly and transaction participation.
 - [Spring Boot](spring/spring-boot.md): register Mapper packages and participate in Spring transactions.
-- [Database type modules](database-types/README.md): select a complete database-family mapping collection.
-- [PostgreSQL JDBC types](database-types/postgresql.md): use the official PostgreSQL mapping collection.
-- [MySQL JDBC types](database-types/mysql.md): use the official MySQL mapping collection.
 
 ## Migration
 

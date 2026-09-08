@@ -25,16 +25,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.liteorm</groupId>
-            <artifactId>lite-orm-postgresql-types</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.liteorm</groupId>
-            <artifactId>lite-orm-mysql-types</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
