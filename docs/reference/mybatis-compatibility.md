@@ -50,6 +50,7 @@ When XML and a SQL annotation define the same Mapper method, XML wins because it
 - Dynamic tags: `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, `include`.
 - Real JDBC batch: LiteORM `@Batch` or XML `<batch>` with one `List<T>` argument and an `int[]` return value.
 - Results declared with `resultType` when the Java return type can be mapped as a scalar, record, JavaBean, or list of one of those types.
+- Flat `resultMap` declarations for scalar values, JavaBean `<id>` / `<result>` properties, and record `<constructor>` arguments. Constructor arguments may use `name` or record-component order.
 - A controlled OGNL-like subset in `test` and `bind`: null, boolean, string and number comparisons; `and` and `or`; simple property paths; array `length`; collection `size()`; and string concatenation in `bind`.
 
 The supported expression subset is translated directly into native Java. LiteORM does not embed OGNL, MVEL, SpEL, or another expression engine in annotation processing or Mapper execution. Unsupported expressions fail compilation.
@@ -60,7 +61,7 @@ The supported expression subset is translated directly into native Java. LiteORM
 | --- | --- | --- |
 | `${}` SQL substitution | Compilation error | Use `@UseSqlProvider` with validated identifiers or write raw JDBC. |
 | Arbitrary OGNL or static/method calls | Compilation error | Rewrite with the supported expression subset or move structure to a provider. |
-| Complex `resultMap` graphs | Compilation error | Flatten to `resultType`, use `@UseRowMapper`, split the query, or use raw JDBC. |
+| Complex `resultMap` graphs | Compilation error | Use a flat `resultMap`, `@UseRowMapper`, split the query, or use raw JDBC. |
 | Associations, collections, nested aggregation | Not supported | Use explicit follow-up queries, a custom row mapper for one-row shapes, or raw JDBC. |
 | Lazy loading and nested selects | Not supported | Make loading explicit in application/service code. |
 | MyBatis plugins | Not supported | Use `ExecutionInterceptor` for the narrow execution lifecycle. |

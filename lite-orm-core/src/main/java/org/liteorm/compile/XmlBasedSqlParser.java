@@ -60,7 +60,7 @@ final class XmlBasedSqlParser implements SqlContentParser {
 
         ParseContext context = new ParseContext(xmlResource.fragments(), new ArrayDeque<>());
         try {
-            return parseSqlElement(sqlElement, method, context);
+            return parseSqlElement(sqlElement, method, context, xmlResource, xmlPath);
         } catch (RuntimeException exception) {
             String namespace = xmlResource.document().getDocumentElement().getAttribute("namespace");
             String parsedContext = namespace == null || namespace.isBlank()
@@ -130,7 +130,8 @@ final class XmlBasedSqlParser implements SqlContentParser {
                 }
                 
                 Document document = SecureXml.parse(is, "XML resource " + path);
-                return new XmlResource(document, collectSqlFragments(document));
+                return new XmlResource(
+                    document, collectSqlFragments(document), collectResultMaps(document, path));
             } catch (IOException e) {
                 throw new IllegalArgumentException(
                     "failed to parse XML resource " + path + ": " + e.getMessage(), e);
@@ -192,6 +193,24 @@ final class XmlBasedSqlParser implements SqlContentParser {
         
         return Map.copyOf(fragments);
     }
+
+    private Map<String, Element> collectResultMaps(Document document, String xmlPath) {
+        Map<String, Element> resultMaps = new HashMap<>();
+        NodeList nodes = document.getElementsByTagName("resultMap");
+        for (int index = 0; index < nodes.getLength(); index++) {
+            Element resultMap = (Element) nodes.item(index);
+            String id = resultMap.getAttribute("id").trim();
+            if (id.isEmpty()) {
+                throw new IllegalArgumentException("XML resource " + xmlPath
+                    + ": <resultMap> requires non-blank attribute 'id'");
+            }
+            if (resultMaps.putIfAbsent(id, resultMap) != null) {
+                throw new IllegalArgumentException("XML resource " + xmlPath
+                    + ": duplicate <resultMap> id '" + id + "'");
+            }
+        }
+        return Map.copyOf(resultMaps);
+    }
     
     /**
      * Finds a statement element by identifier.
@@ -244,10 +263,14 @@ final class XmlBasedSqlParser implements SqlContentParser {
      * Parses one statement element.
      */
     private SqlParseResult parseSqlElement(
-            Element sqlElement, ExecutableElement method, ParseContext context) {
+            Element sqlElement,
+            ExecutableElement method,
+            ParseContext context,
+            XmlResource xmlResource,
+            String xmlPath) {
         validateStatementAttributes(sqlElement);
-        validateResultMapping(sqlElement);
         validateSupportedTags(sqlElement);
+        ResultMapInfo resultMap = parseResultMap(sqlElement, xmlResource.resultMaps(), xmlPath);
         String sqlType = sqlElement.getTagName().toUpperCase();
         String sqlContent = getSqlContent(sqlElement);
         boolean isDynamic = containsDynamicTags(sqlElement);
@@ -262,19 +285,101 @@ final class XmlBasedSqlParser implements SqlContentParser {
             SqlSourceType.XML,
             isDynamic,
             parameters,
-            astNode
+            astNode,
+            resultMap
         );
     }
 
-    private void validateResultMapping(Element sqlElement) {
+    private ResultMapInfo parseResultMap(
+            Element sqlElement, Map<String, Element> resultMaps, String xmlPath) {
         if (!sqlElement.hasAttribute("resultMap")) {
-            return;
+            return null;
+        }
+        if (sqlElement.hasAttribute("resultType")) {
+            throw new IllegalArgumentException(
+                "XML <select> cannot declare both 'resultMap' and 'resultType'");
         }
 
-        String resultMap = sqlElement.getAttribute("resultMap").trim();
-        throw new IllegalArgumentException(
-            "Unsupported XML resultMap '" + resultMap + "'; use resultType, @UseRowMapper, or raw JDBC"
-        );
+        String resultMapId = sqlElement.getAttribute("resultMap").trim();
+        Element resultMap = resultMaps.get(resultMapId);
+        if (resultMap == null) {
+            throw new IllegalArgumentException("Unknown XML resultMap '" + resultMapId + "'");
+        }
+        validateElementAttributes(resultMap, Set.of("id", "type"), Set.of("id", "type"));
+        String sourceLocation = "XML resource " + xmlPath + " <resultMap id='" + resultMapId + "'>";
+        List<ResultPropertyInfo> properties = new ArrayList<>();
+        NodeList children = resultMap.getChildNodes();
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element mapping = (Element) child;
+            switch (mapping.getTagName()) {
+                case "id", "result" -> properties.add(parseResultProperty(
+                    mapping, false, -1, sourceLocation + " <" + mapping.getTagName() + ">"));
+                case "constructor" -> parseConstructorMappings(mapping, properties, sourceLocation);
+                case "association", "collection", "discriminator" -> throw new IllegalArgumentException(
+                    "Unsupported XML <" + mapping.getTagName() + "> in resultMap '" + resultMapId
+                        + "'; only flat scalar, JavaBean, and record mappings are supported");
+                default -> throw new IllegalArgumentException(
+                    "Unsupported XML tag <" + mapping.getTagName() + "> in resultMap '"
+                        + resultMapId + "'");
+            }
+        }
+        if (properties.isEmpty()) {
+            throw new IllegalArgumentException(
+                "XML resultMap '" + resultMapId + "' must declare at least one mapping");
+        }
+        return new ResultMapInfo(
+            resultMapId, resultMap.getAttribute("type").trim(), List.copyOf(properties), sourceLocation);
+    }
+
+    private void parseConstructorMappings(
+            Element constructor,
+            List<ResultPropertyInfo> properties,
+            String resultMapLocation) {
+        validateElementAttributes(constructor, Set.of(), Set.of());
+        NodeList arguments = constructor.getChildNodes();
+        int constructorIndex = 0;
+        for (int index = 0; index < arguments.getLength(); index++) {
+            Node child = arguments.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element argument = (Element) child;
+            if (!argument.getTagName().equals("arg") && !argument.getTagName().equals("idArg")) {
+                throw new IllegalArgumentException(
+                    "Unsupported XML <" + argument.getTagName() + "> inside <constructor>");
+            }
+            properties.add(parseResultProperty(
+                argument, true, constructorIndex,
+                resultMapLocation + " <constructor>/<" + argument.getTagName()
+                    + ">[" + constructorIndex + "]"));
+            constructorIndex++;
+        }
+        if (constructorIndex == 0) {
+            throw new IllegalArgumentException(
+                "XML <constructor> must declare at least one <arg> or <idArg>");
+        }
+    }
+
+    private ResultPropertyInfo parseResultProperty(
+            Element mapping,
+            boolean constructorArgument,
+            int constructorIndex,
+            String sourceLocation) {
+        Set<String> allowed = constructorArgument
+            ? Set.of("column", "name", "javaType")
+            : Set.of("column", "property", "javaType");
+        validateElementAttributes(mapping, allowed, Set.of("column"));
+        String property = constructorArgument
+            ? mapping.getAttribute("name").trim() : mapping.getAttribute("property").trim();
+        String javaType = mapping.getAttribute("javaType").trim();
+        return new ResultPropertyInfo(
+            mapping.getAttribute("column").trim(), property,
+            javaType.isEmpty() ? null : javaType,
+            constructorArgument, constructorIndex, sourceLocation);
     }
 
     private void validateStatementAttributes(Element sqlElement) {
@@ -610,7 +715,10 @@ final class XmlBasedSqlParser implements SqlContentParser {
         return parameters;
     }
 
-    private record XmlResource(Document document, Map<String, Element> fragments) {
+    private record XmlResource(
+            Document document,
+            Map<String, Element> fragments,
+            Map<String, Element> resultMaps) {
     }
 
     private record ParseContext(Map<String, Element> fragments, Deque<String> includePath) {

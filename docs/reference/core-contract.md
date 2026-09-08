@@ -79,7 +79,7 @@ Built-in mapping is generated for:
 - JavaBeans through a usable no-argument constructor and supported setters;
 - lists and optionals of supported element types.
 
-Column labels are matched case-insensitively. Method-level `@Results` / `@Result`, the transitional `@Column` annotation, or XML result metadata may define explicit labels. Annotation mappings are flat: each entry maps one column to one record component or JavaBean property, while a scalar mapping declares one column with a blank property. Annotation mappings cannot be combined with `@UseRowMapper`. Missing required columns, duplicate labels, unsupported conversions, invalid row widths, and construction failures are mapping errors rather than silent fallback.
+Column labels are matched case-insensitively. Method-level `@Results` / `@Result`, the transitional `@Column` annotation, or XML `resultMap` metadata may define explicit labels. Result mappings are flat: each entry maps one column to one record component or JavaBean property, while a scalar mapping declares one column without a property. XML records use `<constructor>` with `<arg>` / `<idArg>` entries; JavaBeans use `<id>` / `<result>`. XML and annotation mappings normalize into the same compiler model and cannot both configure one method or be combined with `@UseRowMapper`. Missing required columns, duplicate labels, unsupported conversions, invalid row widths, and construction failures are mapping errors rather than silent fallback.
 
 Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at compilation, instantiated once per generated Mapper instance, and invoked directly without reflection dispatch. They must be stateless, thread-safe, or externally synchronized.
 

@@ -495,7 +495,7 @@ class UnsupportedMapperSignatureCompilationTest {
             "ComplexResultMapMapper",
             "ValueRow findValue();",
             "findValue",
-            "Unsupported XML resultMap 'valueResult'; use resultType, @UseRowMapper, or raw JDBC"
+            "Unsupported XML <association> in resultMap 'valueResult'"
         );
     }
 

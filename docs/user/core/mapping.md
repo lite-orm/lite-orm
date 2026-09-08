@@ -133,7 +133,20 @@ one result row -> generated record/JavaBean mapping
 
 Consequently, a declarative whole-row mapping cannot replace JDBC type mappings: it still needs a conversion for every non-built-in column value, and it has no role in Mapper parameter binding. Conversely, JDBC type mappings cannot describe how several columns are assembled into one object.
 
-LiteORM currently generates scalar, record, and JavaBean result mapping directly. Annotation methods may use `@Results` / `@Result` to declare flat column-to-property structure. MyBatis XML `resultMap` declarations, including complex graphs, are not yet a supported parallel mapping syntax. Flatten a simple shape to a record or JavaBean; use `@UseRowMapper` when the row requires logic that generated mapping cannot express.
+LiteORM currently generates scalar, record, and JavaBean result mapping directly. Annotation methods may use `@Results` / `@Result` to declare flat column-to-property structure. XML Mappers may express the same structure with a flat `resultMap`:
+
+```xml
+<resultMap id="userResult" type="com.example.User">
+    <id property="id" column="user_id" javaType="java.lang.Long"/>
+    <result property="name" column="display_name" javaType="java.lang.String"/>
+</resultMap>
+
+<select id="findById" resultMap="userResult">
+    SELECT user_id, display_name FROM users WHERE user_id = #{id}
+</select>
+```
+
+Records use a `<constructor>` containing `<arg>` or `<idArg>` entries. An argument may declare `name`; otherwise its position selects the matching record component. A method cannot combine XML `resultMap` with `@Results` or `@UseRowMapper`. Associations, collections, discriminators, nested selects, lazy loading, and other graph-mapping features are rejected during compilation. Use `@UseRowMapper` when a row requires logic that flat generated mapping cannot express.
 
 ## Parameter Binder: One Exceptional Write
 

@@ -42,7 +42,8 @@ final class AnnotationBasedSqlParser implements SqlContentParser {
             SqlSourceType.ANNOTATION,
             isDynamic,
             parameters,
-            astNode
+            astNode,
+            null
         );
     }
     

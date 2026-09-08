@@ -9,6 +9,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -445,7 +446,14 @@ final class CompilePipeline {
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
         }
-        ResultMappingDeclaration declaredResultMapping = annotationResultMapping(mapperInterface, method);
+        ResultMappingDeclaration annotationResultMapping = annotationResultMapping(mapperInterface, method);
+        ResultMappingDeclaration xmlResultMapping = xmlResultMapping(sqlInfo, returnType);
+        if (annotationResultMapping.present() && xmlResultMapping.present()) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": XML resultMap cannot be combined with @Results");
+        }
+        ResultMappingDeclaration declaredResultMapping = xmlResultMapping.present()
+            ? xmlResultMapping : annotationResultMapping;
         if (declaredResultMapping.present() && statementType != ExecutionPlan.StatementType.SELECT) {
             throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
                 + ": @Results requires a SELECT method");
@@ -456,7 +464,8 @@ final class CompilePipeline {
         }
         if (declaredResultMapping.present() && extensionBindings.rowMapperFieldName() != null) {
             throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-                + ": @Results cannot be combined with @UseRowMapper");
+                + ": " + (annotationResultMapping.present() ? "@Results" : "XML resultMap")
+                + " cannot be combined with @UseRowMapper");
         }
         ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
             ? new ResultMapping("", "", List.of())
@@ -467,7 +476,7 @@ final class CompilePipeline {
                     mapperInterface, method, returnType, jdbcTypeMappings, declaredResultMapping)
                 : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
         extensionBindings = addDefaultResultEnumHandlers(
-            resolvedMethodType.getReturnType(), statementType,
+            resultMapping, statementType,
             cursorMethod != null || extensionBindings.rowMapperFieldName() != null,
             generatedKey, jdbcTypeMappings, extensionBindings);
 
@@ -487,9 +496,9 @@ final class CompilePipeline {
             resultMapping.helperCode(),
             resultMapping.columnLabels(),
             resultRoutingTypes(
-                resolvedMethodType.getReturnType(), statementType,
+                resultMapping, statementType,
                 cursorMethod != null || extensionBindings.rowMapperFieldName() != null,
-                generatedKey, jdbcTypeMappings),
+                generatedKey),
             providerBinding == null ? null : providerBinding.providerClassName(),
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
@@ -1022,50 +1031,23 @@ final class CompilePipeline {
     }
 
     private List<String> resultRoutingTypes(
-            TypeMirror declaredReturnType,
+            ResultMapping resultMapping,
             ExecutionPlan.StatementType statementType,
             boolean customRowMapper,
-            boolean generatedKey,
-            JdbcTypeMappingsSelection jdbcTypeMappings) {
+            boolean generatedKey) {
         if (customRowMapper || statementType == ExecutionPlan.StatementType.BATCH
                 || statementType == ExecutionPlan.StatementType.UPDATE
                 || statementType == ExecutionPlan.StatementType.DELETE
                 || statementType == ExecutionPlan.StatementType.INSERT && !generatedKey) {
             return List.of();
         }
-        TypeMirror resultType = mappedResultType(declaredReturnType);
-        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
-        if (resultElement == null || generateScalarMapping(resultType.toString(), "value") != null
-                || resultElement.getKind() == javax.lang.model.element.ElementKind.ENUM
-                || hasSelectedMapping(resultType, jdbcTypeMappings)) {
-            return List.of(typeClassLiteral(resultType));
-        }
-        if (resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-            return resultElement.getRecordComponents().stream()
-                .map(component -> typeClassLiteral(component.asType()))
-                .toList();
-        }
-        return resultElement.getEnclosedElements().stream()
-            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
-            .map(VariableElement.class::cast)
-            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
-            .map(field -> {
-                String fieldName = field.getSimpleName().toString();
-                String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
-                return resultElement.getEnclosedElements().stream()
-                    .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
-                    .map(ExecutableElement.class::cast)
-                    .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
-                    .filter(candidate -> candidate.getParameters().size() == 1)
-                    .findFirst()
-                    .map(setter -> typeClassLiteral(setter.getParameters().getFirst().asType()))
-                    .orElse(typeClassLiteral(field.asType()));
-            })
+        return resultMapping.properties().stream()
+            .map(property -> property.targetJavaType() + ".class")
             .toList();
     }
 
     private ExtensionBindings addDefaultResultEnumHandlers(
-            TypeMirror declaredReturnType,
+            ResultMapping resultMapping,
             ExecutionPlan.StatementType statementType,
             boolean customRowMapper,
             boolean generatedKey,
@@ -1079,21 +1061,12 @@ final class CompilePipeline {
         }
         List<MapperCompilationModel.TypeHandlerField> fields =
             new ArrayList<>(bindings.typeHandlerFields());
-        TypeMirror resultType = mappedResultType(declaredReturnType);
-        TypeElement resultElement = (TypeElement) typeUtils.asElement(resultType);
-        if (isEnumType(resultType) && !hasSelectedMapping(resultType, jdbcTypeMappings)) {
-            addEnumHandlers(fields, resultType, jdbcTypeMappings);
-        } else if (resultElement != null
-                && resultElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-            resultElement.getRecordComponents().forEach(component ->
-                addEnumHandlers(fields, component.asType(), jdbcTypeMappings));
-        } else if (resultElement != null && generateScalarMapping(resultType.toString(), "value") == null) {
-            resultElement.getEnclosedElements().stream()
-                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
-                .map(VariableElement.class::cast)
-                .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
-                .forEach(field -> addEnumHandlers(fields, field.asType(), jdbcTypeMappings));
-        }
+        resultMapping.properties().stream()
+            .map(NormalizedResultProperty::targetJavaType)
+            .map(elementUtils::getTypeElement)
+            .filter(java.util.Objects::nonNull)
+            .map(TypeElement::asType)
+            .forEach(type -> addEnumHandlers(fields, type, jdbcTypeMappings));
         return new ExtensionBindings(
             bindings.extensionFields(), List.copyOf(fields),
             bindings.parameterBinderFields(), bindings.rowMapperFieldName());
@@ -1884,10 +1857,15 @@ final class CompilePipeline {
                 declaredResultMapping);
         }
 
-        if (declaredResultMapping.properties().stream()
-                .anyMatch(property -> property.property().isBlank())) {
-            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-                + ": @Result property must not be blank for an object result");
+        ResultProperty blankProperty = declaredResultMapping.properties().stream()
+            .filter(property -> property.property().isBlank())
+            .findFirst()
+            .orElse(null);
+        if (blankProperty != null) {
+            String mappingName = blankProperty.source() == ResultMappingSource.ANNOTATION
+                ? "@Result" : "XML result mapping";
+            throw new CompileException(blankProperty.sourceLocation() + ": " + mappingName
+                + " property must not be blank for an object result");
         }
 
         if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
@@ -1908,12 +1886,18 @@ final class CompilePipeline {
             String expression,
             ResultMappingDeclaration declaredResultMapping) throws CompileException {
         if (!declaredResultMapping.present()) {
-            return new ResultMapping(expression, "", List.of());
+            return new ResultMapping(
+                expression, "", List.of(new NormalizedResultProperty(
+                    "", "", objectType, false, -1, ResultMappingSource.CONVENTION,
+                    mapperInterface.getQualifiedName() + "#" + method.getSimpleName())));
         }
         if (declaredResultMapping.properties().size() != 1
                 || !declaredResultMapping.properties().getFirst().property().isBlank()) {
+            String mappingName = declaredResultMapping.properties().stream()
+                    .allMatch(property -> property.source() == ResultMappingSource.ANNOTATION)
+                ? "@Results" : "XML resultMap";
             throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
-                + ": scalar @Results requires exactly one @Result with a blank property");
+                + ": scalar " + mappingName + " requires exactly one mapping with a blank property");
         }
         validateDeclaredJavaType(declaredResultMapping.properties().getFirst(), objectType);
         ResultProperty property = declaredResultMapping.properties().getFirst();
@@ -2002,6 +1986,12 @@ final class CompilePipeline {
             String componentName = component.getSimpleName().toString();
             String componentType = component.asType().toString();
             ResultProperty declaredProperty = declaredProperties.remove(componentName);
+            if (declaredProperty != null
+                    && declaredProperty.source() == ResultMappingSource.XML
+                    && !declaredProperty.constructorArgument()) {
+                throw new CompileException(declaredProperty.sourceLocation()
+                    + ": record component mappings must be declared inside <constructor>");
+            }
             validateDeclaredJavaType(declaredProperty, component.asType());
             normalizedProperties.add(normalizedResultProperty(
                 componentName,
@@ -2098,6 +2088,10 @@ final class CompilePipeline {
             String property = setterEntry.getKey();
             ExecutableElement setter = setterEntry.getValue();
             ResultProperty declaredProperty = declaredProperties.remove(property);
+            if (declaredProperty != null && declaredProperty.constructorArgument()) {
+                throw new CompileException(declaredProperty.sourceLocation()
+                    + ": JavaBean property mappings cannot use <constructor>");
+            }
             VariableElement backingField = fieldsByName.get(property);
             String parameterType = setter.getParameters().get(0).asType().toString();
             validateDeclaredJavaType(declaredProperty, setter.getParameters().get(0).asType());
@@ -2205,9 +2199,50 @@ final class CompilePipeline {
             }
             TypeMirror declaredJavaType = (TypeMirror) annotationValue(result, "javaType").getValue();
             properties.add(new ResultProperty(
-                property, column, declaredJavaType.getKind() == TypeKind.VOID ? null : declaredJavaType,
-                ResultMappingSource.ANNOTATION, sourceLocation));
+                property, column,
+                declaredJavaType.getKind() == TypeKind.VOID ? null : declaredJavaType.toString(),
+                false, -1, ResultMappingSource.ANNOTATION, sourceLocation));
             resultIndex++;
+        }
+        return new ResultMappingDeclaration(true, List.copyOf(properties));
+    }
+
+    private ResultMappingDeclaration xmlResultMapping(
+            SqlContentParser.SqlParseResult sqlInfo, String returnType) throws CompileException {
+        if (sqlInfo == null || sqlInfo.resultMap() == null) {
+            return ResultMappingDeclaration.none();
+        }
+        SqlContentParser.ResultMapInfo resultMap = sqlInfo.resultMap();
+        String mappedType = extractMappedType(returnType);
+        if (!resultMap.typeName().equals(mappedType)) {
+            throw new CompileException(resultMap.sourceLocation() + ": declared type "
+                + resultMap.typeName() + " does not match Mapper result type " + mappedType);
+        }
+
+        TypeElement mappedElement = elementUtils.getTypeElement(mappedType);
+        List<? extends RecordComponentElement> recordComponents = mappedElement != null
+                && mappedElement.getKind() == javax.lang.model.element.ElementKind.RECORD
+            ? mappedElement.getRecordComponents() : List.of();
+        List<ResultProperty> properties = new ArrayList<>(resultMap.properties().size());
+        Set<String> declaredNames = new HashSet<>();
+        for (SqlContentParser.ResultPropertyInfo property : resultMap.properties()) {
+            String propertyName = property.property();
+            if (propertyName.isBlank() && property.constructorArgument()) {
+                if (property.constructorIndex() >= recordComponents.size()) {
+                    throw new CompileException(property.sourceLocation()
+                        + ": unnamed constructor argument has no matching record component");
+                }
+                propertyName = recordComponents.get(property.constructorIndex())
+                    .getSimpleName().toString();
+            }
+            if (!declaredNames.add(propertyName)) {
+                throw new CompileException(property.sourceLocation()
+                    + ": duplicate result property '" + propertyName + "'");
+            }
+            properties.add(new ResultProperty(
+                propertyName, property.column(), property.javaTypeName(),
+                property.constructorArgument(), property.constructorIndex(),
+                ResultMappingSource.XML, property.sourceLocation()));
         }
         return new ResultMappingDeclaration(true, List.copyOf(properties));
     }
@@ -2217,10 +2252,11 @@ final class CompilePipeline {
         if (declaredProperty == null || declaredProperty.javaType() == null) {
             return;
         }
-        if (!typeUtils.isSameType(
-                typeUtils.erasure(declaredProperty.javaType()), typeUtils.erasure(targetType))) {
+        if (!declaredProperty.javaType().equals(targetType.toString())) {
+            String mappingName = declaredProperty.source() == ResultMappingSource.ANNOTATION
+                ? "@Result property" : "XML result property";
             throw new CompileException(declaredProperty.sourceLocation()
-                + ": @Result property '" + declaredProperty.property() + "' declares Java type "
+                + ": " + mappingName + " '" + declaredProperty.property() + "' declares Java type "
                 + declaredProperty.javaType() + " but the target type is " + targetType);
         }
     }
@@ -2228,11 +2264,13 @@ final class CompilePipeline {
     private void validateDeclaredJavaType(
             ResultProperty declaredProperty, String targetType) throws CompileException {
         if (declaredProperty.javaType() == null
-                || declaredProperty.javaType().toString().equals(targetType)) {
+                || declaredProperty.javaType().equals(targetType)) {
             return;
         }
+        String mappingName = declaredProperty.source() == ResultMappingSource.ANNOTATION
+            ? "@Result" : "XML result mapping";
         throw new CompileException(declaredProperty.sourceLocation()
-            + ": @Result declares Java type " + declaredProperty.javaType()
+            + ": " + mappingName + " declares Java type " + declaredProperty.javaType()
             + " but the target type is " + targetType);
     }
 
@@ -2240,7 +2278,9 @@ final class CompilePipeline {
             String objectType, Map<String, ResultProperty> properties) throws CompileException {
         if (!properties.isEmpty()) {
             ResultProperty declaredProperty = properties.values().iterator().next();
-            throw new CompileException(declaredProperty.sourceLocation() + ": @Result property '"
+            String mappingName = declaredProperty.source() == ResultMappingSource.ANNOTATION
+                ? "@Result property" : "XML result property";
+            throw new CompileException(declaredProperty.sourceLocation() + ": " + mappingName + " '"
                 + declaredProperty.property() + "' does not exist on " + objectType);
         }
     }
@@ -2257,7 +2297,10 @@ final class CompilePipeline {
             List<NormalizedResultProperty> properties) {
 
         private List<String> columnLabels() {
-            return properties.stream().map(NormalizedResultProperty::column).toList();
+            return properties.stream()
+                .map(NormalizedResultProperty::column)
+                .filter(column -> !column.isBlank())
+                .toList();
         }
     }
 
@@ -2277,7 +2320,9 @@ final class CompilePipeline {
     private record ResultProperty(
             String property,
             String column,
-            TypeMirror javaType,
+            String javaType,
+            boolean constructorArgument,
+            int constructorIndex,
             ResultMappingSource source,
             String sourceLocation) {
     }
@@ -2294,6 +2339,7 @@ final class CompilePipeline {
 
     private enum ResultMappingSource {
         ANNOTATION,
+        XML,
         CONVENTION
     }
 
