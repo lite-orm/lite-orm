@@ -370,15 +370,17 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             }
             columns.add(new ResultColumn(label, column - 1));
         }
-        TypeHandlerManager.ResultHandler[] handlers = resolveResultHandlers(metadata, columns, typeRouting);
+        int[] jdbcTypes = new int[columnCount];
+        for (int column = 1; column <= columnCount; column++) {
+            jdbcTypes[column - 1] = metadata.getColumnType(column);
+        }
+        TypeHandlerManager.ResultHandler[] handlers =
+            resolveResultHandlers(metadata, columns, jdbcTypes, typeRouting);
         List<Object[]> rows = new ArrayList<>();
         while (resultSet.next()) {
             Object[] row = new Object[columnCount];
             for (int column = 1; column <= columnCount; column++) {
-                TypeHandlerManager.ResultHandler handler = handlers[column - 1];
-                row[column - 1] = handler == null
-                    ? readColumnValue(resultSet, metadata, column)
-                    : handler.getResult(resultSet, column);
+                row[column - 1] = handlers[column - 1].getResult(resultSet, column);
             }
             rows.add(row);
         }
@@ -388,16 +390,21 @@ public final class JdbcSqlExecutor implements SqlExecutor {
     private TypeHandlerManager.ResultHandler[] resolveResultHandlers(
             ResultSetMetaData metadata,
             List<ResultColumn> columns,
+            int[] jdbcTypes,
             ExecutionPlan.TypeRouting typeRouting) throws SQLException {
         TypeHandlerManager.ResultHandler[] handlers =
             new TypeHandlerManager.ResultHandler[columns.size()];
+        for (int column = 0; column < handlers.length; column++) {
+            handlers[column] = defaultResultHandler(jdbcTypes[column]);
+        }
         if (typeRouting == null) {
             return handlers;
         }
         Class<?>[] resultTypes = typeRouting.resultTypes();
         String[] labels = typeRouting.resultColumnLabels();
         if (labels == null && resultTypes.length == 1 && !columns.isEmpty()) {
-            handlers[0] = typeRouting.manager().resolveResult(metadata, 1, resultTypes[0]);
+            handlers[0] = typeRouting.manager().resolveResult(
+                metadata, 1, jdbcTypes[0], resultTypes[0]);
             return handlers;
         }
         if (labels == null) {
@@ -407,7 +414,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             int column = findColumn(columns, labels[target]);
             if (column >= 0) {
                 handlers[column] = typeRouting.manager().resolveResult(
-                    metadata, column + 1, resultTypes[target]);
+                    metadata, column + 1, jdbcTypes[column], resultTypes[target]);
             }
         }
         return handlers;
@@ -423,12 +430,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return -1;
     }
 
-    private Object readColumnValue(ResultSet resultSet, ResultSetMetaData metadata, int column)
-            throws SQLException {
-        if (metadata.getColumnType(column) == Types.TIME) {
-            return resultSet.getObject(column, LocalTime.class);
-        }
-        return resultSet.getObject(column);
+    private TypeHandlerManager.ResultHandler defaultResultHandler(int jdbcType) {
+        return jdbcType == Types.TIME
+            ? (resultSet, column) -> resultSet.getObject(column, LocalTime.class)
+            : ResultSet::getObject;
     }
 
     private record QueryRows(List<ResultColumn> columns, List<Object[]> rows) {

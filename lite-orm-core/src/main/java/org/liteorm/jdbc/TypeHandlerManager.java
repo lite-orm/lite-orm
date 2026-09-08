@@ -53,8 +53,16 @@ public final class TypeHandlerManager {
     ResultHandler resolveResult(
             ResultSetMetaData metadata, int columnIndex, Class<?> javaType) throws SQLException {
         Objects.requireNonNull(metadata, "metadata");
+        return resolveResult(metadata, columnIndex, metadata.getColumnType(columnIndex), javaType);
+    }
+
+    ResultHandler resolveResult(
+            ResultSetMetaData metadata,
+            int columnIndex,
+            int typeNumber,
+            Class<?> javaType) throws SQLException {
+        Objects.requireNonNull(metadata, "metadata");
         Class<?> targetType = box(Objects.requireNonNull(javaType, "javaType"));
-        int typeNumber = metadata.getColumnType(columnIndex);
         JDBCType jdbcType;
         try {
             jdbcType = JDBCType.valueOf(typeNumber);

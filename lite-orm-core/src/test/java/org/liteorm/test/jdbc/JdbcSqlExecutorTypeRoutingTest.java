@@ -23,13 +23,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class JdbcSqlExecutorTypeRoutingTest {
 
     @Test
-    void routesParametersAndResolvesResultHandlerOncePerResultSet() {
+    void routesParametersAndReadsEachResultColumnTypeOncePerResultSet() {
         AtomicReference<String> written = new AtomicReference<>();
         AtomicInteger metadataTypeReads = new AtomicInteger();
         TypeHandlerManager manager = new TypeHandlerManager();
         ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
-            case "getColumnCount" -> 1;
-            case "getColumnLabel", "getColumnName" -> "name";
+            case "getColumnCount" -> 2;
+            case "getColumnLabel", "getColumnName" -> (int) arguments[0] == 1 ? "name" : "created_at";
             case "getColumnType" -> {
                 metadataTypeReads.incrementAndGet();
                 yield JDBCType.VARCHAR.getVendorTypeNumber();
@@ -41,7 +41,7 @@ class JdbcSqlExecutorTypeRoutingTest {
         ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> ++row[0] < 2;
-            case "getObject" -> "row" + row[0];
+            case "getObject" -> "row" + row[0] + "-column" + arguments[0];
             default -> null;
         });
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> switch (method) {
@@ -72,9 +72,11 @@ class JdbcSqlExecutorTypeRoutingTest {
         SqlResult result = new JdbcSqlExecutor(() -> handle).execute(plan);
 
         assertEquals("Alice", written.get());
-        assertEquals(1, metadataTypeReads.get());
-        assertEquals("row0", result.getQueryResults().get(0)[0]);
-        assertEquals("row1", result.getQueryResults().get(1)[0]);
+        assertEquals(2, metadataTypeReads.get());
+        assertEquals("row0-column1", result.getQueryResults().get(0)[0]);
+        assertEquals("row0-column2", result.getQueryResults().get(0)[1]);
+        assertEquals("row1-column1", result.getQueryResults().get(1)[0]);
+        assertEquals("row1-column2", result.getQueryResults().get(1)[1]);
     }
 
     @SuppressWarnings("unchecked")
