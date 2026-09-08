@@ -5,11 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.JdbcAssembly;
 import org.liteorm.LiteOrm;
 import org.liteorm.annotation.Batch;
-import org.liteorm.annotation.Column;
 import org.liteorm.annotation.GeneratedKey;
 import org.liteorm.annotation.Insert;
 import org.liteorm.annotation.Mapper;
 import org.liteorm.annotation.Param;
+import org.liteorm.annotation.Result;
+import org.liteorm.annotation.Results;
 import org.liteorm.annotation.Select;
 import org.liteorm.annotation.UseRowMapper;
 import org.liteorm.api.CursorCallback;
@@ -304,9 +305,33 @@ interface DatabaseCompatibilityMapper {
     String findName(@Param("id") long id);
 
     @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id = #{id}")
+    @Results({
+        @Result(property = "id", column = "id"),
+        @Result(property = "name", column = "name"),
+        @Result(property = "active", column = "active"),
+        @Result(property = "businessDate", column = "business_date"),
+        @Result(property = "createdAt", column = "created_at"),
+        @Result(property = "eventId", column = "event_id"),
+        @Result(property = "uuid", column = "uuid_value"),
+        @Result(property = "localTime", column = "local_time_value"),
+        @Result(property = "offsetDateTime", column = "offset_date_time_value"),
+        @Result(property = "payload", column = "payload")
+    })
     CompatibilityRecord findRecord(@Param("id") long id);
 
     @Select("SELECT " + COLUMNS + " FROM compatibility_users WHERE id = #{id}")
+    @Results({
+        @Result(property = "id", column = "id"),
+        @Result(property = "name", column = "name"),
+        @Result(property = "active", column = "active"),
+        @Result(property = "businessDate", column = "business_date"),
+        @Result(property = "createdAt", column = "created_at"),
+        @Result(property = "eventId", column = "event_id"),
+        @Result(property = "uuid", column = "uuid_value"),
+        @Result(property = "localTime", column = "local_time_value"),
+        @Result(property = "offsetDateTime", column = "offset_date_time_value"),
+        @Result(property = "payload", column = "payload")
+    })
     CompatibilityBean findBean(@Param("id") long id);
 
     @Select("SELECT uuid_value FROM compatibility_users WHERE id = #{id}")
@@ -339,12 +364,12 @@ record CompatibilityRecord(
     Long id,
     String name,
     Boolean active,
-    @Column("business_date") LocalDate businessDate,
-    @Column("created_at") LocalDateTime createdAt,
-    @Column("event_id") String eventId,
-    @Column("uuid_value") UUID uuid,
-    @Column("local_time_value") LocalTime localTime,
-    @Column("offset_date_time_value") OffsetDateTime offsetDateTime,
+    LocalDate businessDate,
+    LocalDateTime createdAt,
+    String eventId,
+    UUID uuid,
+    LocalTime localTime,
+    OffsetDateTime offsetDateTime,
     byte[] payload) {
 }
 
@@ -353,17 +378,11 @@ final class CompatibilityBean {
     private Long id;
     private String name;
     private Boolean active;
-    @Column("business_date")
     private LocalDate businessDate;
-    @Column("created_at")
     private LocalDateTime createdAt;
-    @Column("event_id")
     private String eventId;
-    @Column("uuid_value")
     private UUID uuid;
-    @Column("local_time_value")
     private LocalTime localTime;
-    @Column("offset_date_time_value")
     private OffsetDateTime offsetDateTime;
     private byte[] payload;
 

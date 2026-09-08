@@ -32,7 +32,6 @@ class JdbcTypeCompilationTest {
             import java.time.Instant;
             import java.time.LocalDate;
             import java.time.LocalDateTime;
-            import org.liteorm.annotation.Column;
             import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.Select;
 
@@ -42,9 +41,9 @@ class JdbcTypeCompilationTest {
                 Long id,
                 Integer quantity,
                 BigDecimal amount,
-                @Column("business_date") LocalDate businessDate,
-                @Column("created_at") LocalDateTime createdAt,
-                @Column("occurred_at") Instant occurredAt,
+                LocalDate businessDate,
+                LocalDateTime createdAt,
+                Instant occurredAt,
                 Status status,
                 byte[] payload,
                 Boolean enabled
@@ -52,7 +51,8 @@ class JdbcTypeCompilationTest {
 
             @Mapper
             interface JdbcTypeMapper {
-                @Select("SELECT id, quantity, amount, business_date, created_at, occurred_at, status, payload, enabled FROM jdbc_types")
+                @Select("SELECT id, quantity, amount, business_date AS businessDate, "
+                    + "created_at AS createdAt, occurred_at AS occurredAt, status, payload, enabled FROM jdbc_types")
                 JdbcTypes find();
             }
             """);
@@ -60,8 +60,8 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/JdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"business_date\")"), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"created_at\")"), generated);
+        assertTrue(generated.contains("executionResult.requireColumnIndex(\"businessDate\")"), generated);
+        assertTrue(generated.contains("executionResult.requireColumnIndex(\"createdAt\")"), generated);
         assertTrue(generated.contains("ResultValueConverters.toLong(resultRow[resultColumnIndexes[0]])"), generated);
         assertTrue(generated.contains("ResultValueConverters.toBigDecimal(resultRow[resultColumnIndexes[2]])"), generated);
         assertTrue(generated.contains("ResultValueConverters.toLocalDate(resultRow[resultColumnIndexes[3]])"), generated);

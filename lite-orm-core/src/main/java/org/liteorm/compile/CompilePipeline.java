@@ -1995,7 +1995,7 @@ final class CompilePipeline {
             validateDeclaredJavaType(declaredProperty, component.asType());
             normalizedProperties.add(normalizedResultProperty(
                 componentName,
-                declaredProperty == null ? resultColumnLabel(component, componentName) : declaredProperty.column(),
+                declaredProperty == null ? componentName : declaredProperty.column(),
                 componentType, true, i, declaredProperty,
                 objectType + "." + componentName));
             
@@ -2040,15 +2040,6 @@ final class CompilePipeline {
                 + " requires an accessible no-arg constructor");
         }
 
-        Map<String, VariableElement> fieldsByName = typeElement.getEnclosedElements().stream()
-            .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
-            .map(VariableElement.class::cast)
-            .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
-            .collect(java.util.stream.Collectors.toMap(
-                field -> field.getSimpleName().toString(),
-                field -> field,
-                (first, second) -> first,
-                LinkedHashMap::new));
         Map<String, ExecutableElement> settersByProperty = new LinkedHashMap<>();
         for (Element element : typeElement.getEnclosedElements()) {
             if (element.getKind() != javax.lang.model.element.ElementKind.METHOD) {
@@ -2092,14 +2083,11 @@ final class CompilePipeline {
                 throw new CompileException(declaredProperty.sourceLocation()
                     + ": JavaBean property mappings cannot use <constructor>");
             }
-            VariableElement backingField = fieldsByName.get(property);
             String parameterType = setter.getParameters().get(0).asType().toString();
             validateDeclaredJavaType(declaredProperty, setter.getParameters().get(0).asType());
             normalizedProperties.add(normalizedResultProperty(
                 property,
-                declaredProperty != null
-                    ? declaredProperty.column()
-                    : backingField == null ? property : resultColumnLabel(backingField, property),
+                declaredProperty == null ? property : declaredProperty.column(),
                 parameterType, false, -1, declaredProperty,
                 objectType + "." + property));
             String convertedValue = generateValueMapping(
@@ -2151,18 +2139,6 @@ final class CompilePipeline {
     private boolean hasSelectedMapping(
             TypeMirror javaType, JdbcTypeMappingsSelection jdbcTypeMappings) {
         return !matchingMappings(javaType, jdbcTypeMappings).isEmpty();
-    }
-
-    private String resultColumnLabel(Element element, String defaultLabel) throws CompileException {
-        AnnotationMirror annotation = findAnnotation(element, "org.liteorm.annotation.Column");
-        if (annotation == null) {
-            return defaultLabel;
-        }
-        String label = (String) annotationValue(annotation, "value").getValue();
-        if (label.isBlank()) {
-            throw new CompileException(element + ": @Column value must not be blank");
-        }
-        return label;
     }
 
     private ResultMappingDeclaration annotationResultMapping(

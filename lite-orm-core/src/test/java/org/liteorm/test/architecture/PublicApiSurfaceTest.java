@@ -18,7 +18,6 @@ class PublicApiSurfaceTest {
         "org.liteorm.JdbcAssembly",
         "org.liteorm.LiteOrm",
         "org.liteorm.annotation.Batch",
-        "org.liteorm.annotation.Column",
         "org.liteorm.annotation.Delete",
         "org.liteorm.annotation.GeneratedKey",
         "org.liteorm.annotation.Insert",
