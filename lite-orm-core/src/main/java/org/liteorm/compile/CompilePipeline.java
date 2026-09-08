@@ -783,7 +783,9 @@ final class CompilePipeline {
             return true;
         }
         if (parameterType.getKind() == TypeKind.ARRAY) {
-            return ((ArrayType) parameterType).getComponentType().getKind() == TypeKind.BYTE;
+            TypeMirror componentType = ((ArrayType) parameterType).getComponentType();
+            return componentType.getKind() == TypeKind.BYTE
+                || "java.lang.Byte".equals(componentType.toString());
         }
         if (parameterType instanceof DeclaredType declaredType
                 && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM) {
@@ -806,11 +808,9 @@ final class CompilePipeline {
             return true;
         }
         String type = typeUtils.erasure(javaType).toString();
-        if (isEnumType(javaType)) {
-            return "VARCHAR".equals(jdbcType) || "INTEGER".equals(jdbcType);
-        }
-        if (javaType.getKind().isPrimitive() || switch (type) {
-            case "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long",
+        if (switch (type) {
+            case "byte", "short", "int", "long", "float", "double",
+                "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long",
                 "java.lang.Float", "java.lang.Double", "java.math.BigDecimal", "java.math.BigInteger",
                 "java.time.Year", "java.time.Month" -> true;
             default -> false;
@@ -818,10 +818,15 @@ final class CompilePipeline {
             return Set.of("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "NUMERIC", "DECIMAL",
                 "REAL", "FLOAT", "DOUBLE").contains(jdbcType);
         }
-        if ("java.lang.Boolean".equals(type)) {
-            return "BOOLEAN".equals(jdbcType) || "BIT".equals(jdbcType);
+        if (isEnumType(javaType)) {
+            return "VARCHAR".equals(jdbcType) || "INTEGER".equals(jdbcType);
         }
-        if (Set.of("java.lang.Character", "java.lang.String", "java.time.YearMonth").contains(type)) {
+        if ("boolean".equals(type) || "java.lang.Boolean".equals(type)) {
+            return "BOOLEAN".equals(jdbcType) || "BIT".equals(jdbcType)
+                || Set.of("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "NUMERIC", "DECIMAL",
+                    "REAL", "FLOAT", "DOUBLE").contains(jdbcType);
+        }
+        if (Set.of("char", "java.lang.Character", "java.lang.String", "java.time.YearMonth").contains(type)) {
             return Set.of("CHAR", "VARCHAR", "LONGVARCHAR", "NCHAR", "NVARCHAR", "LONGNVARCHAR")
                 .contains(jdbcType);
         }
@@ -839,7 +844,9 @@ final class CompilePipeline {
             return "TIMESTAMP".equals(jdbcType) || "TIMESTAMP_WITH_TIMEZONE".equals(jdbcType);
         }
         return "java.util.UUID".equals(type)
-            && ("OTHER".equals(jdbcType) || Set.of("CHAR", "VARCHAR", "LONGVARCHAR").contains(jdbcType));
+            && ("OTHER".equals(jdbcType)
+                || Set.of("CHAR", "VARCHAR", "LONGVARCHAR", "NCHAR", "NVARCHAR", "LONGNVARCHAR")
+                    .contains(jdbcType));
     }
 
     private String routerBinderExpression(
@@ -886,6 +893,9 @@ final class CompilePipeline {
                     || "java.lang.Byte".equals(componentType.toString())) {
                 return "VARBINARY";
             }
+        }
+        if ("java.time.Month".equals(javaType.toString())) {
+            return "INTEGER";
         }
         if (javaType instanceof DeclaredType declaredType
                 && declaredType.asElement().getKind() == javax.lang.model.element.ElementKind.ENUM) {
@@ -1651,8 +1661,9 @@ final class CompilePipeline {
                 return null;
             }
             return valueExpression + " == null ? null : " + valueExpression + " instanceof " + objectType
-                + " ? (" + objectType + ")" + valueExpression + " : " + objectType + ".valueOf("
-                + valueExpression + ".toString())";
+                + " ? (" + objectType + ")" + valueExpression + " : " + valueExpression
+                + " instanceof Number ? ResultValueConverters.toEnumOrdinal(" + valueExpression + ", "
+                + objectType + ".class) : " + objectType + ".valueOf(" + valueExpression + ".toString())";
         }
         return null;
     }

@@ -27,6 +27,7 @@ import org.liteorm.testsupport.database.TestDatabase;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,8 +35,12 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.OffsetDateTime;
+import java.time.Year;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.chrono.JapaneseDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -63,6 +68,10 @@ abstract class AbstractDatabaseCompatibilityTest {
     protected abstract String localTimeDefinition();
 
     protected abstract String offsetDateTimeDefinition();
+
+    protected abstract String nationalCharDefinition();
+
+    protected abstract String nationalVarcharDefinition();
 
     protected abstract String sleepSql();
 
@@ -105,6 +114,32 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertNull(mapper.findUuid(id));
         assertNull(mapper.findLocalTime(id));
         assertNull(mapper.findOffsetDateTime(id));
+    }
+
+    @Test
+    void routesTheFixedCoreStandardTypesInBothDirections() {
+        LocalDateTime dateTime = LocalDateTime.of(2026, 9, 8, 7, 8, 9, 123_000_000);
+        StandardRouteRecord expected = new StandardRouteRecord(
+            new BigInteger("12345678901234567890123456789012345678"),
+            new Byte[]{0, 1, 2, 127, -1},
+            new java.util.Date(java.sql.Timestamp.valueOf(dateTime).getTime()),
+            java.sql.Date.valueOf(dateTime.toLocalDate()),
+            java.sql.Time.valueOf(dateTime.toLocalTime()),
+            java.sql.Timestamp.valueOf(dateTime),
+            Year.of(2026),
+            Month.SEPTEMBER,
+            YearMonth.of(2026, Month.SEPTEMBER),
+            JapaneseDate.from(dateTime.toLocalDate()),
+            StandardStatus.ACTIVE,
+            StandardStatus.DISABLED,
+            "Ångström",
+            "Καλημέρα κόσμε");
+
+        assertEquals(1, mapper.insertStandardRoutes(1L, expected));
+        assertEquals(1, mapper.insertStandardRoutes(2L, StandardRouteRecord.empty()));
+
+        assertStandardRoutes(expected, mapper.findStandardRoutes(1L));
+        assertStandardRoutes(StandardRouteRecord.empty(), mapper.findStandardRoutes(2L));
     }
 
     @Test
@@ -213,7 +248,9 @@ abstract class AbstractDatabaseCompatibilityTest {
                 .replace("${binary}", binaryDefinition())
                 .replace("${uuid}", uuidDefinition())
                 .replace("${localTime}", localTimeDefinition())
-                .replace("${offsetDateTime}", offsetDateTimeDefinition());
+                .replace("${offsetDateTime}", offsetDateTimeDefinition())
+                .replace("${nationalChar}", nationalCharDefinition())
+                .replace("${nationalVarchar}", nationalVarcharDefinition());
         }
         try (var connection = dataSource.getConnection();
              var statement = connection.createStatement()) {
@@ -263,6 +300,27 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertEquals(expected.localTime(), actual.getLocalTime());
         assertEquals(expected.offsetDateTime().toInstant(), actual.getOffsetDateTime().toInstant());
         assertArrayEquals(expected.payload(), actual.getPayload());
+    }
+
+    private void assertStandardRoutes(StandardRouteRecord expected, StandardRouteRecord actual) {
+        assertEquals(expected.integerValue(), actual.integerValue());
+        assertArrayEquals(expected.binaryValue(), actual.binaryValue());
+        assertEquals(expected.utilDateValue(), actual.utilDateValue());
+        assertEquals(expected.sqlDateValue(), actual.sqlDateValue());
+        if (expected.sqlTimeValue() == null) {
+            assertNull(actual.sqlTimeValue());
+        } else {
+            assertEquals(expected.sqlTimeValue().toLocalTime(), actual.sqlTimeValue().toLocalTime());
+        }
+        assertEquals(expected.sqlTimestampValue(), actual.sqlTimestampValue());
+        assertEquals(expected.yearValue(), actual.yearValue());
+        assertEquals(expected.monthValue(), actual.monthValue());
+        assertEquals(expected.yearMonthValue(), actual.yearMonthValue());
+        assertEquals(expected.japaneseDateValue(), actual.japaneseDateValue());
+        assertEquals(expected.enumNameValue(), actual.enumNameValue());
+        assertEquals(expected.enumOrdinalValue(), actual.enumOrdinalValue());
+        assertEquals(expected.nationalCharValue(), actual.nationalCharValue());
+        assertEquals(expected.nationalVarcharValue(), actual.nationalVarcharValue());
     }
 
     private String databaseName() {
@@ -343,6 +401,28 @@ interface DatabaseCompatibilityMapper {
     @Select("SELECT offset_date_time_value FROM compatibility_users WHERE id = #{id}")
     OffsetDateTime findOffsetDateTime(@Param("id") long id);
 
+    @Insert("INSERT INTO standard_type_values (id, integer_value, binary_value, util_date_value, "
+        + "sql_date_value, sql_time_value, sql_timestamp_value, year_value, month_value, "
+        + "year_month_value, japanese_date_value, enum_name_value, enum_ordinal_value, "
+        + "national_char_value, national_varchar_value) VALUES (#{id}, #{value.integerValue}, "
+        + "#{value.binaryValue}, #{value.utilDateValue}, #{value.sqlDateValue}, #{value.sqlTimeValue}, "
+        + "#{value.sqlTimestampValue}, #{value.yearValue}, #{value.monthValue}, #{value.yearMonthValue}, "
+        + "#{value.japaneseDateValue}, #{value.enumNameValue}, "
+        + "#{value.enumOrdinalValue,jdbcType=INTEGER}, #{value.nationalCharValue,jdbcType=VARCHAR}, "
+        + "#{value.nationalVarcharValue,jdbcType=VARCHAR})")
+    int insertStandardRoutes(
+        @Param("id") long id,
+        @Param("value") StandardRouteRecord value);
+
+    @Select("SELECT integer_value AS integerValue, binary_value AS binaryValue, "
+        + "util_date_value AS utilDateValue, sql_date_value AS sqlDateValue, "
+        + "sql_time_value AS sqlTimeValue, sql_timestamp_value AS sqlTimestampValue, "
+        + "year_value AS yearValue, month_value AS monthValue, year_month_value AS yearMonthValue, "
+        + "japanese_date_value AS japaneseDateValue, enum_name_value AS enumNameValue, "
+        + "enum_ordinal_value AS enumOrdinalValue, national_char_value AS nationalCharValue, "
+        + "national_varchar_value AS nationalVarcharValue FROM standard_type_values WHERE id = #{id}")
+    StandardRouteRecord findStandardRoutes(@Param("id") long id);
+
     @Select({
         "<script>",
         "SELECT name FROM compatibility_users",
@@ -371,6 +451,33 @@ record CompatibilityRecord(
     LocalTime localTime,
     OffsetDateTime offsetDateTime,
     byte[] payload) {
+}
+
+record StandardRouteRecord(
+    BigInteger integerValue,
+    Byte[] binaryValue,
+    java.util.Date utilDateValue,
+    java.sql.Date sqlDateValue,
+    java.sql.Time sqlTimeValue,
+    java.sql.Timestamp sqlTimestampValue,
+    Year yearValue,
+    Month monthValue,
+    YearMonth yearMonthValue,
+    JapaneseDate japaneseDateValue,
+    StandardStatus enumNameValue,
+    StandardStatus enumOrdinalValue,
+    String nationalCharValue,
+    String nationalVarcharValue) {
+
+    static StandardRouteRecord empty() {
+        return new StandardRouteRecord(
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+}
+
+enum StandardStatus {
+    ACTIVE,
+    DISABLED
 }
 
 final class CompatibilityBean {

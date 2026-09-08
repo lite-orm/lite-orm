@@ -24,7 +24,7 @@ public final class TypeHandlerManager {
     }
 
     /** Writes one generated parameter using its Java type and optional declared JDBC type. */
-    public void setParameter(
+    void setParameter(
             PreparedStatement statement,
             int index,
             Object value,
@@ -50,7 +50,7 @@ public final class TypeHandlerManager {
         return (statement, index, value) -> setParameter(statement, index, value, javaType, jdbcType);
     }
 
-    public ResultHandler resolveResult(
+    ResultHandler resolveResult(
             ResultSetMetaData metadata, int columnIndex, Class<?> javaType) throws SQLException {
         Objects.requireNonNull(metadata, "metadata");
         Class<?> targetType = box(Objects.requireNonNull(javaType, "javaType"));
@@ -164,11 +164,11 @@ public final class TypeHandlerManager {
     }
 
     private static boolean supports(Class<?> type, JDBCType jdbcType) {
-        if (type.isEnum()) return isCharacter(jdbcType) || isNumeric(jdbcType);
         if (Number.class.isAssignableFrom(type)
                 || type == java.time.Year.class || type == java.time.Month.class) {
             return isNumeric(jdbcType);
         }
+        if (type.isEnum()) return isCharacter(jdbcType) || isNumeric(jdbcType);
         if (type == Boolean.class) {
             return jdbcType == JDBCType.BOOLEAN || jdbcType == JDBCType.BIT || isNumeric(jdbcType);
         }
@@ -259,7 +259,7 @@ public final class TypeHandlerManager {
     }
 
     @FunctionalInterface
-    public interface ResultHandler {
+    interface ResultHandler {
         Object getResult(ResultSet resultSet, int columnIndex) throws SQLException;
     }
 }

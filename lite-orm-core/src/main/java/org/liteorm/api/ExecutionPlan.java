@@ -123,7 +123,7 @@ public class ExecutionPlan {
         return statementOptions;
     }
 
-    /** Returns routing metadata, or {@code null} when the plan uses legacy/default JDBC access. */
+    /** Returns generated routing metadata, or {@code null} when the plan uses default JDBC access. */
     public TypeRouting getTypeRouting() {
         return typeRouting;
     }

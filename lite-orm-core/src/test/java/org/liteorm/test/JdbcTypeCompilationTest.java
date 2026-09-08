@@ -68,6 +68,7 @@ class JdbcTypeCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(resultRow[resultColumnIndexes[4]])"), generated);
         assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[resultColumnIndexes[5]])"), generated);
         assertTrue(generated.contains("Status.valueOf(resultRow[resultColumnIndexes[6]].toString())"), generated);
+        assertTrue(generated.contains("instanceof Number ? ResultValueConverters.toEnumOrdinal("), generated);
         assertTrue(generated.contains("(byte[])resultRow[resultColumnIndexes[7]]"), generated);
     }
 
@@ -136,8 +137,12 @@ class JdbcTypeCompilationTest {
             import java.time.Year;
             import java.time.YearMonth;
             import java.time.chrono.JapaneseDate;
+            import org.liteorm.annotation.Insert;
             import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Param;
             import org.liteorm.annotation.Select;
+
+            enum Status { ACTIVE, DISABLED }
 
             record StandardJdbcTypes(
                 BigInteger integerValue,
@@ -175,6 +180,16 @@ class JdbcTypeCompilationTest {
 
                 @Select("SELECT integer_value, year_month_value FROM values_table")
                 StandardJdbcTypeBean findBean();
+
+                @Insert("INSERT INTO values_table (binary_value, enabled, initial_value, month_value, status) "
+                    + "VALUES (#{binaryValue}, #{enabled,jdbcType=BOOLEAN}, #{initial,jdbcType=VARCHAR}, "
+                    + "#{monthValue}, #{status,jdbcType=INTEGER})")
+                int insert(
+                    @Param("binaryValue") Byte[] binaryValue,
+                    @Param("enabled") boolean enabled,
+                    @Param("initial") char initial,
+                    @Param("monthValue") Month monthValue,
+                    @Param("status") Status status);
             }
             """);
 
@@ -193,6 +208,14 @@ class JdbcTypeCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toJapaneseDate("), generated);
         assertTrue(generated.contains("mapped.setIntegerValue(ResultValueConverters.toBigInteger("), generated);
         assertTrue(generated.contains("mapped.setYearMonthValue(ResultValueConverters.toYearMonth("), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(java.lang.Byte[].class, java.sql.JDBCType.VARBINARY)"), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(boolean.class, java.sql.JDBCType.BOOLEAN)"), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(char.class, java.sql.JDBCType.VARCHAR)"), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(java.time.Month.class, java.sql.JDBCType.INTEGER)"), generated);
     }
 
     @Test

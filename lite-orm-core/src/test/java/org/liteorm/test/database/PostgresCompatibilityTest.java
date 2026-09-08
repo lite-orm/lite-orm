@@ -35,6 +35,16 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     }
 
     @Override
+    protected String nationalCharDefinition() {
+        return "VARCHAR(16)";
+    }
+
+    @Override
+    protected String nationalVarcharDefinition() {
+        return "VARCHAR(64)";
+    }
+
+    @Override
     protected String sleepSql() {
         return "SELECT pg_sleep(3)";
     }

@@ -11,6 +11,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class PublicApiSurfaceTest {
 
@@ -73,6 +74,13 @@ class PublicApiSurfaceTest {
     @Test
     void exposesOnlySupportedTopLevelTypes() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
+    }
+
+    @Test
+    void keepsTypeHandlerManagerResultRoutingInternal() throws Exception {
+        Class<?> resultHandler = Class.forName("org.liteorm.jdbc.TypeHandlerManager$ResultHandler");
+
+        assertFalse(Modifier.isPublic(resultHandler.getModifiers()));
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {

@@ -73,6 +73,20 @@ class JdbcSqlExecutorTest {
     }
 
     @Test
+    void defaultParameterBindingDoesNotInspectTheDatabaseProduct() {
+        List<String> events = new ArrayList<>();
+        PreparedStatement statement = statement(events, null, 1, null, null);
+        UUID value = UUID.randomUUID();
+        ExecutionPlan plan = new ExecutionPlan(
+            "test.Mapper.write", "INSERT INTO values_table(value) VALUES (?)", new Object[]{value},
+            ExecutionPlan.StatementType.INSERT, ExecutionPlan.SqlSource.GENERATED);
+
+        executor(events, statement).execute(plan);
+
+        assertTrue(events.contains("setObject:1:" + value));
+    }
+
+    @Test
     void rejectsInvalidStatementOptions() {
         assertThrows(IllegalArgumentException.class, () -> new StatementOptions(0, null, null));
         assertThrows(IllegalArgumentException.class, () -> new StatementOptions(-1, null, null));

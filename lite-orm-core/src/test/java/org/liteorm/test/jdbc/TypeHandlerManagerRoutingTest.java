@@ -1,7 +1,6 @@
-package org.liteorm.test.jdbc;
+package org.liteorm.jdbc;
 
 import org.junit.jupiter.api.Test;
-import org.liteorm.jdbc.TypeHandlerManager;
 
 import java.lang.reflect.Proxy;
 import java.sql.JDBCType;

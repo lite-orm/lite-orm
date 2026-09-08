@@ -35,6 +35,16 @@ class MySqlCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     }
 
     @Override
+    protected String nationalCharDefinition() {
+        return "NCHAR(16)";
+    }
+
+    @Override
+    protected String nationalVarcharDefinition() {
+        return "NVARCHAR(64)";
+    }
+
+    @Override
     protected String sleepSql() {
         return "SELECT SLEEP(3)";
     }

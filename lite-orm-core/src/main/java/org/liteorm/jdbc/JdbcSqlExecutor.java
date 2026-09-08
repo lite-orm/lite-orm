@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Executes immutable plans through one fixed, non-configurable JDBC lifecycle.
@@ -336,15 +335,6 @@ public final class JdbcSqlExecutor implements SqlExecutor {
     }
 
     private void bindDefault(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof UUID uuid) {
-            String databaseProductName = statement.getConnection().getMetaData().getDatabaseProductName();
-            if ("MySQL".equals(databaseProductName)) {
-                statement.setString(index, uuid.toString());
-            } else {
-                statement.setObject(index, uuid);
-            }
-            return;
-        }
         statement.setObject(index, value);
     }
 
