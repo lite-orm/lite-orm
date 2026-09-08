@@ -41,19 +41,15 @@ XML resolution that permits only LiteORM-owned local resources and rejects exter
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
 **Type handler manager**:
-The immutable runtime component that selects a type handler from a declared Java type and JDBC type. It does not construct result objects or discover handlers from global runtime state.
+The Core runtime component that routes supported values from generated Java type information and live JDBC metadata. Its standard routes are fixed and it does not construct result objects or discover user handlers.
 _Avoid_: JDBC value adapter, row mapper, global type-handler registry
 
-**Type handler**:
-A bidirectional conversion for one Java value and one JDBC column representation. It writes statement parameters and reads current result columns after the type handler manager selects it.
-_Avoid_: JDBC value adapter, row mapper
-
-**JDBC type mappings**:
-An explicitly selected collection of Java-type, JDBC-type, and type-handler routes. A collection may define database-independent standard mappings or one database family's complete effective mapping set. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, DataSource routing, pagination, or generated-key policy.
-_Avoid_: Database dialect, JDBC plugin, global type-handler registry
+**Result mapping**:
+A query-level declaration that maps result columns to one scalar, record constructor, or JavaBean property structure. Annotation and XML forms normalize into the same compilation model.
+_Avoid_: Type handler, entity column mapping, row mapper
 
 **Parameter binder**:
-A Mapper-parameter-specific strategy for writing one parameter value. It is an explicit exception for one parameter, not a package-wide value mapping and not a result-reading strategy.
+A Mapper-parameter-specific strategy for writing a value outside Core standard routing. It is not a result-reading strategy.
 _Avoid_: Type handler, row mapper, global type handler
 
 **Row mapper**:

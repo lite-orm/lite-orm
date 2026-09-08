@@ -79,6 +79,7 @@ mvn -pl lite-orm-core test
 mvn -pl lite-orm-spring-boot-starter -am test
 mvn -pl lite-orm-examples/basic-mapper -am test
 mvn -pl lite-orm-benchmarks -am test
+gradle -p lite-orm-examples/external-gradle-processor clean build
 git diff --check
 scripts/verify-database-test-matrix.sh
 ```

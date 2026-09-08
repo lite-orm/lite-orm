@@ -35,21 +35,7 @@ Explicitly enable the processor with Maven:
 </plugin>
 ```
 
-## 2. Select JDBC Type Mappings
-
-Every package that directly contains a Mapper selects one complete mapping collection in `package-info.java`:
-
-```java
-@UseJdbcTypeMappings(StandardJdbcTypeMappings.class)
-package com.example.user.mapper;
-
-import org.liteorm.annotation.UseJdbcTypeMappings;
-import org.liteorm.jdbc.StandardJdbcTypeMappings;
-```
-
-Use the complete [PostgreSQL](database-types/postgresql.md) or [MySQL](database-types/mysql.md) collection when the Mapper package targets that database.
-
-## 3. Define a Mapper
+## 2. Define a Mapper
 
 ```java
 package com.example.user.mapper;
@@ -79,7 +65,7 @@ public interface UserMapper {
 
 Compilation generates `UserMapperImpl` under `target/generated-sources/annotations`. The implementation directly implements `UserMapper` and receives one `SqlExecutor` through its constructor.
 
-## 4. Assemble the Mapper
+## 3. Assemble the Mapper
 
 For Spring Boot, bind the Mapper package to a named DataSource:
 

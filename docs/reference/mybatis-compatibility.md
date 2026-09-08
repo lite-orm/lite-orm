@@ -4,25 +4,15 @@ LiteORM targets the common Mapper subset that can be validated and emitted as st
 
 ## JDBC Type Compatibility Baseline
 
-MyBatis 3.5.19 built-in TypeHandlers are the comparison baseline for deterministic JDBC value mappings. LiteORM keeps Mapper shape and object construction at compilation while routing JDBC values at runtime through an immutable Mapper-local table. Mapping collections and `TypeHandler` implementations are declared per Mapper package and validated at compilation; unknown Java values never fall through to an `UnknownTypeHandler` equivalent.
+MyBatis 3.5.19 built-in TypeHandlers are the comparison baseline for deterministic JDBC value behavior. LiteORM does not copy the MyBatis registry architecture: Core owns one fixed `TypeHandlerManager`, generated code supplies Java types, and runtime result routing uses live JDBC metadata.
 
-The current built-in matrix supports numeric primitives and wrappers, `String`, `Character`, `Boolean`, enums, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. Each official PostgreSQL or MySQL collection explicitly declares its complete effective mapping set and reuses Core handler implementations where behavior is database-independent. PostgreSQL and MySQL execute the shared compatibility contract with zero skipped database jobs in CI.
+The built-in matrix supports numeric primitives and wrappers, `String`, `Character`, `Boolean`, enums, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. PostgreSQL and MySQL execute the shared Core compatibility contract with zero skipped database jobs in CI.
 
-Parity is not complete. The remaining categories are lifecycle-bound values owned by the follow-up resource contract:
+Parameter placeholders may choose a compatible `jdbcType`, such as `INTEGER` for enum ordinals or a character representation for UUID. Results need no JDBC-type annotation: character enum values use names and numeric values use ordinals.
 
-- SQLXML, JDBC array, Blob, Clob, stream, and reader handlers.
+LiteORM has no `TypeHandlerRegistry`, package mapping selection, vendor-type registration, database-specific type artifact, or `UnknownTypeHandler` fallback. Unsupported writes use a parameter-level `ParameterBinder`; unsupported reads or row shapes use a method-level `RowMapper`.
 
-Legacy `java.util.Date` parameters use `TIMESTAMP` canonically and support explicit date-only and time-only selection through `jdbcType=DATE` and `jdbcType=TIME`. Enums use names for canonical parameters, while `jdbcType=INTEGER` selects zero-based ordinal binding. Results use JDBC metadata: character columns map enum names and numeric columns map ordinals. Other representations require a custom mapping.
-
-Connection-bound resources require lifecycle-safe semantics. LiteORM closes the result set, statement, and connection handle before a normal Mapper result escapes. Ordinary mappings materialize Blob values as `byte[]`, Clob and SQLXML values as `String`, and JDBC arrays as Java arrays. Streams and readers are consumed through an existing callback-scoped mapping path and never escape after cleanup.
-
-`JdbcTypeMappings` is the database-family collection contract. Repeatable `@JdbcTypeMapping` declarations associate one Java type and JDBC type with one bidirectional `TypeHandler` and are validated at compilation. `@UseJdbcTypeMappings` selects exactly one base collection and optionally one explicit application override from each Mapper package's `package-info.java`; source and dependency-supplied collections use the same validation path. An override replaces the exact Java/JDBC key or adds a new key. Generated Mappers expose the base collection through `JdbcTypeMappingsMetadata`, instantiate handlers once, and construct an immutable `TypeHandlerManager`. Parameters route from generated Java type plus optional `jdbcType`; results route from generated Java target type plus JDBC metadata resolved once per result set. The design excludes command-line profiles, classpath auto-detection, mutable global registries, ServiceLoader lookup, and Mapper-interface overrides.
-
-The official `lite-orm-postgresql-types` and `lite-orm-mysql-types` artifacts each supply a complete collection containing the shared standard mappings plus database-family mappings for UUID, `LocalTime`, `OffsetDateTime`, and national-character strings. PostgreSQL additionally supplies `OffsetTime`. Applications select the matching collection explicitly per Mapper package and provide the database driver. The [Core GA contract](core-contract.md#26-official-postgresql-type-mappings) owns the exact PostgreSQL guarantees and the [MySQL contract](core-contract.md#27-official-mysql-type-mappings) owns the exact MySQL guarantees. Lifecycle-bound values remain follow-up work.
-
-PostgreSQL additionally supplies built-in `OffsetTime` mapping for `TIME WITH TIME ZONE`. MySQL `OffsetTime` is custom-mapping-only because `TIME` cannot preserve an offset. `ZonedDateTime` is custom-mapping-only on both databases because neither timestamp representation preserves a Java `ZoneId`; an explicit mapping must choose text, normalized instant/offset, or additional-column semantics.
-
-`ObjectTypeHandler` and `UnknownTypeHandler` behavior is deliberately not a parity target. Unsupported values fail compilation with guidance to use an explicit typed extension.
+Lifecycle-bound values such as SQLXML, JDBC arrays, Blob, Clob, streams, and readers are not ordinary scalar results because LiteORM closes JDBC resources before Mapper results escape. Consume them through `RowMapper` or raw JDBC.
 
 ## Supported Annotation Patterns
 
@@ -40,7 +30,7 @@ All Mapper annotations are LiteORM-owned APIs in `org.liteorm.annotation`. LiteO
 | Java records | Supported | Constructor mapping is generated from record components. |
 | JavaBeans | Supported | Requires a usable no-arg constructor and supported setters. |
 | SQL provider | Explicit extension | Use `@UseSqlProvider` for runtime SQL structure. |
-| Custom JDBC conversion | Explicit extension | Use package-level `@JdbcTypeMapping`, one-parameter `@UseParameterBinder`, or method-level `@UseRowMapper` according to scope. |
+| Custom JDBC conversion | Explicit extension | Use one-parameter `@UseParameterBinder` for writes or method-level `@UseRowMapper` for reads. |
 
 When XML and a SQL annotation define the same Mapper method, XML wins because it can express richer SQL structure. The annotation processor emits a method-scoped warning.
 

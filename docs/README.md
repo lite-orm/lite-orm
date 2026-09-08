@@ -13,7 +13,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 ### Core
 
 - [`user/core/README.md`](user/core/README.md): Core guide index.
-- [`user/core/mapping.md`](user/core/mapping.md): JDBC type mappings, generated result mapping, parameter binders, and row mappers.
+- [`user/core/mapping.md`](user/core/mapping.md): standard JDBC routing, generated result mapping, parameter binders, and row mappers.
 - [`user/core/extensions.md`](user/core/extensions.md): decision guide for typed extension points and raw JDBC.
 - [`user/core/standalone.md`](user/core/standalone.md): standalone JDBC assembly and callback transactions.
 
@@ -38,7 +38,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 ## Architecture Decisions and Evidence
 
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md)
-- [`adr/0002-select-jdbc-type-mappings-per-mapper-package.md`](adr/0002-select-jdbc-type-mappings-per-mapper-package.md)
+- [`adr/0002-select-jdbc-type-mappings-per-mapper-package.md`](adr/0002-select-jdbc-type-mappings-per-mapper-package.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
 
 ## Project
