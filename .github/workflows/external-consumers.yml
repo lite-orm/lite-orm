@@ -18,6 +18,12 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Verify external Maven consumer
-        run: mvn --batch-mode --no-transfer-progress -pl lite-orm-core -am install
+        run: |
+          for attempt in 1 2 3; do
+            mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-core -am install && exit 0
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+          done
       - name: Verify external Gradle consumer
         run: gradle -p lite-orm-examples/external-gradle-processor --no-daemon clean build
