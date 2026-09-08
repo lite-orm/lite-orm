@@ -16,6 +16,9 @@ import java.util.Objects;
  * <p>The supported routes are fixed by Core. Applications use {@code ParameterBinder} for a
  * parameter-specific write conversion and {@code RowMapper} for a method-specific read
  * conversion.</p>
+ *
+ * <p>Instances are stateless and thread-safe. Generated Mappers may share one instance across
+ * concurrent executions.</p>
  */
 public final class TypeHandlerManager {
 
@@ -45,9 +48,20 @@ public final class TypeHandlerManager {
         writeNonNull(statement, index, value, targetType, targetJdbcType);
     }
 
-    /** Creates a reusable binder for one generated Java/JDBC route. */
+    /**
+     * Creates a thread-safe reusable binder for one generated Java/JDBC route.
+     *
+     * @param javaType generated parameter type; must not be {@code null}
+     * @param jdbcType declared JDBC type, or {@code null} to use the Core default for
+     *     {@code javaType}
+     * @param <T> parameter value type
+     * @return a binder that reports unsupported routes and JDBC failures as {@link SQLException}
+     * @throws NullPointerException if {@code javaType} is {@code null}
+     */
     public <T> ParameterBinder<T> parameterBinder(Class<T> javaType, JDBCType jdbcType) {
-        return (statement, index, value) -> setParameter(statement, index, value, javaType, jdbcType);
+        Class<T> requiredJavaType = Objects.requireNonNull(javaType, "javaType");
+        return (statement, index, value) ->
+            setParameter(statement, index, value, requiredJavaType, jdbcType);
     }
 
     ResultHandler resolveResult(

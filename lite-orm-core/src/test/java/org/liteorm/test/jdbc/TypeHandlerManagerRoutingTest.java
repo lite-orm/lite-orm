@@ -107,6 +107,14 @@ class TypeHandlerManagerRoutingTest {
     }
 
     @Test
+    void rejectsNullParameterTypeWhenCreatingBinder() {
+        NullPointerException failure = assertThrows(NullPointerException.class, () ->
+            new TypeHandlerManager().parameterBinder(null, JDBCType.VARCHAR));
+
+        assertEquals("javaType", failure.getMessage());
+    }
+
+    @Test
     void bindsNullFromTheDeclaredJavaType() throws Exception {
         AtomicReference<Object> writtenJdbcType = new AtomicReference<>();
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> {

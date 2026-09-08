@@ -38,7 +38,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 ## Architecture Decisions and Evidence
 
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md)
-- [`adr/0002-select-jdbc-type-mappings-per-mapper-package.md`](adr/0002-select-jdbc-type-mappings-per-mapper-package.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
+- [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
 
 ## Project
