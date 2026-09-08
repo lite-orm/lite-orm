@@ -25,6 +25,8 @@ class PublicApiSurfaceTest {
         "org.liteorm.annotation.JdbcTypeMapping",
         "org.liteorm.annotation.Mapper",
         "org.liteorm.annotation.Param",
+        "org.liteorm.annotation.Result",
+        "org.liteorm.annotation.Results",
         "org.liteorm.annotation.Select",
         "org.liteorm.annotation.Update",
         "org.liteorm.annotation.UseParameterBinder",

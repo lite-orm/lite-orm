@@ -22,6 +22,27 @@ User findById(long id);
 
 Generated mapping provides the strongest compile-time validation and keeps application code smallest.
 
+When SQL aliases are not sufficient or the Java property names intentionally differ from result labels, declare a flat method-level mapping:
+
+```java
+@Select("SELECT user_id, display_name FROM users WHERE user_id = #{id}")
+@Results({
+    @Result(column = "user_id", property = "id"),
+    @Result(column = "display_name", property = "name")
+})
+User findById(long id);
+```
+
+`@Results` / `@Result` supports scalar values, records, and JavaBeans. The processor validates duplicate or unknown properties and an optional explicit `javaType`, then generates direct record construction or JavaBean setter calls. A scalar mapping contains exactly one `@Result` and leaves `property` blank:
+
+```java
+@Select("SELECT count(*) AS total FROM users")
+@Results(@Result(column = "total"))
+Long countUsers();
+```
+
+The annotation is valid only on SELECT methods and cannot be combined with `@UseRowMapper`. Associations, collections, and nested result objects are outside the current flat-mapping contract.
+
 Result methods do not declare a JDBC type. LiteORM combines the generated Java target type with the active driver's `ResultSetMetaData`:
 
 - ordinary character, numeric, temporal, binary, and other supported columns need no annotation;
@@ -112,7 +133,7 @@ one result row -> generated record/JavaBean mapping
 
 Consequently, a declarative whole-row mapping cannot replace JDBC type mappings: it still needs a conversion for every non-built-in column value, and it has no role in Mapper parameter binding. Conversely, JDBC type mappings cannot describe how several columns are assembled into one object.
 
-LiteORM currently generates scalar, record, and JavaBean result mapping directly. MyBatis XML `resultMap` declarations, including complex graphs, are not a supported parallel mapping engine. Flatten a simple shape to a record or JavaBean; use `@UseRowMapper` when the row requires logic that generated mapping cannot express.
+LiteORM currently generates scalar, record, and JavaBean result mapping directly. Annotation methods may use `@Results` / `@Result` to declare flat column-to-property structure. MyBatis XML `resultMap` declarations, including complex graphs, are not yet a supported parallel mapping syntax. Flatten a simple shape to a record or JavaBean; use `@UseRowMapper` when the row requires logic that generated mapping cannot express.
 
 ## Parameter Binder: One Exceptional Write
 

@@ -33,6 +33,7 @@ All Mapper annotations are LiteORM-owned APIs in `org.liteorm.annotation`. LiteO
 | `org.liteorm.annotation.Mapper` interfaces | Supported | Generates a concrete `*MapperImpl`. |
 | `@Select`, `@Insert`, `@Update`, `@Delete` | Supported | Static SQL and supported `<script>` dynamic SQL compile to Java. |
 | `@Param` | Supported | Prefer explicit names for multi-parameter methods. |
+| `@Results`, `@Result` | Supported for flat mappings | Maps result columns to scalar results, record components, or JavaBean properties. Nested associations and collections are not supported. |
 | Result-side JDBC type annotation | Not needed | The executor selects result handlers from JDBC metadata and the generated Java target type. |
 | `param1`, `arg0`, `list`, `collection`, `array` aliases | Supported | Resolved during compilation. |
 | Scalar results | Supported | Includes scalar `List<T>`. |

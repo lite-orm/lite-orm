@@ -445,12 +445,26 @@ final class CompilePipeline {
         if (sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH) {
             validateBatchMethod(mapperInterface, method, returnType, methodParameters, sqlInfo);
         }
+        ResultMappingDeclaration declaredResultMapping = annotationResultMapping(mapperInterface, method);
+        if (declaredResultMapping.present() && statementType != ExecutionPlan.StatementType.SELECT) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @Results requires a SELECT method");
+        }
+        if (declaredResultMapping.present() && returnType.equals("void")) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @Results requires a mapped result type");
+        }
+        if (declaredResultMapping.present() && extensionBindings.rowMapperFieldName() != null) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @Results cannot be combined with @UseRowMapper");
+        }
         ResultMapping resultMapping = sqlInfo != null && sqlInfo.sqlType() == SqlContentParser.SqlType.BATCH
             ? new ResultMapping("", "", List.of())
             : cursorMethod != null
                 ? new ResultMapping("", "", List.of())
             : extensionBindings.rowMapperFieldName() == null
-                ? generateResultMapping(mapperInterface, method, returnType, jdbcTypeMappings)
+                ? generateResultMapping(
+                    mapperInterface, method, returnType, jdbcTypeMappings, declaredResultMapping)
                 : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
         extensionBindings = addDefaultResultEnumHandlers(
             resolvedMethodType.getReturnType(), statementType,
@@ -1811,15 +1825,19 @@ final class CompilePipeline {
             TypeElement mapperInterface,
             ExecutableElement method,
             String returnType,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            ResultMappingDeclaration declaredResultMapping) throws CompileException {
         if (returnType.contains("List<")) {
             String elementType = extractListElementType(returnType);
-            return generateSingleMapping(mapperInterface, method, elementType, jdbcTypeMappings);
+            return generateSingleMapping(
+                mapperInterface, method, elementType, jdbcTypeMappings, declaredResultMapping);
         } else if (returnType.startsWith("java.util.Optional<")) {
             return generateSingleMapping(
-                mapperInterface, method, extractOptionalElementType(returnType), jdbcTypeMappings);
+                mapperInterface, method, extractOptionalElementType(returnType),
+                jdbcTypeMappings, declaredResultMapping);
         } else if (!returnType.equals("void")) {
-            return generateSingleMapping(mapperInterface, method, returnType, jdbcTypeMappings);
+            return generateSingleMapping(
+                mapperInterface, method, returnType, jdbcTypeMappings, declaredResultMapping);
         } else {
             return new ResultMapping("", "", List.of());
         }
@@ -1847,10 +1865,12 @@ final class CompilePipeline {
             TypeElement mapperInterface,
             ExecutableElement method,
             String objectType,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            ResultMappingDeclaration declaredResultMapping) throws CompileException {
         String scalarMapping = generateValueMapping(objectType, "row[0]");
         if (scalarMapping != null) {
-            return new ResultMapping(scalarMapping, "", List.of());
+            return declaredScalarMapping(
+                mapperInterface, method, objectType, scalarMapping, declaredResultMapping);
         }
 
         var typeElement = elementUtils.getTypeElement(objectType);
@@ -1858,19 +1878,49 @@ final class CompilePipeline {
             throw unsupportedResultMapping(mapperInterface, method, objectType);
         }
 
-        if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
-            if (hasSelectedMapping(typeElement.asType(), jdbcTypeMappings)) {
-                return new ResultMapping("(" + objectType + ")row[0]", "", List.of());
-            }
-            return generateRecordMapping(
-                mapperInterface, method, typeElement, objectType, jdbcTypeMappings);
+        if (hasSelectedMapping(typeElement.asType(), jdbcTypeMappings)) {
+            return declaredScalarMapping(
+                mapperInterface, method, objectType, "(" + objectType + ")row[0]",
+                declaredResultMapping);
         }
 
-        if (hasSelectedMapping(typeElement.asType(), jdbcTypeMappings)) {
-            return new ResultMapping("(" + objectType + ")row[0]", "", List.of());
+        if (declaredResultMapping.properties().stream()
+                .anyMatch(property -> property.property().isBlank())) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @Result property must not be blank for an object result");
         }
+
+        if (typeElement.getKind() == javax.lang.model.element.ElementKind.RECORD) {
+            return generateRecordMapping(
+                mapperInterface, method, typeElement, objectType,
+                jdbcTypeMappings, declaredResultMapping);
+        }
+
         return generateJavaBeanMapping(
-            mapperInterface, method, typeElement, objectType, jdbcTypeMappings);
+            mapperInterface, method, typeElement, objectType,
+            jdbcTypeMappings, declaredResultMapping);
+    }
+
+    private ResultMapping declaredScalarMapping(
+            TypeElement mapperInterface,
+            ExecutableElement method,
+            String objectType,
+            String expression,
+            ResultMappingDeclaration declaredResultMapping) throws CompileException {
+        if (!declaredResultMapping.present()) {
+            return new ResultMapping(expression, "", List.of());
+        }
+        if (declaredResultMapping.properties().size() != 1
+                || !declaredResultMapping.properties().getFirst().property().isBlank()) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": scalar @Results requires exactly one @Result with a blank property");
+        }
+        validateDeclaredJavaType(declaredResultMapping.properties().getFirst(), objectType);
+        ResultProperty property = declaredResultMapping.properties().getFirst();
+        return new ResultMapping(
+            expression, "", List.of(new NormalizedResultProperty(
+                "", property.column(), objectType, false, -1,
+                property.source(), property.sourceLocation())));
     }
 
     private String generateScalarMapping(String objectType, String valueExpression) {
@@ -1940,16 +1990,24 @@ final class CompilePipeline {
             TypeElement mapperInterface, ExecutableElement mapperMethod,
             TypeElement typeElement,
             String objectType,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            ResultMappingDeclaration declaredResultMapping) throws CompileException {
         var recordComponents = typeElement.getRecordComponents();
-        List<String> columnLabels = new ArrayList<>(recordComponents.size());
+        List<NormalizedResultProperty> normalizedProperties = new ArrayList<>(recordComponents.size());
+        Map<String, ResultProperty> declaredProperties = declaredResultMapping.byProperty();
         
         StringBuilder mapping = new StringBuilder("new " + objectType + "(");
         for (int i = 0; i < recordComponents.size(); i++) {
             var component = recordComponents.get(i);
             String componentName = component.getSimpleName().toString();
             String componentType = component.asType().toString();
-            columnLabels.add(resultColumnLabel(component, componentName));
+            ResultProperty declaredProperty = declaredProperties.remove(componentName);
+            validateDeclaredJavaType(declaredProperty, component.asType());
+            normalizedProperties.add(normalizedResultProperty(
+                componentName,
+                declaredProperty == null ? resultColumnLabel(component, componentName) : declaredProperty.column(),
+                componentType, true, i, declaredProperty,
+                objectType + "." + componentName));
             
             if (i > 0) {
                 mapping.append(", ");
@@ -1968,8 +2026,9 @@ final class CompilePipeline {
             mapping.append(convertedValue);
         }
         mapping.append(")");
+        rejectUnknownResultProperties(objectType, declaredProperties);
         
-        return new ResultMapping(mapping.toString(), "", List.copyOf(columnLabels));
+        return new ResultMapping(mapping.toString(), "", List.copyOf(normalizedProperties));
     }
     
     /**
@@ -1979,7 +2038,8 @@ final class CompilePipeline {
             TypeElement mapperInterface, ExecutableElement mapperMethod,
             TypeElement typeElement,
             String objectType,
-            JdbcTypeMappingsSelection jdbcTypeMappings) throws CompileException {
+            JdbcTypeMappingsSelection jdbcTypeMappings,
+            ResultMappingDeclaration declaredResultMapping) throws CompileException {
         boolean hasAccessibleNoArgConstructor = typeElement.getEnclosedElements().stream()
             .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.CONSTRUCTOR)
             .map(ExecutableElement.class::cast)
@@ -1990,13 +2050,38 @@ final class CompilePipeline {
                 + " requires an accessible no-arg constructor");
         }
 
-        List<VariableElement> fields = typeElement.getEnclosedElements().stream()
+        Map<String, VariableElement> fieldsByName = typeElement.getEnclosedElements().stream()
             .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.FIELD)
             .map(VariableElement.class::cast)
             .filter(field -> !field.getModifiers().contains(Modifier.STATIC))
-            .toList();
-        if (fields.isEmpty()) {
-            throw unsupportedResultMapping(mapperInterface, mapperMethod, objectType + " has no mappable fields");
+            .collect(java.util.stream.Collectors.toMap(
+                field -> field.getSimpleName().toString(),
+                field -> field,
+                (first, second) -> first,
+                LinkedHashMap::new));
+        Map<String, ExecutableElement> settersByProperty = new LinkedHashMap<>();
+        for (Element element : typeElement.getEnclosedElements()) {
+            if (element.getKind() != javax.lang.model.element.ElementKind.METHOD) {
+                continue;
+            }
+            ExecutableElement setter = (ExecutableElement) element;
+            String setterName = setter.getSimpleName().toString();
+            if (!setter.getModifiers().contains(Modifier.PUBLIC)
+                    || setter.getModifiers().contains(Modifier.STATIC)
+                    || setter.getParameters().size() != 1
+                    || !setterName.startsWith("set")
+                    || setterName.length() == 3) {
+                continue;
+            }
+            String property = javaBeanPropertyName(setterName);
+            if (settersByProperty.putIfAbsent(property, setter) != null) {
+                throw unsupportedResultMapping(mapperInterface, mapperMethod,
+                    objectType + " has overloaded public setters for property " + property);
+            }
+        }
+        if (settersByProperty.isEmpty()) {
+            throw unsupportedResultMapping(
+                mapperInterface, mapperMethod, objectType + " has no writable JavaBean properties");
         }
 
         String helperName = "map" + Character.toUpperCase(mapperMethod.getSimpleName().charAt(0))
@@ -2005,23 +2090,24 @@ final class CompilePipeline {
         helper.append("    private ").append(objectType).append(" ").append(helperName)
             .append("(Object[] row, int[] resultColumnIndexes) {\n");
         helper.append("        ").append(objectType).append(" mapped = new ").append(objectType).append("();\n");
-        List<String> columnLabels = new ArrayList<>(fields.size());
+        List<NormalizedResultProperty> normalizedProperties = new ArrayList<>(settersByProperty.size());
+        Map<String, ResultProperty> declaredProperties = declaredResultMapping.byProperty();
 
-        for (int index = 0; index < fields.size(); index++) {
-            VariableElement field = fields.get(index);
-            String fieldName = field.getSimpleName().toString();
-            columnLabels.add(resultColumnLabel(field, fieldName));
-            String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
-            ExecutableElement setter = typeElement.getEnclosedElements().stream()
-                .filter(element -> element.getKind() == javax.lang.model.element.ElementKind.METHOD)
-                .map(ExecutableElement.class::cast)
-                .filter(candidate -> candidate.getSimpleName().contentEquals(setterName))
-                .filter(candidate -> candidate.getModifiers().contains(Modifier.PUBLIC))
-                .filter(candidate -> candidate.getParameters().size() == 1)
-                .findFirst()
-                .orElseThrow(() -> unsupportedResultMapping(mapperInterface, mapperMethod,
-                    objectType + " is missing public setter " + setterName));
+        int index = 0;
+        for (Map.Entry<String, ExecutableElement> setterEntry : settersByProperty.entrySet()) {
+            String property = setterEntry.getKey();
+            ExecutableElement setter = setterEntry.getValue();
+            ResultProperty declaredProperty = declaredProperties.remove(property);
+            VariableElement backingField = fieldsByName.get(property);
             String parameterType = setter.getParameters().get(0).asType().toString();
+            validateDeclaredJavaType(declaredProperty, setter.getParameters().get(0).asType());
+            normalizedProperties.add(normalizedResultProperty(
+                property,
+                declaredProperty != null
+                    ? declaredProperty.column()
+                    : backingField == null ? property : resultColumnLabel(backingField, property),
+                parameterType, false, -1, declaredProperty,
+                objectType + "." + property));
             String convertedValue = generateValueMapping(
                 parameterType, "row[resultColumnIndexes[" + index + "]]");
             if (convertedValue == null
@@ -2030,15 +2116,42 @@ final class CompilePipeline {
             }
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
-                    "nested object property " + objectType + "." + fieldName + " (" + parameterType + ")");
+                    "nested object property " + objectType + "." + property + " (" + parameterType + ")");
             }
-            helper.append("        mapped.").append(setterName).append("(")
+            helper.append("        mapped.").append(setter.getSimpleName()).append("(")
                 .append(convertedValue).append(");\n");
+            index++;
         }
+        rejectUnknownResultProperties(objectType, declaredProperties);
         helper.append("        return mapped;\n");
         helper.append("    }\n");
         return new ResultMapping(
-            helperName + "(row, resultColumnIndexes)", helper.toString(), List.copyOf(columnLabels));
+            helperName + "(row, resultColumnIndexes)", helper.toString(),
+            List.copyOf(normalizedProperties));
+    }
+
+    private String javaBeanPropertyName(String setterName) {
+        String property = setterName.substring(3);
+        if (property.length() > 1
+                && Character.isUpperCase(property.charAt(0))
+                && Character.isUpperCase(property.charAt(1))) {
+            return property;
+        }
+        return Character.toLowerCase(property.charAt(0)) + property.substring(1);
+    }
+
+    private NormalizedResultProperty normalizedResultProperty(
+            String property,
+            String column,
+            String targetJavaType,
+            boolean constructorArgument,
+            int constructorIndex,
+            ResultProperty declaredProperty,
+            String conventionLocation) {
+        return new NormalizedResultProperty(
+            property, column, targetJavaType, constructorArgument, constructorIndex,
+            declaredProperty == null ? ResultMappingSource.CONVENTION : declaredProperty.source(),
+            declaredProperty == null ? conventionLocation : declaredProperty.sourceLocation());
     }
 
     private boolean hasSelectedMapping(
@@ -2058,13 +2171,130 @@ final class CompilePipeline {
         return label;
     }
 
+    private ResultMappingDeclaration annotationResultMapping(
+            TypeElement mapperInterface, ExecutableElement method) throws CompileException {
+        AnnotationMirror results = findAnnotation(method, "org.liteorm.annotation.Results");
+        if (results == null) {
+            return ResultMappingDeclaration.none();
+        }
+        Object rawValue = annotationValue(results, "value").getValue();
+        if (!(rawValue instanceof List<?> values) || values.isEmpty()) {
+            throw new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + ": @Results must declare at least one @Result");
+        }
+        List<ResultProperty> properties = new ArrayList<>(values.size());
+        Set<String> declaredNames = new HashSet<>();
+        boolean scalar = values.size() == 1;
+        int resultIndex = 0;
+        for (Object rawResult : values) {
+            AnnotationMirror result = (AnnotationMirror) ((AnnotationValue) rawResult).getValue();
+            String sourceLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
+                + " @Result[" + resultIndex + "]";
+            String column = ((String) annotationValue(result, "column").getValue()).trim();
+            String property = ((String) annotationValue(result, "property").getValue()).trim();
+            if (column.isEmpty()) {
+                throw new CompileException(sourceLocation + ": @Result column must not be blank");
+            }
+            if (property.isEmpty() && !scalar) {
+                throw new CompileException(
+                    sourceLocation + ": @Result property must not be blank for an object result");
+            }
+            if (!declaredNames.add(property)) {
+                throw new CompileException(
+                    sourceLocation + ": duplicate @Result property '" + property + "'");
+            }
+            TypeMirror declaredJavaType = (TypeMirror) annotationValue(result, "javaType").getValue();
+            properties.add(new ResultProperty(
+                property, column, declaredJavaType.getKind() == TypeKind.VOID ? null : declaredJavaType,
+                ResultMappingSource.ANNOTATION, sourceLocation));
+            resultIndex++;
+        }
+        return new ResultMappingDeclaration(true, List.copyOf(properties));
+    }
+
+    private void validateDeclaredJavaType(
+            ResultProperty declaredProperty, TypeMirror targetType) throws CompileException {
+        if (declaredProperty == null || declaredProperty.javaType() == null) {
+            return;
+        }
+        if (!typeUtils.isSameType(
+                typeUtils.erasure(declaredProperty.javaType()), typeUtils.erasure(targetType))) {
+            throw new CompileException(declaredProperty.sourceLocation()
+                + ": @Result property '" + declaredProperty.property() + "' declares Java type "
+                + declaredProperty.javaType() + " but the target type is " + targetType);
+        }
+    }
+
+    private void validateDeclaredJavaType(
+            ResultProperty declaredProperty, String targetType) throws CompileException {
+        if (declaredProperty.javaType() == null
+                || declaredProperty.javaType().toString().equals(targetType)) {
+            return;
+        }
+        throw new CompileException(declaredProperty.sourceLocation()
+            + ": @Result declares Java type " + declaredProperty.javaType()
+            + " but the target type is " + targetType);
+    }
+
+    private void rejectUnknownResultProperties(
+            String objectType, Map<String, ResultProperty> properties) throws CompileException {
+        if (!properties.isEmpty()) {
+            ResultProperty declaredProperty = properties.values().iterator().next();
+            throw new CompileException(declaredProperty.sourceLocation() + ": @Result property '"
+                + declaredProperty.property() + "' does not exist on " + objectType);
+        }
+    }
+
     private CompileException unsupportedResultMapping(
             TypeElement mapperInterface, ExecutableElement method, String detail) {
         return new CompileException(mapperInterface.getQualifiedName() + "#" + method.getSimpleName()
             + ": Unsupported result mapping: " + detail + "; this result type requires @UseRowMapper");
     }
 
-    private record ResultMapping(String expression, String helperCode, List<String> columnLabels) {
+    private record ResultMapping(
+            String expression,
+            String helperCode,
+            List<NormalizedResultProperty> properties) {
+
+        private List<String> columnLabels() {
+            return properties.stream().map(NormalizedResultProperty::column).toList();
+        }
+    }
+
+    private record ResultMappingDeclaration(boolean present, List<ResultProperty> properties) {
+
+        private static ResultMappingDeclaration none() {
+            return new ResultMappingDeclaration(false, List.of());
+        }
+
+        private Map<String, ResultProperty> byProperty() {
+            Map<String, ResultProperty> result = new LinkedHashMap<>();
+            properties.forEach(property -> result.put(property.property(), property));
+            return result;
+        }
+    }
+
+    private record ResultProperty(
+            String property,
+            String column,
+            TypeMirror javaType,
+            ResultMappingSource source,
+            String sourceLocation) {
+    }
+
+    private record NormalizedResultProperty(
+            String property,
+            String column,
+            String targetJavaType,
+            boolean constructorArgument,
+            int constructorIndex,
+            ResultMappingSource source,
+            String sourceLocation) {
+    }
+
+    private enum ResultMappingSource {
+        ANNOTATION,
+        CONVENTION
     }
 
     private record CursorMethod(
