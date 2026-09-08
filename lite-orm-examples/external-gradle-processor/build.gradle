@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.liteorm.it'
+version = '1.0.0'
+
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    implementation 'org.liteorm:lite-orm-core:1.0.0-SNAPSHOT'
+    annotationProcessor 'org.liteorm:lite-orm-core:1.0.0-SNAPSHOT'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += [
+        '-proc:full',
+        '-processor', 'org.liteorm.compile.LiteOrmProcessor'
+    ]
+}
