@@ -9,7 +9,7 @@ The shortest mental model is:
 - a **parameter binder** changes how one Mapper parameter is written;
 - a **row mapper** changes how one query method constructs an object from a whole row.
 
-All extension implementations are resolved during compilation. Generated Mappers hold direct references and an immutable type router. For ordinary query results, the router uses the generated Java target type and JDBC metadata to select a handler once per result column; it does not scan, reflect, or consult a global registry.
+All extension implementations are resolved during compilation. Generated Mappers hold direct references and an immutable type-handler manager. For ordinary query results, the manager uses the generated Java target type and JDBC metadata to select a handler once per result column; it does not scan, reflect, or consult a global registry.
 
 ## Start With the Generated Path
 
@@ -69,7 +69,7 @@ Each `@JdbcTypeMapping` entry associates:
 3. an optional driver-reported `vendorTypeName` for JDBC types such as `OTHER`;
 4. one `TypeHandler<T>` implementation.
 
-The collection is selected once for every package that directly contains Mappers. The processor validates it and generates an immutable Mapper-local router containing those handlers.
+The collection is selected once for every package that directly contains Mappers. The processor validates it and generates an immutable Mapper-local type-handler manager containing those handlers.
 
 ```java
 @JdbcTypeMapping(
@@ -101,7 +101,7 @@ A type handler works with one value at a time. It is not appropriate for combini
 
 ## Generated Result Mapping and MyBatis `resultMap`
 
-Generated result mapping and JDBC type mapping are layers, not alternatives. Generated mapping decides which result column supplies each constructor argument or property. The runtime type router selects the `TypeHandler` that converts each column value.
+Generated result mapping and JDBC type mapping are layers, not alternatives. Generated mapping decides which result column supplies each constructor argument or property. The runtime type-handler manager selects the `TypeHandler` that converts each column value.
 
 ```text
 one result row -> generated record/JavaBean mapping

@@ -527,9 +527,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "BindingMappings.MoneyTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "JdbcTypeRouter.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
+            "TypeHandlerManager.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.binding.Money.class, "
+            "typeHandlerManager.parameterBinder(org.liteorm.test.selection.binding.Money.class, "
                 + "java.sql.JDBCType.DECIMAL)"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("ServiceLoader"), generated);
@@ -612,7 +612,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "ReadingMappings.MoneyTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "JdbcTypeRouter.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
+            "TypeHandlerManager.mapping(Money.class, java.sql.JDBCType.DECIMAL, typeHandler1)"), generated);
         assertFalse(generated.contains("ParameterBinder<Money>"), generated);
         assertFalse(generated.contains("bindJdbcValue1"), generated);
         assertTrue(generated.contains(
@@ -732,7 +732,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "DynamicMappings.MoneyTypeHandler()"), generated);
         assertEquals(2, countOccurrences(generated,
-            "binders.add(jdbcTypeRouter.parameterBinder("), generated);
+            "binders.add(typeHandlerManager.parameterBinder("), generated);
     }
 
     @Test
@@ -997,9 +997,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.CharUuidTypeHandler()"), generated);
         assertEquals(1, countOccurrences(generated, "new DeclaredTypeMappings.BinaryUuidTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"), generated);
+            "typeHandlerManager.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.BINARY)"), generated);
+            "typeHandlerManager.parameterBinder(java.util.UUID.class, java.sql.JDBCType.BINARY)"), generated);
     }
 
     @Test
@@ -1078,7 +1078,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "new VendorRouteMappings.VendorMoneyTypeHandler()"), generated);
         assertEquals(2, countOccurrences(generated,
-            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.vendorroute.Money.class, java.sql.JDBCType.OTHER)"),
+            "typeHandlerManager.parameterBinder(org.liteorm.test.selection.vendorroute.Money.class, java.sql.JDBCType.OTHER)"),
             generated);
     }
 
@@ -1225,9 +1225,9 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/canonical/CanonicalMapperImpl.java"));
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.lang.String.class, java.sql.JDBCType.VARCHAR)"), generated);
+            "typeHandlerManager.parameterBinder(java.lang.String.class, java.sql.JDBCType.VARCHAR)"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.lang.String.class, java.sql.JDBCType.CHAR)"), generated);
+            "typeHandlerManager.parameterBinder(java.lang.String.class, java.sql.JDBCType.CHAR)"), generated);
     }
 
     @Test
@@ -1326,7 +1326,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "new org.liteorm.jdbc.StandardJdbcTypeMappings.BigIntegerTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.math.BigInteger.class, java.sql.JDBCType.DECIMAL)"), generated);
+            "typeHandlerManager.parameterBinder(java.math.BigInteger.class, java.sql.JDBCType.DECIMAL)"), generated);
         assertTrue(generated.contains("new Class<?>[]{java.math.BigInteger.class}, null"), generated);
     }
 
@@ -1360,7 +1360,7 @@ class JdbcTypeMappingsSelectionCompilationTest {
         assertEquals(1, countOccurrences(generated,
             "new org.liteorm.jdbc.StandardJdbcTypeMappings.BoxedByteArrayTypeHandler()"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(java.lang.Byte[].class, java.sql.JDBCType.VARBINARY)"), generated);
+            "typeHandlerManager.parameterBinder(java.lang.Byte[].class, java.sql.JDBCType.VARBINARY)"), generated);
         assertTrue(generated.contains("new Class<?>[]{java.lang.Byte[].class}, null"), generated);
     }
 
@@ -1533,10 +1533,10 @@ class JdbcTypeMappingsSelectionCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/selection/enums/EnumMapperImpl.java"));
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
+            "typeHandlerManager.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
                 + "java.sql.JDBCType.VARCHAR)"), generated);
         assertTrue(generated.contains(
-            "jdbcTypeRouter.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
+            "typeHandlerManager.parameterBinder(org.liteorm.test.selection.enums.Status.class, "
                 + "java.sql.JDBCType.INTEGER)"), generated);
         assertTrue(generated.contains(
             "new Class<?>[]{org.liteorm.test.selection.enums.Status.class}, null"), generated);

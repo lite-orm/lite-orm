@@ -17,23 +17,29 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Selects type handlers for JDBC parameters and results from immutable Mapper-local routes.
+ * Selects type handlers for JDBC parameters and results.
  *
- * <p>Instances are thread-safe when their configured handlers are thread-safe. Result routing
+ * <p>Instances are thread-safe when their configured handlers are thread-safe. Standard JDBC
+ * values require no configured mappings. Result routing
  * prefers an exact vendor type name, then a generic Java/JDBC route, then a documented compatible
  * JDBC family. Missing and ambiguous routes fail with {@link SQLException}.</p>
  */
-public final class JdbcTypeRouter {
+public final class TypeHandlerManager {
 
     private final Map<Key, TypeHandler<?>> handlers;
 
+    /** Creates a manager for Core standard JDBC values. */
+    public TypeHandlerManager() {
+        this(List.of());
+    }
+
     /**
-     * Creates a router from the mappings generated for one Mapper package.
+     * Creates a manager with additional immutable mappings.
      *
      * @throws NullPointerException if the list, a mapping, or one of its required values is null
      * @throws IllegalArgumentException if two mappings declare the same route key
      */
-    public JdbcTypeRouter(List<Mapping<?>> mappings) {
+    public TypeHandlerManager(List<Mapping<?>> mappings) {
         Objects.requireNonNull(mappings, "mappings");
         Map<Key, TypeHandler<?>> configured = new LinkedHashMap<>();
         for (Mapping<?> mapping : mappings) {
@@ -74,14 +80,22 @@ public final class JdbcTypeRouter {
             Object value,
             Class<?> javaType,
             JDBCType jdbcType) throws SQLException {
-        JDBCType resolvedJdbcType = jdbcType == null ? defaultJdbcType(javaType) : jdbcType;
+        JDBCType resolvedJdbcType;
+        try {
+            resolvedJdbcType = jdbcType == null ? defaultJdbcType(javaType) : jdbcType;
+        } catch (SQLException exception) {
+            throw new SQLException(
+                "No default TypeHandler for " + box(javaType).getName()
+                    + ". Use @UseParameterBinder for custom parameter conversion.",
+                exception);
+        }
         TypeHandler<Object> handler = resolveParameter(javaType, resolvedJdbcType);
         handler.setParameter(statement, index, value, resolvedJdbcType);
     }
 
     /**
      * Creates one reusable parameter binder from the generated Java type and optional JDBC type.
-     * The binder is thread-safe when this router and its handlers are thread-safe.
+     * The binder is thread-safe when this manager and its handlers are thread-safe.
      */
     public <T> ParameterBinder<T> parameterBinder(Class<T> javaType, JDBCType jdbcType) {
         return (statement, index, value) -> setParameter(statement, index, value, javaType, jdbcType);
@@ -96,6 +110,7 @@ public final class JdbcTypeRouter {
     public <T> TypeHandler<T> resolveResult(
             ResultSetMetaData metadata, int columnIndex, Class<T> javaType) throws SQLException {
         Objects.requireNonNull(metadata, "metadata");
+        Objects.requireNonNull(javaType, "javaType");
         int typeNumber = metadata.getColumnType(columnIndex);
         String vendorTypeName = metadata.getColumnTypeName(columnIndex);
         JDBCType jdbcType;
@@ -104,7 +119,9 @@ public final class JdbcTypeRouter {
         } catch (IllegalArgumentException exception) {
             throw new SQLException(
                 "Driver reported unsupported JDBC type " + typeNumber
-                    + " (" + vendorTypeName + ") for " + resultColumn(metadata, columnIndex),
+                    + " (" + vendorTypeName + ") for " + resultColumn(metadata, columnIndex)
+                    + " targeting " + javaType.getName() + ". "
+                    + "Use @UseRowMapper for custom result conversion.",
                 exception);
         }
         try {
@@ -153,7 +170,8 @@ public final class JdbcTypeRouter {
         }
         if (handler == null) {
             throw new SQLException(
-                "No TypeHandler for " + boxedType.getName() + " + " + jdbcType);
+                "No TypeHandler for " + boxedType.getName() + " + " + jdbcType
+                    + ". Use @UseParameterBinder for custom parameter conversion.");
         }
         return (TypeHandler<T>) handler;
     }

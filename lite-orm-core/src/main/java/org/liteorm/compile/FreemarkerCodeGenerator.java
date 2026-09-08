@@ -139,9 +139,9 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(field.binderMethodName()).append(";\n");
             }
         }
-        builder.append("    private final JdbcTypeRouter jdbcTypeRouter = new JdbcTypeRouter(List.of(");
+        builder.append("    private final TypeHandlerManager typeHandlerManager = new TypeHandlerManager(List.of(");
         builder.append(typeHandlerFields.values().stream()
-            .map(field -> "JdbcTypeRouter.mapping("
+            .map(field -> "TypeHandlerManager.mapping("
                 + classReference(packageName, field.javaTypeName()) + ".class, java.sql.JDBCType."
                 + field.jdbcType() + ", "
                 + (field.vendorTypeName() == null || field.vendorTypeName().isBlank()
@@ -451,7 +451,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             : "new String[]{" + methodModel.resultColumnLabels().stream()
                 .map(this::javaString)
                 .collect(java.util.stream.Collectors.joining(", ")) + "}";
-        return "new ExecutionPlan.TypeRouting(jdbcTypeRouter, "
+        return "new ExecutionPlan.TypeRouting(typeHandlerManager, "
             + parameterTypes + ", " + parameterJdbcTypes + ", "
             + resultTypes + ", " + labels + ")";
     }

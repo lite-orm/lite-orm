@@ -1,6 +1,6 @@
 package org.liteorm.api;
 
-import org.liteorm.jdbc.JdbcTypeRouter;
+import org.liteorm.jdbc.TypeHandlerManager;
 
 import java.sql.JDBCType;
 import java.util.Objects;
@@ -131,25 +131,25 @@ public class ExecutionPlan {
     /**
      * Compile-time type information used to route JDBC values at execution time.
      *
-     * <p>The value is immutable and thread-safe when its router is thread-safe. Parameter JDBC
+     * <p>The value is immutable and thread-safe when its manager is thread-safe. Parameter JDBC
      * types may be null as a group or contain null entries for inferred representations. Result
      * labels may be null only for a single scalar target.</p>
      */
     public static final class TypeRouting {
 
-        private final JdbcTypeRouter router;
+        private final TypeHandlerManager manager;
         private final Class<?>[] parameterTypes;
         private final JDBCType[] parameterJdbcTypes;
         private final Class<?>[] resultTypes;
         private final String[] resultColumnLabels;
 
         public TypeRouting(
-                JdbcTypeRouter router,
+                TypeHandlerManager manager,
                 Class<?>[] parameterTypes,
                 JDBCType[] parameterJdbcTypes,
                 Class<?>[] resultTypes,
                 String[] resultColumnLabels) {
-            this.router = Objects.requireNonNull(router, "router");
+            this.manager = Objects.requireNonNull(manager, "manager");
             this.parameterTypes = copy(parameterTypes);
             this.parameterJdbcTypes = parameterJdbcTypes == null ? null : parameterJdbcTypes.clone();
             this.resultTypes = copy(resultTypes);
@@ -167,9 +167,9 @@ public class ExecutionPlan {
             }
         }
 
-        /** Returns the immutable Mapper-local router. */
-        public JdbcTypeRouter router() {
-            return router;
+        /** Returns the type-handler manager used by this execution plan. */
+        public TypeHandlerManager manager() {
+            return manager;
         }
 
         /** Returns a defensive copy of parameter Java types in placeholder order. */

@@ -124,7 +124,7 @@ Spring may provide IoC, transaction managers, physical DataSources, and ordered 
 
 LiteORM supports common SQL Mapper work directly, converts some MyBatis patterns into static LiteORM forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
 
-Deterministic MyBatis JDBC type handlers are a compatibility target. LiteORM validates package-selected JDBC type mappings at compilation and generates an immutable Mapper-local type router. At runtime, the router combines the generated Java target type with JDBC metadata to select a bidirectional `TypeHandler` once per result column, while generated code still constructs records and JavaBeans directly. Mapping collections may be supplied by LiteORM, users, or third-party artifacts. Unknown-object fallback, reflection-based construction, global registries, and resource values that cannot survive the fixed JDBC cleanup boundary remain outside the contract.
+Deterministic MyBatis JDBC type handlers are a compatibility target. LiteORM validates package-selected JDBC type mappings at compilation and generates an immutable Mapper-local type-handler manager. At runtime, the manager combines the generated Java target type with JDBC metadata to select a bidirectional `TypeHandler` once per result column, while generated code still constructs records and JavaBeans directly. Mapping collections may be supplied by LiteORM, users, or third-party artifacts. Unknown-object fallback, reflection-based construction, global registries, and resource values that cannot survive the fixed JDBC cleanup boundary remain outside the contract.
 
 Direct support focuses on:
 

@@ -68,7 +68,7 @@ class PublicApiSurfaceTest {
         "org.liteorm.interceptor.LoggingExecutionInterceptor",
         "org.liteorm.interceptor.SlowQueryExecutionInterceptor",
         "org.liteorm.jdbc.JdbcSqlExecutor",
-        "org.liteorm.jdbc.JdbcTypeRouter",
+        "org.liteorm.jdbc.TypeHandlerManager",
         "org.liteorm.jdbc.StandardJdbcTypeMappings",
         "org.liteorm.runtime.ResultValueConverters",
         "org.liteorm.transaction.SimpleConnectionHandleFactory",

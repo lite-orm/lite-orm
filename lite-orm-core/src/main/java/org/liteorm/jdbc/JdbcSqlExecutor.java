@@ -295,7 +295,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         if (rowMapper != null) {
             generatedKey = rowMapper.map(generatedKeys);
         } else if (typeRouting != null && typeRouting.resultTypes().length == 1) {
-            TypeHandler<?> handler = typeRouting.router().resolveResult(
+            TypeHandler<?> handler = typeRouting.manager().resolveResult(
                 metadata, 1, typeRouting.resultTypes()[0]);
             generatedKey = handler.getResult(generatedKeys, 1);
         } else {
@@ -328,7 +328,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
                 binder.bind(statement, index + 1, parameters[index]);
             } else if (typeRouting != null && index < parameterTypes.length) {
                 JDBCType jdbcType = parameterJdbcTypes == null ? null : parameterJdbcTypes[index];
-                typeRouting.router().setParameter(
+                typeRouting.manager().setParameter(
                     statement, index + 1, parameters[index], parameterTypes[index], jdbcType);
             } else {
                 bindDefault(statement, index + 1, parameters[index]);
@@ -407,7 +407,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         Class<?>[] resultTypes = typeRouting.resultTypes();
         String[] labels = typeRouting.resultColumnLabels();
         if (labels == null && resultTypes.length == 1 && !columns.isEmpty()) {
-            handlers[0] = typeRouting.router().resolveResult(metadata, 1, resultTypes[0]);
+            handlers[0] = typeRouting.manager().resolveResult(metadata, 1, resultTypes[0]);
             return handlers;
         }
         if (labels == null) {
@@ -416,7 +416,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         for (int target = 0; target < labels.length; target++) {
             int column = findColumn(columns, labels[target]);
             if (column >= 0) {
-                handlers[column] = typeRouting.router().resolveResult(
+                handlers[column] = typeRouting.manager().resolveResult(
                     metadata, column + 1, resultTypes[target]);
             }
         }

@@ -40,12 +40,12 @@ _Avoid_: Parser stack trace, inferred XML declaration
 XML resolution that permits only LiteORM-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
-**JDBC type router**:
-The immutable Mapper-package policy that selects a type handler from a declared Java type and JDBC type. It does not construct result objects or discover handlers from global runtime state.
+**Type handler manager**:
+The immutable runtime component that selects a type handler from a declared Java type and JDBC type. It does not construct result objects or discover handlers from global runtime state.
 _Avoid_: JDBC value adapter, row mapper, global type-handler registry
 
 **Type handler**:
-A bidirectional conversion for one Java value and one JDBC column representation. It writes statement parameters and reads current result columns after the JDBC type router selects it.
+A bidirectional conversion for one Java value and one JDBC column representation. It writes statement parameters and reads current result columns after the type handler manager selects it.
 _Avoid_: JDBC value adapter, row mapper
 
 **JDBC type mappings**:

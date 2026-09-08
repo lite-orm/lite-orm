@@ -8,7 +8,7 @@ import java.sql.SQLException;
 /**
  * Reads and writes one Java value through one JDBC representation.
  *
- * <p>A handler owns one value conversion after the runtime type router selects it.
+ * <p>A handler owns one value conversion after the runtime type-handler manager selects it.
  * Implementations must be thread-safe.</p>
  *
  * @param <T> Java value type

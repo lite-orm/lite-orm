@@ -25,9 +25,9 @@ class MySqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.mysql.MySqlUuidTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.util.UUID.class, java.sql.JDBCType.CHAR, " + handler + ")"));
+            "TypeHandlerManager.mapping(java.util.UUID.class, java.sql.JDBCType.CHAR, " + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"));
+            "typeHandlerManager.parameterBinder(java.util.UUID.class, java.sql.JDBCType.CHAR)"));
         assertTrue(source.contains("new Class<?>[]{java.util.UUID.class}, null"));
         assertTrue(source.contains(
             "return org.liteorm.types.mysql.MySqlJdbcTypeMappings.class;"));
@@ -45,9 +45,9 @@ class MySqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.mysql.MySqlLocalTimeTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
+            "TypeHandlerManager.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
+            "typeHandlerManager.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
     }
 
     @Test
@@ -59,10 +59,10 @@ class MySqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.mysql.MySqlOffsetDateTimeTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.time.OffsetDateTime.class, java.sql.JDBCType.TIMESTAMP, "
+            "TypeHandlerManager.mapping(java.time.OffsetDateTime.class, java.sql.JDBCType.TIMESTAMP, "
                 + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.time.OffsetDateTime.class, "
+            "typeHandlerManager.parameterBinder(java.time.OffsetDateTime.class, "
                 + "java.sql.JDBCType.TIMESTAMP)"));
     }
 

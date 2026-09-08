@@ -6,7 +6,7 @@ import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
 import org.liteorm.api.TypeHandler;
 import org.liteorm.jdbc.JdbcSqlExecutor;
-import org.liteorm.jdbc.JdbcTypeRouter;
+import org.liteorm.jdbc.TypeHandlerManager;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -39,8 +39,8 @@ class JdbcSqlExecutorTypeRoutingTest {
                 return "handled-" + resultSet.getObject(columnIndex);
             }
         };
-        JdbcTypeRouter router = new JdbcTypeRouter(List.of(
-            JdbcTypeRouter.mapping(String.class, JDBCType.VARCHAR, handler)));
+        TypeHandlerManager manager = new TypeHandlerManager(List.of(
+            TypeHandlerManager.mapping(String.class, JDBCType.VARCHAR, handler)));
         ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
             case "getColumnCount" -> 1;
             case "getColumnLabel", "getColumnName" -> "name";
@@ -69,7 +69,7 @@ class JdbcSqlExecutorTypeRoutingTest {
             @Override public void close() { }
         };
         ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
-            router,
+            manager,
             new Class<?>[]{String.class},
             new JDBCType[]{JDBCType.VARCHAR},
             new Class<?>[]{String.class},

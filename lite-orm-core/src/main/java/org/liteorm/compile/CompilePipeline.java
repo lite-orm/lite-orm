@@ -999,7 +999,7 @@ final class CompilePipeline {
             ? canonicalJdbcType(javaType, jdbcTypeMappings) : declaredJdbcType;
         String jdbcExpression = jdbcType == null
             ? "null" : "java.sql.JDBCType." + jdbcType;
-        return "jdbcTypeRouter.parameterBinder(" + typeClassLiteral(javaType) + ", "
+        return "typeHandlerManager.parameterBinder(" + typeClassLiteral(javaType) + ", "
             + jdbcExpression + ")";
     }
 

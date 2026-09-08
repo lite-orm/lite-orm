@@ -127,17 +127,17 @@ import org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings;
 - Nested handlers are static and expose a public no-argument constructor.
 - Selection is exact-package only. It is not inherited from a parent or child package, and Mapper-interface selection is not supported.
 - Source and dependency-supplied collections and handlers receive the same compile-time validation.
-- Generated code creates one instance of every effective selected handler and one immutable Mapper-local router. Handlers must therefore be stateless, thread-safe, or externally synchronized.
-- For parameters, the router uses the generated Java type and optional placeholder `jdbcType`. Without explicit metadata, the compiler supplies the canonical JDBC representation.
+- Generated code creates one instance of every effective selected handler and one immutable Mapper-local type-handler manager. Handlers must therefore be stateless, thread-safe, or externally synchronized.
+- For parameters, the manager uses the generated Java type and optional placeholder `jdbcType`. Without explicit metadata, the compiler supplies the canonical JDBC representation.
 - `TypeHandler.setParameter` receives nullable values and delegates to `setNull` or `setNonNull` by default. A handler may override null binding for a documented driver incompatibility.
 - For results, the executor combines the generated Java target type with `ResultSetMetaData`. It resolves each mapped column once per result set and reuses that handler for every row.
 - `TypeHandler.getResult` reads one column from the current result row while JDBC resources remain active.
 - Duplicate Java-type, JDBC-type, and optional vendor-type-name declarations fail compilation.
 - The base and optional override collection are validated independently. An override replaces the exact same Java-type, `JDBCType`, and optional vendor-type-name key or appends a new key. An appended alternative does not change the base collection's inferred parameter `JDBCType`; use placeholder `jdbcType` metadata to select it. Result metadata selects the matching runtime route. More than one override collection fails compilation.
 - Generated Mappers expose the selected collection identity through `JdbcTypeMappingsMetadata` without changing their single-`SqlExecutor` constructor.
-- Mapping collections are declarative metadata. Router generation and execution use no mutable global registry, discovery, reflection, `ServiceLoader`, or command-line profile.
+- Mapping collections are declarative metadata. Manager generation and execution use no mutable global registry, discovery, reflection, `ServiceLoader`, or command-line profile.
 
-The compiler does not discover or append another collection. Official database collections therefore declare their complete effective mapping sets while reusing Core handler implementations. Built-in Java types use the router's standard handlers when no selected exact route exists.
+The compiler does not discover or append another collection. Official database collections therefore declare their complete effective mapping sets while reusing Core handler implementations. Built-in Java types use the manager's standard handlers when no selected exact route exists.
 
 PostgreSQL applications can use the official `lite-orm-postgresql-types` artifact and select its collection explicitly:
 

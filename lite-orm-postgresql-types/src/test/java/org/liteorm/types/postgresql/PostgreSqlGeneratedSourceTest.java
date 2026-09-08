@@ -25,10 +25,10 @@ class PostgreSqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.postgresql.PostgreSqlUuidTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.util.UUID.class, java.sql.JDBCType.OTHER, \"uuid\", "
+            "TypeHandlerManager.mapping(java.util.UUID.class, java.sql.JDBCType.OTHER, \"uuid\", "
                 + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.util.UUID.class, java.sql.JDBCType.OTHER)"));
+            "typeHandlerManager.parameterBinder(java.util.UUID.class, java.sql.JDBCType.OTHER)"));
         assertTrue(source.contains("new Class<?>[]{java.util.UUID.class}, null"));
         assertTrue(source.contains(
             "return org.liteorm.types.postgresql.PostgreSqlJdbcTypeMappings.class;"));
@@ -47,9 +47,9 @@ class PostgreSqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.postgresql.PostgreSqlLocalTimeTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
+            "TypeHandlerManager.mapping(java.time.LocalTime.class, java.sql.JDBCType.TIME, " + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
+            "typeHandlerManager.parameterBinder(java.time.LocalTime.class, java.sql.JDBCType.TIME)"));
     }
 
     @Test
@@ -61,10 +61,10 @@ class PostgreSqlGeneratedSourceTest {
         assertEquals(1, occurrences(source,
             "new org.liteorm.types.postgresql.PostgreSqlOffsetDateTimeTypeHandler()"));
         assertTrue(source.contains(
-            "JdbcTypeRouter.mapping(java.time.OffsetDateTime.class, "
+            "TypeHandlerManager.mapping(java.time.OffsetDateTime.class, "
                 + "java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, " + handler + ")"));
         assertTrue(source.contains(
-            "jdbcTypeRouter.parameterBinder(java.time.OffsetDateTime.class, "
+            "typeHandlerManager.parameterBinder(java.time.OffsetDateTime.class, "
                 + "java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE)"));
     }
 

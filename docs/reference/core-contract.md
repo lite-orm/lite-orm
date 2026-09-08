@@ -91,7 +91,7 @@ The selected public final base `JdbcTypeMappings` collection and every declared 
 
 - still exposes only its public `SqlExecutor` constructor;
 - exposes the stable selected collection class through `JdbcTypeMappingsMetadata`;
-- creates one immutable Mapper-local `JdbcTypeRouter` from the effective selected handlers;
+- creates one immutable Mapper-local `TypeHandlerManager` from the effective selected handlers;
 - supplies generated Java parameter and result types without inspecting a schema;
 - routes parameters by Java type and optional placeholder `jdbcType`;
 - routes result columns by Java target type and JDBC metadata, resolving a handler once per result set and reusing it for every row.
@@ -122,7 +122,7 @@ The complete collection declares every database-independent mapping in section 2
 | `String` | `NCHAR` | Unicode character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NCHAR` in `setNull`. |
 | `String` | `NVARCHAR` | Unicode varying-character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NVARCHAR` in `setNull`. |
 
-The collection and handlers are ordinary dependencies. Its database-independent declarations reuse Core handler implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate handlers and an immutable router directly; no driver discovery, schema lookup, mutable registry, reflection, or `ServiceLoader` participates. Result-set metadata is read once to select handlers. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+The collection and handlers are ordinary dependencies. Its database-independent declarations reuse Core handler implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate handlers and an immutable type-handler manager directly; no driver discovery, schema lookup, mutable registry, reflection, or `ServiceLoader` participates. Result-set metadata is read once to select handlers. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
 
 The artifact contract is verified by:
 
@@ -148,7 +148,7 @@ The complete collection declares every database-independent mapping in section 2
 | `String` | `NCHAR` | National character column | The value and null are preserved through the JDBC national-string methods. |
 | `String` | `NVARCHAR` | National varying-character column | The value and null are preserved through the JDBC national-string methods. |
 
-The collection and handlers are ordinary dependencies. Its database-independent declarations reuse Core handler implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate handlers and an immutable router directly; no driver discovery, schema lookup, mutable registry, reflection, or `ServiceLoader` participates. Result-set metadata is read once to select handlers. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
+The collection and handlers are ordinary dependencies. Its database-independent declarations reuse Core handler implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate handlers and an immutable type-handler manager directly; no driver discovery, schema lookup, mutable registry, reflection, or `ServiceLoader` participates. Result-set metadata is read once to select handlers. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
 
 MySQL `TIME` has no offset component, so `OffsetTime` is custom-mapping-only and requires an application-chosen representation such as text or multiple columns. `ZonedDateTime` is custom-mapping-only for both PostgreSQL and MySQL because their timestamp types do not preserve a Java `ZoneId`; an explicit handler must define whether to store text, normalize to an offset or instant, or use additional columns.
 
@@ -195,7 +195,7 @@ The frozen cross-database representations are:
 | `OffsetTime` | `TIME(p) WITH TIME ZONE` | Custom mapping only | PostgreSQL preserves local time and offset. MySQL `TIME` cannot preserve the offset. |
 | `String` with `NCHAR` or `NVARCHAR` | `setString`/`getString`; null as `VARCHAR` | JDBC national-string methods | National-character values and null are preserved with the driver-compatible API. |
 
-Standard and database-family handlers are validated at compilation and installed into an immutable Mapper-local router. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values; untyped null provider parameters are rejected before JDBC preparation. `@UseParameterBinder` fully replaces default routing for one parameter, while `@UseRowMapper` fully replaces default result routing for one method. Generated record constructors and JavaBean setters remain direct and reflection-free, and generated enum handlers use direct `valueOf`/`values` references rather than runtime enum discovery.
+Standard and database-family handlers are validated at compilation and installed into an immutable Mapper-local type-handler manager. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values; untyped null provider parameters are rejected before JDBC preparation. `@UseParameterBinder` fully replaces default routing for one parameter, while `@UseRowMapper` fully replaces default result routing for one method. Generated record constructors and JavaBean setters remain direct and reflection-free, and generated enum handlers use direct `valueOf`/`values` references rather than runtime enum discovery.
 
 The executable type contract is verified by:
 
