@@ -123,6 +123,8 @@ abstract class AbstractDatabaseCompatibilityTest {
             new BigInteger("12345678901234567890123456789012345678"),
             new Byte[]{0, 1, 2, 127, -1},
             new java.util.Date(java.sql.Timestamp.valueOf(dateTime).getTime()),
+            new java.util.Date(java.sql.Date.valueOf(dateTime.toLocalDate()).getTime()),
+            new java.util.Date(java.sql.Time.valueOf(dateTime.toLocalTime()).getTime()),
             java.sql.Date.valueOf(dateTime.toLocalDate()),
             java.sql.Time.valueOf(dateTime.toLocalTime()),
             java.sql.Timestamp.valueOf(dateTime),
@@ -306,6 +308,14 @@ abstract class AbstractDatabaseCompatibilityTest {
         assertEquals(expected.integerValue(), actual.integerValue());
         assertArrayEquals(expected.binaryValue(), actual.binaryValue());
         assertEquals(expected.utilDateValue(), actual.utilDateValue());
+        assertEquals(expected.utilDateOnlyValue(), actual.utilDateOnlyValue());
+        if (expected.utilTimeOnlyValue() == null) {
+            assertNull(actual.utilTimeOnlyValue());
+        } else {
+            assertEquals(
+                new java.sql.Time(expected.utilTimeOnlyValue().getTime()).toLocalTime(),
+                new java.sql.Time(actual.utilTimeOnlyValue().getTime()).toLocalTime());
+        }
         assertEquals(expected.sqlDateValue(), actual.sqlDateValue());
         if (expected.sqlTimeValue() == null) {
             assertNull(actual.sqlTimeValue());
@@ -402,10 +412,13 @@ interface DatabaseCompatibilityMapper {
     OffsetDateTime findOffsetDateTime(@Param("id") long id);
 
     @Insert("INSERT INTO standard_type_values (id, integer_value, binary_value, util_date_value, "
-        + "sql_date_value, sql_time_value, sql_timestamp_value, year_value, month_value, "
+        + "util_date_only_value, util_time_only_value, sql_date_value, sql_time_value, "
+        + "sql_timestamp_value, year_value, month_value, "
         + "year_month_value, japanese_date_value, enum_name_value, enum_ordinal_value, "
         + "national_char_value, national_varchar_value) VALUES (#{id}, #{value.integerValue}, "
-        + "#{value.binaryValue}, #{value.utilDateValue}, #{value.sqlDateValue}, #{value.sqlTimeValue}, "
+        + "#{value.binaryValue}, #{value.utilDateValue}, "
+        + "#{value.utilDateOnlyValue,jdbcType=DATE}, #{value.utilTimeOnlyValue,jdbcType=TIME}, "
+        + "#{value.sqlDateValue}, #{value.sqlTimeValue}, "
         + "#{value.sqlTimestampValue}, #{value.yearValue}, #{value.monthValue}, #{value.yearMonthValue}, "
         + "#{value.japaneseDateValue}, #{value.enumNameValue}, "
         + "#{value.enumOrdinalValue,jdbcType=INTEGER}, #{value.nationalCharValue,jdbcType=VARCHAR}, "
@@ -415,7 +428,8 @@ interface DatabaseCompatibilityMapper {
         @Param("value") StandardRouteRecord value);
 
     @Select("SELECT integer_value AS integerValue, binary_value AS binaryValue, "
-        + "util_date_value AS utilDateValue, sql_date_value AS sqlDateValue, "
+        + "util_date_value AS utilDateValue, util_date_only_value AS utilDateOnlyValue, "
+        + "util_time_only_value AS utilTimeOnlyValue, sql_date_value AS sqlDateValue, "
         + "sql_time_value AS sqlTimeValue, sql_timestamp_value AS sqlTimestampValue, "
         + "year_value AS yearValue, month_value AS monthValue, year_month_value AS yearMonthValue, "
         + "japanese_date_value AS japaneseDateValue, enum_name_value AS enumNameValue, "
@@ -457,6 +471,8 @@ record StandardRouteRecord(
     BigInteger integerValue,
     Byte[] binaryValue,
     java.util.Date utilDateValue,
+    java.util.Date utilDateOnlyValue,
+    java.util.Date utilTimeOnlyValue,
     java.sql.Date sqlDateValue,
     java.sql.Time sqlTimeValue,
     java.sql.Timestamp sqlTimestampValue,
@@ -471,7 +487,7 @@ record StandardRouteRecord(
 
     static StandardRouteRecord empty() {
         return new StandardRouteRecord(
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }
 

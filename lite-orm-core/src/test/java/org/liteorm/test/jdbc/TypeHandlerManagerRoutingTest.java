@@ -158,6 +158,45 @@ class TypeHandlerManagerRoutingTest {
         assertEquals(value.toString(), written.get());
     }
 
+    @Test
+    void routesUtilDateThroughDeclaredDateAndTimeJdbcTypes() throws Exception {
+        AtomicReference<String> methodCalled = new AtomicReference<>();
+        AtomicReference<Object> written = new AtomicReference<>();
+        PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> {
+            methodCalled.set(method);
+            if (arguments.length > 1) {
+                written.set(arguments[1]);
+            }
+            return null;
+        });
+        java.util.Date dateValue = new java.util.Date(1_725_004_800_000L);
+        TypeHandlerManager manager = new TypeHandlerManager();
+
+        manager.setParameter(statement, 1, dateValue, java.util.Date.class, JDBCType.DATE);
+        assertEquals("setDate", methodCalled.get());
+        assertEquals(dateValue.getTime(), ((java.sql.Date) written.get()).getTime());
+
+        manager.setParameter(statement, 1, dateValue, java.util.Date.class, JDBCType.TIME);
+        assertEquals("setTime", methodCalled.get());
+        assertEquals(dateValue.getTime(), ((java.sql.Time) written.get()).getTime());
+
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getObject" -> arguments[0].equals(1)
+                ? new java.sql.Date(dateValue.getTime())
+                : new java.sql.Time(dateValue.getTime());
+            default -> null;
+        });
+        java.util.Date dateResult = (java.util.Date) manager
+            .resolveResult(metadata(JDBCType.DATE), 1, java.util.Date.class)
+            .getResult(resultSet, 1);
+        java.util.Date timeResult = (java.util.Date) manager
+            .resolveResult(metadata(JDBCType.TIME), 2, java.util.Date.class)
+            .getResult(resultSet, 2);
+
+        assertEquals(dateValue.getTime(), dateResult.getTime());
+        assertEquals(dateValue.getTime(), timeResult.getTime());
+    }
+
     private ResultSetMetaData metadata(JDBCType jdbcType) {
         return proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
             case "getColumnType" -> jdbcType.getVendorTypeNumber();

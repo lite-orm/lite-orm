@@ -19,6 +19,8 @@ CREATE TABLE standard_type_values (
     integer_value DECIMAL(38, 0),
     binary_value ${binary},
     util_date_value TIMESTAMP(6),
+    util_date_only_value DATE,
+    util_time_only_value TIME(6),
     sql_date_value DATE,
     sql_time_value TIME(6),
     sql_timestamp_value TIMESTAMP(6),

@@ -8,7 +8,7 @@ MyBatis 3.5.19 built-in TypeHandlers are the comparison baseline for determinist
 
 The built-in matrix supports numeric primitives and wrappers, `String`, `Character`, `Boolean`, enums, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. PostgreSQL and MySQL execute the shared Core compatibility contract with zero skipped database jobs in CI.
 
-Parameter placeholders may choose a compatible `jdbcType`, such as `INTEGER` for enum ordinals or a character representation for UUID. Results need no JDBC-type annotation: character enum values use names and numeric values use ordinals.
+Parameter placeholders may choose a compatible `jdbcType`, such as `INTEGER` for enum ordinals, a character representation for UUID, or `DATE` / `TIME` for the matching legacy `java.util.Date` representation. Results need no JDBC-type annotation: character enum values use names and numeric values use ordinals.
 
 LiteORM has no `TypeHandlerRegistry`, package mapping selection, vendor-type registration, database-specific type artifact, or `UnknownTypeHandler` fallback. Unsupported writes use a parameter-level `ParameterBinder`; unsupported reads or row shapes use a method-level `RowMapper`.
 

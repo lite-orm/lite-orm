@@ -113,7 +113,7 @@ Canonical parameter routes are:
 | `UUID` | `OTHER` |
 | Enum | `VARCHAR` name |
 
-A placeholder may select another compatible JDBC representation, such as an enum ordinal with `jdbcType=INTEGER`, a character UUID, or national-character string types. Result routes use the JDBC type reported by the active driver. Enum character values use names and numeric values use zero-based ordinals. Null reference values remain null.
+A placeholder may select another compatible JDBC representation, such as an enum ordinal with `jdbcType=INTEGER`, a character UUID, national-character string types, or the legacy `java.util.Date` date-only and time-only routes with `jdbcType=DATE` or `jdbcType=TIME`. Result routes use the JDBC type reported by the active driver. Enum character values use names and numeric values use zero-based ordinals. Null reference values remain null.
 
 Lifecycle-bound values such as `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, JDBC `ARRAY`, streams, and readers are not standard scalar routes because executor cleanup owns their JDBC resources. Use `ParameterBinder`, `RowMapper`, or raw JDBC.
 

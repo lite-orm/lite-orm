@@ -128,7 +128,14 @@ public final class TypeHandlerManager {
         } else if (javaType == java.math.BigInteger.class) {
             statement.setBigDecimal(index, new java.math.BigDecimal((java.math.BigInteger) value));
         } else if (javaType == java.util.Date.class) {
-            statement.setTimestamp(index, new java.sql.Timestamp(((java.util.Date) value).getTime()));
+            long time = ((java.util.Date) value).getTime();
+            if (jdbcType == JDBCType.DATE) {
+                statement.setDate(index, new java.sql.Date(time));
+            } else if (jdbcType == JDBCType.TIME) {
+                statement.setTime(index, new java.sql.Time(time));
+            } else {
+                statement.setTimestamp(index, new java.sql.Timestamp(time));
+            }
         } else if (javaType == java.time.Year.class) {
             statement.setInt(index, ((java.time.Year) value).getValue());
         } else if (javaType == java.time.Month.class) {
@@ -208,8 +215,12 @@ public final class TypeHandlerManager {
         if (type == java.time.LocalTime.class || type == java.sql.Time.class) {
             return jdbcType == JDBCType.TIME;
         }
+        if (type == java.util.Date.class) {
+            return jdbcType == JDBCType.DATE || jdbcType == JDBCType.TIME
+                || jdbcType == JDBCType.TIMESTAMP || jdbcType == JDBCType.TIMESTAMP_WITH_TIMEZONE;
+        }
         if (type == java.time.LocalDateTime.class || type == java.time.Instant.class
-                || type == java.util.Date.class || type == java.sql.Timestamp.class
+                || type == java.sql.Timestamp.class
                 || type == java.time.OffsetDateTime.class) {
             return jdbcType == JDBCType.TIMESTAMP || jdbcType == JDBCType.TIMESTAMP_WITH_TIMEZONE;
         }

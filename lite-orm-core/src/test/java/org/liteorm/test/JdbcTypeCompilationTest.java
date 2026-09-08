@@ -181,15 +181,18 @@ class JdbcTypeCompilationTest {
                 @Select("SELECT integer_value, year_month_value FROM values_table")
                 StandardJdbcTypeBean findBean();
 
-                @Insert("INSERT INTO values_table (binary_value, enabled, initial_value, month_value, status) "
-                    + "VALUES (#{binaryValue}, #{enabled,jdbcType=BOOLEAN}, #{initial,jdbcType=VARCHAR}, "
-                    + "#{monthValue}, #{status,jdbcType=INTEGER})")
+                @Insert("INSERT INTO values_table (binary_value, enabled, initial_value, month_value, status, "
+                    + "util_date_only, util_time_only) VALUES (#{binaryValue}, #{enabled,jdbcType=BOOLEAN}, "
+                    + "#{initial,jdbcType=VARCHAR}, #{monthValue}, #{status,jdbcType=INTEGER}, "
+                    + "#{utilDateOnly,jdbcType=DATE}, #{utilTimeOnly,jdbcType=TIME})")
                 int insert(
                     @Param("binaryValue") Byte[] binaryValue,
                     @Param("enabled") boolean enabled,
                     @Param("initial") char initial,
                     @Param("monthValue") Month monthValue,
-                    @Param("status") Status status);
+                    @Param("status") Status status,
+                    @Param("utilDateOnly") java.util.Date utilDateOnly,
+                    @Param("utilTimeOnly") java.util.Date utilTimeOnly);
             }
             """);
 
@@ -216,6 +219,10 @@ class JdbcTypeCompilationTest {
             "typeHandlerManager.parameterBinder(char.class, java.sql.JDBCType.VARCHAR)"), generated);
         assertTrue(generated.contains(
             "typeHandlerManager.parameterBinder(java.time.Month.class, java.sql.JDBCType.INTEGER)"), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(java.util.Date.class, java.sql.JDBCType.DATE)"), generated);
+        assertTrue(generated.contains(
+            "typeHandlerManager.parameterBinder(java.util.Date.class, java.sql.JDBCType.TIME)"), generated);
     }
 
     @Test

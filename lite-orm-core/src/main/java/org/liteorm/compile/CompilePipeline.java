@@ -839,7 +839,11 @@ final class CompilePipeline {
         if (Set.of("java.time.LocalTime", "java.sql.Time").contains(type)) {
             return "TIME".equals(jdbcType);
         }
-        if (Set.of("java.time.LocalDateTime", "java.time.Instant", "java.util.Date",
+        if ("java.util.Date".equals(type)) {
+            return Set.of("DATE", "TIME", "TIMESTAMP", "TIMESTAMP_WITH_TIMEZONE")
+                .contains(jdbcType);
+        }
+        if (Set.of("java.time.LocalDateTime", "java.time.Instant",
                 "java.sql.Timestamp", "java.time.OffsetDateTime").contains(type)) {
             return "TIMESTAMP".equals(jdbcType) || "TIMESTAMP_WITH_TIMEZONE".equals(jdbcType);
         }
