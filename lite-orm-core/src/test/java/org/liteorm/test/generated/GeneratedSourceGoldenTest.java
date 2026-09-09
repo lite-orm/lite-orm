@@ -34,6 +34,7 @@ class GeneratedSourceGoldenTest {
         assertFalse(source.matches("(?s).*\\b(?:trimSql|trimParams|setSql|setParams|firstItem)\\d+\\b.*"));
         assertFalse(source.contains("java.lang.reflect"));
         assertFalse(source.contains("Map<String, Object>"));
+        assertFalse(source.contains("TypeHandlerManager"));
     }
 
     @Test
@@ -47,6 +48,11 @@ class GeneratedSourceGoldenTest {
         assertTrue(source.contains("StringBuilder trimmedClauseSql"));
         assertTrue(source.contains("StringBuilder setClauseSql"));
         assertTrue(source.contains("boolean foreachFirstItem"));
+        assertTrue(source.contains("List<Class<?>> parameterTypes = new ArrayList<>();"));
+        assertTrue(source.contains("List<java.sql.JDBCType> parameterJdbcTypes = new ArrayList<>();"));
+        assertTrue(source.contains("parameterTypes.toArray(new Class<?>[0])"));
+        assertTrue(source.contains("parameterJdbcTypes.toArray(new java.sql.JDBCType[0])"));
+        assertFalse(source.contains("TypeHandlerManager"));
         assertFalse(source.matches("(?s).*\\b(?:firstItem|matched|whereSql|whereParams|setSql|setParams|trimSql|trimParams)\\d+\\b.*"));
     }
 }

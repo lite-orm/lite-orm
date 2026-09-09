@@ -85,7 +85,7 @@ Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at c
 
 ### 2.5 Standard JDBC Type Routing
 
-Every generated Mapper creates one `TypeHandlerManager` with the fixed Core route set. No package annotation, handler registration, database-specific artifact, runtime registry, or discovery step is required.
+`JdbcSqlExecutor` owns one fixed `TypeHandlerManager` with the Core route set. Generated Mappers carry only aligned Java/JDBC routing metadata and explicit extension references; they do not import, create, configure, or invoke the manager. No package annotation, handler registration, database-specific artifact, runtime registry, or discovery step is required.
 
 Generated code supplies declared Java parameter types and optional placeholder `jdbcType` values. Without an explicit value, the compiler emits the canonical JDBC type, including a stable type for null parameters. Unsupported parameter types fail compilation with guidance to use `@UseParameterBinder`.
 

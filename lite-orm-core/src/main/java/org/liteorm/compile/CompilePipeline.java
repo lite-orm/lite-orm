@@ -384,7 +384,7 @@ final class CompilePipeline {
             providerBinding == null ? null : methodName + "SqlProvider",
             providerBinding == null ? null : providerBinding.argumentExpression(),
             extensionBindings.extensionFields(),
-            extensionBindings.parameterBinderFields(),
+            extensionBindings.parameterRoutes(),
             extensionBindings.rowMapperFieldName(),
             methodParameters,
             parameterResult.bindings(),
@@ -401,7 +401,7 @@ final class CompilePipeline {
             List<SqlParameterParser.MethodParameter> methodParameters,
             List<SqlParameterParser.ParameterBinding> parameterBindings) throws CompileException {
         List<MapperCompilationModel.ExtensionField> fields = new ArrayList<>();
-        List<String> binderFields = new ArrayList<>();
+        List<MapperCompilationModel.ParameterRoute> parameterRoutes = new ArrayList<>();
         String methodLocation = mapperInterface.getQualifiedName() + "#" + method.getSimpleName();
 
         boolean hasBinder = method.getParameters().stream()
@@ -448,7 +448,7 @@ final class CompilePipeline {
                 parameterBindersByAlias(method, cursorMethod, methodParameters, parameterBinders);
             collectDynamicParameterBinders(
                 sqlInfo.astNode(), visibleParameterTypes, parameterBindersByAlias,
-                binderFields,
+                parameterRoutes,
                 mapperInterface.getQualifiedName() + "." + method.getSimpleName());
         } else {
             for (SqlParameterParser.ParameterBinding binding : parameterBindings) {
@@ -460,13 +460,14 @@ final class CompilePipeline {
                         + ": custom parameter binder must bind the whole Mapper parameter, not property "
                         + binding.expression());
                 }
-                if (extensionField != null) {
-                    binderFields.add(extensionField.fieldName());
-                    continue;
-                }
                 TypeMirror parameterType = resolveParameterExpressionType(
                     binding.expression(), visibleParameterTypes);
-                binderFields.add(routerBinderExpression(parameterType, binding.jdbcType()));
+                if (extensionField != null) {
+                    parameterRoutes.add(parameterRoute(
+                        extensionField.fieldName(), parameterType, binding.jdbcType()));
+                    continue;
+                }
+                parameterRoutes.add(parameterRoute(null, parameterType, binding.jdbcType()));
             }
         }
 
@@ -499,7 +500,7 @@ final class CompilePipeline {
         }
         return new ExtensionBindings(
             List.copyOf(fields),
-            java.util.Collections.unmodifiableList(new ArrayList<>(binderFields)),
+            java.util.Collections.unmodifiableList(new ArrayList<>(parameterRoutes)),
             rowMapperField
         );
     }
@@ -529,7 +530,7 @@ final class CompilePipeline {
             AstNode node,
             Map<String, TypeMirror> visibleTypes,
             Map<String, MapperCompilationModel.ExtensionField> parameterBinders,
-            List<String> binderFields,
+            List<MapperCompilationModel.ParameterRoute> parameterRoutes,
             String location) throws CompileException {
         if (node instanceof AstNode.TextNode textNode) {
             Matcher matcher = HASH_PARAMETER_PATTERN.matcher(textNode.text());
@@ -545,11 +546,13 @@ final class CompilePipeline {
                             + ": custom parameter binder must bind the whole Mapper parameter, not property "
                             + expression);
                     }
-                    binderFields.add(parameterBinder.fieldName());
+                    TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
+                    parameterRoutes.add(parameterRoute(
+                        parameterBinder.fieldName(), parameterType, parameterExpression.jdbcType()));
                     continue;
                 }
                 TypeMirror parameterType = resolveParameterExpressionType(expression, visibleTypes);
-                binderFields.add(routerBinderExpression(parameterType, parameterExpression.jdbcType()));
+                parameterRoutes.add(parameterRoute(null, parameterType, parameterExpression.jdbcType()));
             }
             return;
         }
@@ -567,7 +570,7 @@ final class CompilePipeline {
             foreachBinders.remove(foreachNode.item());
             for (AstNode child : foreachNode.children()) {
                 collectDynamicParameterBinders(
-                    child, foreachTypes, foreachBinders, binderFields, location);
+                    child, foreachTypes, foreachBinders, parameterRoutes, location);
             }
             return;
         }
@@ -577,7 +580,7 @@ final class CompilePipeline {
             new LinkedHashMap<>(parameterBinders);
         for (AstNode child : node.getChildren()) {
             collectDynamicParameterBinders(
-                child, scopedTypes, scopedBinders, binderFields, location);
+                child, scopedTypes, scopedBinders, parameterRoutes, location);
             if (child instanceof AstNode.BindNode bindNode) {
                 scopedTypes.put(bindNode.name(), null);
                 scopedBinders.remove(bindNode.name());
@@ -853,18 +856,17 @@ final class CompilePipeline {
                     .contains(jdbcType));
     }
 
-    private String routerBinderExpression(
-            TypeMirror javaType,
-            String declaredJdbcType) {
-        if (javaType == null) {
-            return null;
-        }
+    private MapperCompilationModel.ParameterRoute parameterRoute(
+            String binderFieldName, TypeMirror javaType, String declaredJdbcType) {
         String jdbcType = declaredJdbcType == null
-            ? canonicalJdbcType(javaType) : declaredJdbcType;
+            ? javaType == null ? null : canonicalJdbcType(javaType)
+            : declaredJdbcType;
         String jdbcExpression = jdbcType == null
             ? "null" : "java.sql.JDBCType." + jdbcType;
-        return "typeHandlerManager.parameterBinder(" + typeClassLiteral(javaType) + ", "
-            + jdbcExpression + ")";
+        return new MapperCompilationModel.ParameterRoute(
+            binderFieldName,
+            javaType == null ? "null" : typeClassLiteral(javaType),
+            jdbcExpression);
     }
 
     private String typeClassLiteral(TypeMirror type) {
@@ -1017,7 +1019,7 @@ final class CompilePipeline {
 
     private record ExtensionBindings(
         List<MapperCompilationModel.ExtensionField> extensionFields,
-        List<String> parameterBinderFields,
+        List<MapperCompilationModel.ParameterRoute> parameterRoutes,
         String rowMapperFieldName) {
     }
 

@@ -41,6 +41,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
 
     private final ConnectionHandleFactory connectionHandleFactory;
     private final List<ExecutionInterceptor> interceptors;
+    private final TypeHandlerManager typeHandlerManager = new TypeHandlerManager();
 
     public JdbcSqlExecutor(ConnectionHandleFactory connectionHandleFactory) {
         this(connectionHandleFactory, List.of());
@@ -293,7 +294,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         if (rowMapper != null) {
             generatedKey = rowMapper.map(generatedKeys);
         } else if (typeRouting != null && typeRouting.resultTypes().length == 1) {
-            TypeHandlerManager.ResultHandler handler = typeRouting.manager().resolveResult(
+            TypeHandlerManager.ResultHandler handler = typeHandlerManager.resolveResult(
                 metadata, 1, typeRouting.resultTypes()[0]);
             generatedKey = handler.getResult(generatedKeys, 1);
         } else {
@@ -324,9 +325,10 @@ public final class JdbcSqlExecutor implements SqlExecutor {
             ParameterBinder<Object> binder = binderAt(binders, index);
             if (binder != null) {
                 binder.bind(statement, index + 1, parameters[index]);
-            } else if (typeRouting != null && index < parameterTypes.length) {
+            } else if (typeRouting != null && index < parameterTypes.length
+                    && parameterTypes[index] != null) {
                 JDBCType jdbcType = parameterJdbcTypes == null ? null : parameterJdbcTypes[index];
-                typeRouting.manager().setParameter(
+                typeHandlerManager.setParameter(
                     statement, index + 1, parameters[index], parameterTypes[index], jdbcType);
             } else {
                 bindDefault(statement, index + 1, parameters[index]);
@@ -403,7 +405,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         Class<?>[] resultTypes = typeRouting.resultTypes();
         String[] labels = typeRouting.resultColumnLabels();
         if (labels == null && resultTypes.length == 1 && !columns.isEmpty()) {
-            handlers[0] = typeRouting.manager().resolveResult(
+            handlers[0] = typeHandlerManager.resolveResult(
                 metadata, 1, jdbcTypes[0], resultTypes[0]);
             return handlers;
         }
@@ -413,7 +415,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         for (int target = 0; target < labels.length; target++) {
             int column = findColumn(columns, labels[target]);
             if (column >= 0) {
-                handlers[column] = typeRouting.manager().resolveResult(
+                handlers[column] = typeHandlerManager.resolveResult(
                     metadata, column + 1, jdbcTypes[column], resultTypes[target]);
             }
         }

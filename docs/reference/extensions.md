@@ -98,7 +98,7 @@ Use `@UseParameterBinder` on a Mapper parameter with a concrete `ParameterBinder
 
 ## Standard JDBC Routing
 
-Core owns a fixed `TypeHandlerManager` for supported scalar values. Generated Mappers provide the declared Java parameter type, optional placeholder `jdbcType`, result target types, and result labels. At execution time:
+Standard route ownership and metadata are defined by [the Core contract](core-contract.md#25-standard-jdbc-type-routing). At execution time:
 
 - parameters route from the generated Java type and canonical or explicitly declared `JDBCType`;
 - result columns route from the generated Java target type and live `ResultSetMetaData`;

@@ -211,18 +211,15 @@ class JdbcTypeCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toJapaneseDate("), generated);
         assertTrue(generated.contains("mapped.setIntegerValue(ResultValueConverters.toBigInteger("), generated);
         assertTrue(generated.contains("mapped.setYearMonthValue(ResultValueConverters.toYearMonth("), generated);
+        assertFalse(generated.contains("TypeHandlerManager"), generated);
         assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(java.lang.Byte[].class, java.sql.JDBCType.VARBINARY)"), generated);
+            "new Class<?>[]{java.lang.Byte[].class, boolean.class, char.class, java.time.Month.class, "
+                + "org.liteorm.test.jdbctypefixture.Status.class, java.util.Date.class, java.util.Date.class}"),
+            generated);
         assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(boolean.class, java.sql.JDBCType.BOOLEAN)"), generated);
-        assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(char.class, java.sql.JDBCType.VARCHAR)"), generated);
-        assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(java.time.Month.class, java.sql.JDBCType.INTEGER)"), generated);
-        assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(java.util.Date.class, java.sql.JDBCType.DATE)"), generated);
-        assertTrue(generated.contains(
-            "typeHandlerManager.parameterBinder(java.util.Date.class, java.sql.JDBCType.TIME)"), generated);
+            "new java.sql.JDBCType[]{java.sql.JDBCType.VARBINARY, java.sql.JDBCType.BOOLEAN, "
+                + "java.sql.JDBCType.VARCHAR, java.sql.JDBCType.INTEGER, java.sql.JDBCType.INTEGER, "
+                + "java.sql.JDBCType.DATE, java.sql.JDBCType.TIME}"), generated);
     }
 
     @Test

@@ -38,7 +38,7 @@ record MapperCompilationModel(
         String providerFieldName,
         String providerArgumentExpression,
         List<ExtensionField> extensionFields,
-        List<String> parameterBinderFields,
+        List<ParameterRoute> parameterRoutes,
         String rowMapperFieldName,
         List<SqlParameterParser.MethodParameter> methodParameters,
         List<SqlParameterParser.ParameterBinding> parameterBindings,
@@ -68,7 +68,7 @@ record MapperCompilationModel(
             String providerFieldName,
             String providerArgumentExpression,
             List<ExtensionField> extensionFields,
-            List<String> parameterBinderFields,
+            List<ParameterRoute> parameterRoutes,
             String rowMapperFieldName,
             List<SqlParameterParser.MethodParameter> methodParameters,
             List<SqlParameterParser.ParameterBinding> parameterBindings,
@@ -77,13 +77,20 @@ record MapperCompilationModel(
             this(methodName, returnType, parameterList, executionPlanFactoryName, statementId, statementType,
                 sourceType, sqlTemplate, dynamic, null, resultType, resultMappingCode,
                 resultMappingHelperCode, resultColumnLabels, List.of(), providerClassName, providerFieldName, providerArgumentExpression,
-                extensionFields, parameterBinderFields, rowMapperFieldName,
+                extensionFields, parameterRoutes, rowMapperFieldName,
                 methodParameters, parameterBindings,
                 astNode, parameterList, null);
         }
     }
 
     public record ExtensionField(String typeName, String fieldName) {
+    }
+
+    record ParameterRoute(
+        String binderFieldName,
+        String javaTypeExpression,
+        String jdbcTypeExpression
+    ) {
     }
 
 }

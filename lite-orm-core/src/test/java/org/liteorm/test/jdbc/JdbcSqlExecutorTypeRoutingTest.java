@@ -5,7 +5,6 @@ import org.liteorm.api.ConnectionHandle;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.SqlResult;
 import org.liteorm.jdbc.JdbcSqlExecutor;
-import org.liteorm.jdbc.TypeHandlerManager;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -26,7 +25,6 @@ class JdbcSqlExecutorTypeRoutingTest {
     void routesParametersAndReadsEachResultColumnTypeOncePerResultSet() {
         AtomicReference<String> written = new AtomicReference<>();
         AtomicInteger metadataTypeReads = new AtomicInteger();
-        TypeHandlerManager manager = new TypeHandlerManager();
         ResultSetMetaData metadata = proxy(ResultSetMetaData.class, (method, arguments) -> switch (method) {
             case "getColumnCount" -> 2;
             case "getColumnLabel", "getColumnName" -> (int) arguments[0] == 1 ? "name" : "created_at";
@@ -59,7 +57,6 @@ class JdbcSqlExecutorTypeRoutingTest {
             @Override public void close() { }
         };
         ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
-            manager,
             new Class<?>[]{String.class},
             new JDBCType[]{JDBCType.VARCHAR},
             new Class<?>[]{String.class},

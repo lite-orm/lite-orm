@@ -35,7 +35,7 @@ Annotation and XML forms normalize into the same compiler model. They cannot bot
 
 ## Standard JDBC Routing
 
-Generated Mappers create a fixed Core `TypeHandlerManager`. For parameters, generated code supplies the declared Java type and a canonical or explicit placeholder `jdbcType`. For results, `JdbcSqlExecutor` combines the generated Java target type with live `ResultSetMetaData` and resolves the route once per result column.
+Standard routing requires no application setup; its ownership and metadata contract are defined in [Standard JDBC Type Routing](../../reference/core-contract.md#25-standard-jdbc-type-routing). For results, the runtime combines generated target metadata with live `ResultSetMetaData` and resolves the route once per result column.
 
 Users do not configure or register this manager. It has no database-product branches, schema lookup, classpath scanning, or `ServiceLoader`.
 

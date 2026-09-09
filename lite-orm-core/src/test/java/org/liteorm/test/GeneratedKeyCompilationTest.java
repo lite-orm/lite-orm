@@ -62,7 +62,8 @@ class GeneratedKeyCompilationTest {
         assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toBigInteger(executionResult.getGeneratedKey())"));
         assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("new ExecutionPlan.TypeRouting(typeHandlerManager"));
+        assertTrue(generated.contains("new ExecutionPlan.TypeRouting("));
+        assertFalse(generated.contains("TypeHandlerManager"), generated);
     }
 
     @Test

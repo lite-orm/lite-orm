@@ -109,7 +109,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateMethods(
             List<MapperCompilationModel.MethodModel> methods, String packageName) throws GenerationException {
         StringBuilder builder = new StringBuilder();
-        builder.append("    private final TypeHandlerManager typeHandlerManager = new TypeHandlerManager();\n");
         for (MapperCompilationModel.MethodModel method : methods) {
             if (method.providerClassName() != null) {
                 builder.append("    private final ").append(method.providerClassName()).append(" ")
@@ -310,37 +309,45 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(");\n");
         } else if (methodModel.dynamic()) {
             code.append("        StringBuilder sql = new StringBuilder();\n");
-            code.append("        List<Object> parameters = new ArrayList<>();\n");
-            code.append("        List<ParameterBinder<?>> binders = new ArrayList<>();\n");
-            Iterator<String> parameterBinders = methodModel.parameterBinderFields().iterator();
+            ParameterListVariables parameterVariables = new ParameterListVariables(
+                "parameters", "binders", "parameterTypes", "parameterJdbcTypes");
+            appendParameterListDeclarations(code, "        ", parameterVariables);
+            Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes =
+                methodModel.parameterRoutes().iterator();
             if (methodModel.astNode() != null) {
                 code.append(generateAstLogic(
                     methodModel.astNode(),
                     methodModel,
                     "sql",
-                    "parameters",
-                    "binders",
+                    parameterVariables,
                     "        ",
                     new LinkedHashSet<>(),
-                    parameterBinders
+                    parameterRoutes
                 ));
             } else {
                 appendTextNode(code, methodModel.sqlTemplate(), methodModel,
-                    "sql", "parameters", "binders", "        ", Set.of(), parameterBinders);
+                    "sql", parameterVariables,
+                    "        ", Set.of(), parameterRoutes);
             }
-            if (parameterBinders.hasNext()) {
+            if (parameterRoutes.hasNext()) {
                 throw new GenerationException(methodModel.statementId()
-                    + ": generated JDBC binder plan contains unused entries");
+                    + ": generated JDBC parameter route contains unused entries");
             }
             code.append("        return new ExecutionPlan(")
                 .append(javaString(methodModel.statementId())).append(", ")
-                .append("sql.toString().trim(), parameters.toArray(new Object[0]), ")
+                .append("sql.toString().trim(), ").append(parameterVariables.values())
+                .append(".toArray(new Object[0]), ")
                 .append("ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
-                .append("binders.toArray(new ParameterBinder<?>[0])").append(", ")
+                .append(parameterVariables.binders())
+                .append(".toArray(new ParameterBinder<?>[0])").append(", ")
                 .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
-                .append(typeRoutingExpression(methodModel)).append(");\n");
+                .append(typeRoutingExpression(
+                    methodModel,
+                    parameterVariables.javaTypes() + ".toArray(new Class<?>[0])",
+                    parameterVariables.jdbcTypes() + ".toArray(new java.sql.JDBCType[0])"))
+                .append(");\n");
         } else {
             code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
             code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
@@ -359,12 +366,13 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String parameterBinderArray(MapperCompilationModel.MethodModel methodModel) {
-        if (methodModel.parameterBinderFields().isEmpty()
-                || methodModel.parameterBinderFields().stream().allMatch(java.util.Objects::isNull)) {
+        if (methodModel.parameterRoutes().isEmpty()
+                || methodModel.parameterRoutes().stream()
+                    .allMatch(route -> route.binderFieldName() == null)) {
             return "null";
         }
-        return "new ParameterBinder<?>[]{" + methodModel.parameterBinderFields().stream()
-            .map(field -> field == null ? "null" : field)
+        return "new ParameterBinder<?>[]{" + methodModel.parameterRoutes().stream()
+            .map(route -> route.binderFieldName() == null ? "null" : route.binderFieldName())
             .collect(java.util.stream.Collectors.joining(", ")) + "}";
     }
 
@@ -373,7 +381,17 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String typeRoutingExpression(MapperCompilationModel.MethodModel methodModel) {
-        return typeRoutingExpression(methodModel, "null", "null");
+        String parameterTypes = methodModel.parameterRoutes().isEmpty()
+            ? "new Class<?>[0]"
+            : "new Class<?>[]{" + methodModel.parameterRoutes().stream()
+                .map(MapperCompilationModel.ParameterRoute::javaTypeExpression)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        String parameterJdbcTypes = methodModel.parameterRoutes().isEmpty()
+            ? "null"
+            : "new java.sql.JDBCType[]{" + methodModel.parameterRoutes().stream()
+                .map(MapperCompilationModel.ParameterRoute::jdbcTypeExpression)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        return typeRoutingExpression(methodModel, parameterTypes, parameterJdbcTypes);
     }
 
     private String typeRoutingExpression(
@@ -388,14 +406,15 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             : "new String[]{" + methodModel.resultColumnLabels().stream()
                 .map(this::javaString)
                 .collect(java.util.stream.Collectors.joining(", ")) + "}";
-        return "new ExecutionPlan.TypeRouting(typeHandlerManager, "
+        return "new ExecutionPlan.TypeRouting("
             + parameterTypes + ", " + parameterJdbcTypes + ", "
             + resultTypes + ", " + labels + ")";
     }
 
     private String generateAstLogic(AstNode astNode, MapperCompilationModel.MethodModel methodModel,
-                                    String sqlVar, String paramsVar, String bindersVar, String indent,
-                                    Set<String> localRoots, Iterator<String> parameterBinders)
+                                    String sqlVar, ParameterListVariables parameterVariables, String indent,
+                                    Set<String> localRoots,
+                                    Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes)
         throws GenerationException {
         StringBuilder code = new StringBuilder();
         switch (astNode.getNodeType()) {
@@ -403,20 +422,22 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 Set<String> scope = new LinkedHashSet<>(localRoots);
                 for (AstNode child : astNode.getChildren()) {
                     code.append(generateAstLogic(
-                        child, methodModel, sqlVar, paramsVar, bindersVar, indent, scope, parameterBinders));
+                        child, methodModel, sqlVar, parameterVariables,
+                        indent, scope, parameterRoutes));
                     if (child instanceof AstNode.BindNode bindNode) {
                         scope.add(bindNode.name());
                     }
                 }
             }
             case TEXT -> appendTextNode(code, ((AstNode.TextNode) astNode).text(), methodModel,
-                sqlVar, paramsVar, bindersVar, indent, localRoots, parameterBinders);
+                sqlVar, parameterVariables,
+                indent, localRoots, parameterRoutes);
             case IF -> {
                 AstNode.IfNode ifNode = (AstNode.IfNode) astNode;
                 code.append(indent).append("if (").append(translateCondition(ifNode.test(), methodModel, localRoots)).append(") {\n");
                 for (AstNode child : ifNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar,
-                        indent + "    ", localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, sqlVar, parameterVariables,
+                        indent + "    ", localRoots, parameterRoutes));
                 }
                 code.append(indent).append("}\n");
             }
@@ -437,8 +458,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 Set<String> foreachScope = new LinkedHashSet<>(localRoots);
                 foreachScope.add(foreachNode.item());
                 for (AstNode child : foreachNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar,
-                        scopedIndent + "    ", foreachScope, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, sqlVar, parameterVariables,
+                        scopedIndent + "    ", foreachScope, parameterRoutes));
                 }
                 code.append(scopedIndent).append("}\n");
                 code.append(scopedIndent).append(sqlVar).append(".append(").append(javaString(foreachNode.close())).append(");\n");
@@ -456,15 +477,15 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                             .append(translateCondition(whenNode.test(), methodModel, localRoots)).append(") {\n");
                         code.append(scopedIndent).append("    ").append(matchedVar).append(" = true;\n");
                         for (AstNode whenChild : whenNode.children()) {
-                            code.append(generateAstLogic(whenChild, methodModel, sqlVar, paramsVar, bindersVar,
-                                scopedIndent + "    ", localRoots, parameterBinders));
+                            code.append(generateAstLogic(whenChild, methodModel, sqlVar, parameterVariables,
+                                scopedIndent + "    ", localRoots, parameterRoutes));
                         }
                         code.append(scopedIndent).append("}\n");
                     } else if (child instanceof AstNode.OtherwiseNode otherwiseNode) {
                         code.append(scopedIndent).append("if (!").append(matchedVar).append(") {\n");
                         for (AstNode otherwiseChild : otherwiseNode.children()) {
-                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar, paramsVar, bindersVar,
-                                scopedIndent + "    ", localRoots, parameterBinders));
+                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar, parameterVariables,
+                                scopedIndent + "    ", localRoots, parameterRoutes));
                         }
                         code.append(scopedIndent).append("}\n");
                     }
@@ -475,21 +496,20 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
                 String innerSql = "whereClauseSql";
-                String innerParams = "whereClauseParameters";
-                String innerBinders = "whereClauseBinders";
+                ParameterListVariables innerParameters = new ParameterListVariables(
+                    "whereClauseParameters", "whereClauseBinders",
+                    "whereClauseParameterTypes", "whereClauseParameterJdbcTypes");
                 code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                appendParameterListDeclarations(code, scopedIndent, innerParameters);
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParameters,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
                 code.append(scopedIndent).append("String normalizedWhereClause")
                     .append(" = normalizeWhereClause(").append(innerSql).append(".toString());\n");
                 code.append(scopedIndent).append("if (!normalizedWhereClause.isBlank()) {\n");
                 code.append(scopedIndent).append("    ").append(sqlVar).append(".append(\" WHERE \").append(normalizedWhereClause);\n");
-                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                appendParameterListMerge(code, scopedIndent + "    ", parameterVariables, innerParameters);
                 code.append(scopedIndent).append("}\n");
                 code.append(indent).append("}\n");
             }
@@ -497,14 +517,14 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
                 String innerSql = "setClauseSql";
-                String innerParams = "setClauseParameters";
-                String innerBinders = "setClauseBinders";
+                ParameterListVariables innerParameters = new ParameterListVariables(
+                    "setClauseParameters", "setClauseBinders",
+                    "setClauseParameterTypes", "setClauseParameterJdbcTypes");
                 code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                appendParameterListDeclarations(code, scopedIndent, innerParameters);
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParameters,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
                 code.append(scopedIndent).append("String normalizedSetClause")
                     .append(" = normalizeSetClause(").append(innerSql).append(".toString());\n");
@@ -515,8 +535,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                     .append(");\n");
                 code.append(scopedIndent).append("}\n");
                 code.append(scopedIndent).append(sqlVar).append(".append(\" SET \").append(normalizedSetClause);\n");
-                code.append(scopedIndent).append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                appendParameterListMerge(code, scopedIndent, parameterVariables, innerParameters);
                 code.append(indent).append("}\n");
             }
             case TRIM -> {
@@ -524,14 +543,14 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
                 String innerSql = "trimmedClauseSql";
-                String innerParams = "trimmedClauseParameters";
-                String innerBinders = "trimmedClauseBinders";
+                ParameterListVariables innerParameters = new ParameterListVariables(
+                    "trimmedClauseParameters", "trimmedClauseBinders",
+                    "trimmedClauseParameterTypes", "trimmedClauseParameterJdbcTypes");
                 code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                appendParameterListDeclarations(code, scopedIndent, innerParameters);
                 for (AstNode child : trimNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql, innerParameters,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
                 code.append(scopedIndent).append("String normalizedTrimmedClause = applyTrim(")
                     .append(innerSql).append(".toString(), ")
@@ -542,8 +561,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 code.append(scopedIndent).append("if (!normalizedTrimmedClause.isBlank()) {\n");
                 code.append(scopedIndent).append("    appendSqlFragment(").append(sqlVar)
                     .append(", normalizedTrimmedClause);\n");
-                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                appendParameterListMerge(code, scopedIndent + "    ", parameterVariables, innerParameters);
                 code.append(scopedIndent).append("}\n");
                 code.append(indent).append("}\n");
             }
@@ -561,8 +579,9 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private void appendTextNode(StringBuilder code, String text, MapperCompilationModel.MethodModel methodModel,
-                                String sqlVar, String paramsVar, String bindersVar, String indent,
-                                Set<String> localRoots, Iterator<String> parameterBinders)
+                                String sqlVar, ParameterListVariables parameterVariables, String indent,
+                                Set<String> localRoots,
+                                Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes)
             throws GenerationException {
         int cursor = 0;
         Matcher hashMatcher = HASH_PARAM_PATTERN.matcher(text);
@@ -572,26 +591,67 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             String literal = text.substring(cursor, hashMatcher.start());
             appendLiteral(code, literal, sqlVar, indent);
             code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", \"?\");\n");
-            code.append(indent).append(paramsVar).append(".add(")
+            code.append(indent).append(parameterVariables.values()).append(".add(")
                 .append(toJavaAccess(parameterExpression.expression(), methodModel, false, localRoots))
                 .append(");\n");
-            code.append(indent).append(bindersVar).append(".add(")
-                .append(binderExpression(methodModel, parameterBinders)).append(");\n");
+            MapperCompilationModel.ParameterRoute parameterRoute =
+                parameterRoute(methodModel, parameterRoutes);
+            code.append(indent).append(parameterVariables.binders()).append(".add(")
+                .append(parameterRoute.binderFieldName() == null
+                    ? "null" : parameterRoute.binderFieldName()).append(");\n");
+            code.append(indent).append(parameterVariables.javaTypes()).append(".add(")
+                .append(parameterRoute.javaTypeExpression()).append(");\n");
+            code.append(indent).append(parameterVariables.jdbcTypes()).append(".add(")
+                .append(parameterRoute.jdbcTypeExpression()).append(");\n");
             cursor = hashMatcher.end();
         }
         String remainder = text.substring(cursor);
         appendLiteral(code, remainder, sqlVar, indent);
     }
 
-    private String binderExpression(
+    private void appendParameterListDeclarations(
+            StringBuilder code, String indent, ParameterListVariables variables) {
+        code.append(indent).append("List<Object> ").append(variables.values())
+            .append(" = new ArrayList<>();\n");
+        code.append(indent).append("List<ParameterBinder<?>> ").append(variables.binders())
+            .append(" = new ArrayList<>();\n");
+        code.append(indent).append("List<Class<?>> ").append(variables.javaTypes())
+            .append(" = new ArrayList<>();\n");
+        code.append(indent).append("List<java.sql.JDBCType> ").append(variables.jdbcTypes())
+            .append(" = new ArrayList<>();\n");
+    }
+
+    private void appendParameterListMerge(
+            StringBuilder code,
+            String indent,
+            ParameterListVariables target,
+            ParameterListVariables source) {
+        code.append(indent).append(target.values()).append(".addAll(")
+            .append(source.values()).append(");\n");
+        code.append(indent).append(target.binders()).append(".addAll(")
+            .append(source.binders()).append(");\n");
+        code.append(indent).append(target.javaTypes()).append(".addAll(")
+            .append(source.javaTypes()).append(");\n");
+        code.append(indent).append(target.jdbcTypes()).append(".addAll(")
+            .append(source.jdbcTypes()).append(");\n");
+    }
+
+    private MapperCompilationModel.ParameterRoute parameterRoute(
             MapperCompilationModel.MethodModel methodModel,
-            Iterator<String> parameterBinders) throws GenerationException {
-        if (!parameterBinders.hasNext()) {
+            Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes) throws GenerationException {
+        if (!parameterRoutes.hasNext()) {
             throw new GenerationException(methodModel.statementId()
-                + ": generated JDBC binder plan is missing an entry");
+                + ": generated JDBC parameter route is missing an entry");
         }
-        String binderField = parameterBinders.next();
-        return binderField == null ? "null" : binderField;
+        return parameterRoutes.next();
+    }
+
+    private record ParameterListVariables(
+        String values,
+        String binders,
+        String javaTypes,
+        String jdbcTypes
+    ) {
     }
 
     private void appendLiteral(StringBuilder code, String text, String sqlVar, String indent) {

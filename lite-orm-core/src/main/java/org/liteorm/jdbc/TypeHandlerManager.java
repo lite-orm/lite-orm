@@ -17,8 +17,8 @@ import java.util.Objects;
  * parameter-specific write conversion and {@code RowMapper} for a method-specific read
  * conversion.</p>
  *
- * <p>Instances are stateless and thread-safe. Generated Mappers may share one instance across
- * concurrent executions.</p>
+ * <p>Instances are stateless and thread-safe. {@link JdbcSqlExecutor} owns one instance across
+ * concurrent executions; generated Mappers carry routing metadata only.</p>
  */
 public final class TypeHandlerManager {
 
@@ -257,10 +257,6 @@ public final class TypeHandlerManager {
     }
 
     private static Class<?> box(Class<?> type) {
-        return getaClass(type);
-    }
-
-    public static Class<?> getaClass(Class<?> type) {
         if (!type.isPrimitive()) return type;
         if (type == boolean.class) return Boolean.class;
         if (type == byte.class) return Byte.class;

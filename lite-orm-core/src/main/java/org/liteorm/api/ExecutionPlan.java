@@ -1,7 +1,5 @@
 package org.liteorm.api;
 
-import org.liteorm.jdbc.TypeHandlerManager;
-
 import java.sql.JDBCType;
 import java.util.Objects;
 
@@ -131,25 +129,23 @@ public class ExecutionPlan {
     /**
      * Compile-time type information used to route JDBC values at execution time.
      *
-     * <p>The value is immutable and thread-safe when its manager is thread-safe. Parameter JDBC
-     * types may be null as a group or contain null entries for inferred representations. Result
-     * labels may be null only for a single scalar target.</p>
+     * <p>The value is immutable and thread-safe. A null parameter Java type preserves direct JDBC
+     * binding when a dynamic expression has no statically known type. Parameter JDBC types may be
+     * null as a group or contain null entries for inferred representations. Result labels may be
+     * null only for a single scalar target.</p>
      */
     public static final class TypeRouting {
 
-        private final TypeHandlerManager manager;
         private final Class<?>[] parameterTypes;
         private final JDBCType[] parameterJdbcTypes;
         private final Class<?>[] resultTypes;
         private final String[] resultColumnLabels;
 
         public TypeRouting(
-                TypeHandlerManager manager,
                 Class<?>[] parameterTypes,
                 JDBCType[] parameterJdbcTypes,
                 Class<?>[] resultTypes,
                 String[] resultColumnLabels) {
-            this.manager = Objects.requireNonNull(manager, "manager");
             this.parameterTypes = copy(parameterTypes);
             this.parameterJdbcTypes = parameterJdbcTypes == null ? null : parameterJdbcTypes.clone();
             this.resultTypes = copy(resultTypes);
@@ -165,11 +161,6 @@ public class ExecutionPlan {
             if (this.resultColumnLabels == null && this.resultTypes.length > 1) {
                 throw new IllegalArgumentException("multiple result types require aligned result labels");
             }
-        }
-
-        /** Returns the type-handler manager used by this execution plan. */
-        public TypeHandlerManager manager() {
-            return manager;
         }
 
         /** Returns a defensive copy of parameter Java types in placeholder order. */

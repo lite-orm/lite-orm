@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -81,6 +82,18 @@ class PublicApiSurfaceTest {
         Class<?> resultHandler = Class.forName("org.liteorm.jdbc.TypeHandlerManager$ResultHandler");
 
         assertFalse(Modifier.isPublic(resultHandler.getModifiers()));
+    }
+
+    @Test
+    void keepsApiClassesIndependentFromJdbcImplementations() throws Exception {
+        Path apiClasses = Path.of("target", "classes", "org", "liteorm", "api");
+        try (var classFiles = Files.walk(apiClasses)) {
+            for (Path classFile : classFiles.filter(path -> path.toString().endsWith(".class")).toList()) {
+                String constantPool = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
+                assertFalse(constantPool.contains("org/liteorm/jdbc"),
+                    () -> classFile + " references org.liteorm.jdbc");
+            }
+        }
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {

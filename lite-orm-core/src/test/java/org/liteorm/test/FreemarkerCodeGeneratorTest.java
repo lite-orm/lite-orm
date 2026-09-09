@@ -66,7 +66,8 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            java.util.Collections.singletonList(null),
+            List.of(new MapperCompilationModel.ParameterRoute(
+                null, "java.lang.String.class", "java.sql.JDBCType.VARCHAR")),
             null,
             List.of(new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0"))),
             List.of(),
@@ -82,6 +83,8 @@ class FreemarkerCodeGeneratorTest {
 
         assertTrue(code.contains("if (name != null && !name.isEmpty())"));
         assertTrue(code.contains("parameters.add(name);"));
+        assertTrue(code.contains("parameterTypes.add(java.lang.String.class);"));
+        assertTrue(code.contains("parameterJdbcTypes.add(java.sql.JDBCType.VARCHAR);"));
         assertTrue(code.contains("appendSqlFragment(sql, \"?\");"));
     }
 
@@ -105,7 +108,11 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            java.util.Arrays.asList(null, null, null),
+            List.of(
+                new MapperCompilationModel.ParameterRoute(null, "null", "null"),
+                new MapperCompilationModel.ParameterRoute(null, "java.util.List.class", "null"),
+                new MapperCompilationModel.ParameterRoute(null, "long[].class", "null")
+            ),
             null,
             List.of(
                 new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0")),
