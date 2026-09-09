@@ -1614,62 +1614,36 @@ final class CompilePipeline {
     }
 
     private String generateScalarMapping(String objectType, String valueExpression) {
-        return switch (objectType) {
-            case "java.lang.String" -> "(java.lang.String)" + valueExpression;
-            case "java.lang.Long", "long" -> "ResultValueConverters.toLong(" + valueExpression + ")";
-            case "java.lang.Integer", "int" -> "ResultValueConverters.toInteger(" + valueExpression + ")";
-            case "java.lang.Short", "short" -> "ResultValueConverters.toShort(" + valueExpression + ")";
-            case "java.lang.Byte", "byte" -> "ResultValueConverters.toByte(" + valueExpression + ")";
-            case "java.lang.Double", "double" -> "ResultValueConverters.toDouble(" + valueExpression + ")";
-            case "java.lang.Float", "float" -> "ResultValueConverters.toFloat(" + valueExpression + ")";
-            case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + valueExpression + ")";
-            case "java.math.BigInteger" -> "ResultValueConverters.toBigInteger(" + valueExpression + ")";
-            case "java.lang.Boolean", "boolean" -> "ResultValueConverters.toBoolean(" + valueExpression + ")";
-            case "java.lang.Character", "char" -> "ResultValueConverters.toCharacter(" + valueExpression + ")";
-            case "java.time.LocalDate" -> "ResultValueConverters.toLocalDate(" + valueExpression + ")";
-            case "java.time.LocalDateTime" -> "ResultValueConverters.toLocalDateTime(" + valueExpression + ")";
-            case "java.time.Instant" -> "ResultValueConverters.toInstant(" + valueExpression + ")";
-            case "java.util.UUID" -> "ResultValueConverters.toUuid(" + valueExpression + ")";
-            case "java.time.LocalTime" -> "ResultValueConverters.toLocalTime(" + valueExpression + ")";
-            case "java.time.OffsetDateTime" -> "ResultValueConverters.toOffsetDateTime(" + valueExpression + ")";
-            case "byte[]" -> "(byte[])" + valueExpression;
-            case "java.lang.Byte[]" -> "ResultValueConverters.toBoxedBytes(" + valueExpression + ")";
-            case "java.util.Date" -> "ResultValueConverters.toUtilDate(" + valueExpression + ")";
-            case "java.sql.Date" -> "ResultValueConverters.toSqlDate(" + valueExpression + ")";
-            case "java.sql.Time" -> "ResultValueConverters.toSqlTime(" + valueExpression + ")";
-            case "java.sql.Timestamp" -> "ResultValueConverters.toSqlTimestamp(" + valueExpression + ")";
-            case "java.time.Year" -> "ResultValueConverters.toYear(" + valueExpression + ")";
-            case "java.time.Month" -> "ResultValueConverters.toMonth(" + valueExpression + ")";
-            case "java.time.YearMonth" -> "ResultValueConverters.toYearMonth(" + valueExpression + ")";
-            case "java.time.chrono.JapaneseDate" ->
-                "ResultValueConverters.toJapaneseDate(" + valueExpression + ")";
+        String targetType = switch (objectType) {
+            case "long" -> "java.lang.Long";
+            case "int" -> "java.lang.Integer";
+            case "short" -> "java.lang.Short";
+            case "byte" -> "java.lang.Byte";
+            case "double" -> "java.lang.Double";
+            case "float" -> "java.lang.Float";
+            case "boolean" -> "java.lang.Boolean";
+            case "char" -> "java.lang.Character";
+            case "java.lang.String", "java.lang.Long", "java.lang.Integer", "java.lang.Short",
+                    "java.lang.Byte", "java.lang.Double", "java.lang.Float", "java.math.BigDecimal",
+                    "java.math.BigInteger", "java.lang.Boolean", "java.lang.Character",
+                    "java.time.LocalDate", "java.time.LocalDateTime", "java.time.Instant",
+                    "java.util.UUID", "java.time.LocalTime", "java.time.OffsetDateTime", "byte[]",
+                    "java.lang.Byte[]", "java.util.Date", "java.sql.Date", "java.sql.Time",
+                    "java.sql.Timestamp", "java.time.Year", "java.time.Month", "java.time.YearMonth",
+                    "java.time.chrono.JapaneseDate" -> objectType;
             default -> null;
         };
+        return targetType == null ? null : "(" + targetType + ")" + valueExpression;
     }
 
     private String generateValueMapping(String objectType, String valueExpression) {
-        return generateValueMapping(objectType, valueExpression, null);
-    }
-
-    private String generateValueMapping(
-            String objectType, String valueExpression, String declaredJdbcType) {
         String scalarMapping = generateScalarMapping(objectType, valueExpression);
         if (scalarMapping != null) {
-            return declaredJdbcType == null ? scalarMapping : null;
+            return scalarMapping;
         }
         TypeElement typeElement = elementUtils.getTypeElement(objectType);
         if (typeElement != null && typeElement.getKind() == javax.lang.model.element.ElementKind.ENUM) {
-            if ("INTEGER".equals(declaredJdbcType)) {
-                return "ResultValueConverters.toEnumOrdinal(" + valueExpression + ", "
-                    + objectType + ".class)";
-            }
-            if (declaredJdbcType != null && !"VARCHAR".equals(declaredJdbcType)) {
-                return null;
-            }
-            return valueExpression + " == null ? null : " + valueExpression + " instanceof " + objectType
-                + " ? (" + objectType + ")" + valueExpression + " : " + valueExpression
-                + " instanceof Number ? ResultValueConverters.toEnumOrdinal(" + valueExpression + ", "
-                + objectType + ".class) : " + objectType + ".valueOf(" + valueExpression + ".toString())";
+            return "(" + objectType + ")" + valueExpression;
         }
         return null;
     }

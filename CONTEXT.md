@@ -41,7 +41,7 @@ XML resolution that permits only LiteORM-owned local resources and rejects exter
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
 **Type handler manager**:
-The Core runtime component that routes supported values from generated Java type information and live JDBC metadata. Its standard routes are fixed and it does not construct result objects or discover user handlers.
+The Core runtime component that routes supported values from generated Java type information and live JDBC metadata. For results it resolves one typed handler per column before row iteration; that handler reads and converts every row value to its generated Java target type. Its standard routes are fixed and it does not construct result objects or discover user handlers.
 _Avoid_: JDBC value adapter, row mapper, global type-handler registry
 
 **Result mapping**:

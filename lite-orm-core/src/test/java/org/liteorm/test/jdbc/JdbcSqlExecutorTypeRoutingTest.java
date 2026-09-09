@@ -39,7 +39,7 @@ class JdbcSqlExecutorTypeRoutingTest {
         ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> ++row[0] < 2;
-            case "getObject" -> "row" + row[0] + "-column" + arguments[0];
+            case "getString", "getObject" -> "row" + row[0] + "-column" + arguments[0];
             default -> null;
         });
         PreparedStatement statement = proxy(PreparedStatement.class, (method, arguments) -> switch (method) {

@@ -294,7 +294,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         if (rowMapper != null) {
             generatedKey = rowMapper.map(generatedKeys);
         } else if (typeRouting != null && typeRouting.resultTypes().length == 1) {
-            TypeHandlerManager.ResultHandler handler = typeHandlerManager.resolveResult(
+            TypeHandlerManager.ResultHandler<?> handler = typeHandlerManager.resolveResult(
                 metadata, 1, typeRouting.resultTypes()[0]);
             generatedKey = handler.getResult(generatedKeys, 1);
         } else {
@@ -376,7 +376,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         for (int column = 1; column <= columnCount; column++) {
             jdbcTypes[column - 1] = metadata.getColumnType(column);
         }
-        TypeHandlerManager.ResultHandler[] handlers =
+        TypeHandlerManager.ResultHandler<?>[] handlers =
             resolveResultHandlers(metadata, columns, jdbcTypes, typeRouting);
         List<Object[]> rows = new ArrayList<>();
         while (resultSet.next()) {
@@ -389,13 +389,13 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return new QueryRows(columns, rows);
     }
 
-    private TypeHandlerManager.ResultHandler[] resolveResultHandlers(
+    private TypeHandlerManager.ResultHandler<?>[] resolveResultHandlers(
             ResultSetMetaData metadata,
             List<ResultColumn> columns,
             int[] jdbcTypes,
             ExecutionPlan.TypeRouting typeRouting) throws SQLException {
-        TypeHandlerManager.ResultHandler[] handlers =
-            new TypeHandlerManager.ResultHandler[columns.size()];
+        TypeHandlerManager.ResultHandler<?>[] handlers =
+            new TypeHandlerManager.ResultHandler<?>[columns.size()];
         for (int column = 0; column < handlers.length; column++) {
             handlers[column] = defaultResultHandler(jdbcTypes[column]);
         }
@@ -432,7 +432,7 @@ public final class JdbcSqlExecutor implements SqlExecutor {
         return -1;
     }
 
-    private TypeHandlerManager.ResultHandler defaultResultHandler(int jdbcType) {
+    private TypeHandlerManager.ResultHandler<?> defaultResultHandler(int jdbcType) {
         return jdbcType == Types.TIME
             ? (resultSet, column) -> resultSet.getObject(column, LocalTime.class)
             : ResultSet::getObject;

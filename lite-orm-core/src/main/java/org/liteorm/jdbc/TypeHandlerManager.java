@@ -64,17 +64,17 @@ public final class TypeHandlerManager {
             setParameter(statement, index, value, requiredJavaType, jdbcType);
     }
 
-    ResultHandler resolveResult(
-            ResultSetMetaData metadata, int columnIndex, Class<?> javaType) throws SQLException {
+    <T> ResultHandler<T> resolveResult(
+            ResultSetMetaData metadata, int columnIndex, Class<T> javaType) throws SQLException {
         Objects.requireNonNull(metadata, "metadata");
         return resolveResult(metadata, columnIndex, metadata.getColumnType(columnIndex), javaType);
     }
 
-    ResultHandler resolveResult(
+    <T> ResultHandler<T> resolveResult(
             ResultSetMetaData metadata,
             int columnIndex,
             int typeNumber,
-            Class<?> javaType) throws SQLException {
+            Class<T> javaType) throws SQLException {
         Objects.requireNonNull(metadata, "metadata");
         Class<?> targetType = box(Objects.requireNonNull(javaType, "javaType"));
         JDBCType jdbcType;
@@ -87,7 +87,7 @@ public final class TypeHandlerManager {
         if (!supports(targetType, jdbcType)) {
             throw unsupportedResult(metadata, columnIndex, targetType, jdbcType.toString(), null);
         }
-        return (resultSet, index) -> read(resultSet, index, targetType);
+        return resultHandler(jdbcType, targetType);
     }
 
     private SQLException unsupportedResult(
@@ -157,39 +157,102 @@ public final class TypeHandlerManager {
         }
     }
 
-    private Object read(ResultSet resultSet, int columnIndex, Class<?> javaType) throws SQLException {
-        Object value = javaType == java.time.LocalTime.class
-            ? resultSet.getObject(columnIndex, java.time.LocalTime.class)
-            : resultSet.getObject(columnIndex);
-        if (javaType.isEnum()) return value;
-        if (javaType == String.class) return ResultValueConverters.toStringValue(value);
-        if (javaType == Long.class) return ResultValueConverters.toLong(value);
-        if (javaType == Integer.class) return ResultValueConverters.toInteger(value);
-        if (javaType == Short.class) return ResultValueConverters.toShort(value);
-        if (javaType == Byte.class) return ResultValueConverters.toByte(value);
-        if (javaType == Double.class) return ResultValueConverters.toDouble(value);
-        if (javaType == Float.class) return ResultValueConverters.toFloat(value);
-        if (javaType == java.math.BigDecimal.class) return ResultValueConverters.toBigDecimal(value);
-        if (javaType == java.math.BigInteger.class) return ResultValueConverters.toBigInteger(value);
-        if (javaType == Boolean.class) return ResultValueConverters.toBoolean(value);
-        if (javaType == Character.class) return ResultValueConverters.toCharacter(value);
-        if (javaType == java.time.LocalDate.class) return ResultValueConverters.toLocalDate(value);
-        if (javaType == java.time.LocalDateTime.class) return ResultValueConverters.toLocalDateTime(value);
-        if (javaType == java.time.Instant.class) return ResultValueConverters.toInstant(value);
-        if (javaType == java.util.UUID.class) return ResultValueConverters.toUuid(value);
-        if (javaType == java.time.LocalTime.class) return ResultValueConverters.toLocalTime(value);
-        if (javaType == java.time.OffsetDateTime.class) return ResultValueConverters.toOffsetDateTime(value);
-        if (javaType == byte[].class) return value;
-        if (javaType == Byte[].class) return ResultValueConverters.toBoxedBytes(value);
-        if (javaType == java.util.Date.class) return ResultValueConverters.toUtilDate(value);
-        if (javaType == java.sql.Date.class) return ResultValueConverters.toSqlDate(value);
-        if (javaType == java.sql.Time.class) return ResultValueConverters.toSqlTime(value);
-        if (javaType == java.sql.Timestamp.class) return ResultValueConverters.toSqlTimestamp(value);
-        if (javaType == java.time.Year.class) return ResultValueConverters.toYear(value);
-        if (javaType == java.time.Month.class) return ResultValueConverters.toMonth(value);
-        if (javaType == java.time.YearMonth.class) return ResultValueConverters.toYearMonth(value);
-        if (javaType == java.time.chrono.JapaneseDate.class) return ResultValueConverters.toJapaneseDate(value);
-        return value;
+    private <T> ResultHandler<T> resultHandler(JDBCType jdbcType, Class<?> javaType) {
+        ResultValueReader reader = resultValueReader(jdbcType, javaType);
+        ResultHandler<?> handler;
+        if (javaType == String.class) handler = converting(reader, ResultValueConverters::toStringValue);
+        else if (javaType == Long.class) handler = converting(reader, ResultValueConverters::toLong);
+        else if (javaType == Integer.class) handler = converting(reader, ResultValueConverters::toInteger);
+        else if (javaType == Short.class) handler = converting(reader, ResultValueConverters::toShort);
+        else if (javaType == Byte.class) handler = converting(reader, ResultValueConverters::toByte);
+        else if (javaType == Double.class) handler = converting(reader, ResultValueConverters::toDouble);
+        else if (javaType == Float.class) handler = converting(reader, ResultValueConverters::toFloat);
+        else if (javaType == java.math.BigDecimal.class) handler = converting(reader, ResultValueConverters::toBigDecimal);
+        else if (javaType == java.math.BigInteger.class) handler = converting(reader, ResultValueConverters::toBigInteger);
+        else if (javaType == Boolean.class) handler = converting(reader, ResultValueConverters::toBoolean);
+        else if (javaType == Character.class) handler = converting(reader, ResultValueConverters::toCharacter);
+        else if (javaType == java.time.LocalDate.class) handler = converting(reader, ResultValueConverters::toLocalDate);
+        else if (javaType == java.time.LocalDateTime.class) handler = converting(reader, ResultValueConverters::toLocalDateTime);
+        else if (javaType == java.time.Instant.class) handler = converting(reader, ResultValueConverters::toInstant);
+        else if (javaType == java.util.UUID.class) handler = converting(reader, ResultValueConverters::toUuid);
+        else if (javaType == java.time.LocalTime.class) handler = converting(reader, ResultValueConverters::toLocalTime);
+        else if (javaType == java.time.OffsetDateTime.class) handler = converting(reader, ResultValueConverters::toOffsetDateTime);
+        else if (javaType == byte[].class) handler = converting(reader, value -> (byte[]) value);
+        else if (javaType == Byte[].class) handler = converting(reader, ResultValueConverters::toBoxedBytes);
+        else if (javaType == java.util.Date.class) handler = converting(reader, ResultValueConverters::toUtilDate);
+        else if (javaType == java.sql.Date.class) handler = converting(reader, ResultValueConverters::toSqlDate);
+        else if (javaType == java.sql.Time.class) handler = converting(reader, ResultValueConverters::toSqlTime);
+        else if (javaType == java.sql.Timestamp.class) handler = converting(reader, ResultValueConverters::toSqlTimestamp);
+        else if (javaType == java.time.Year.class) handler = converting(reader, ResultValueConverters::toYear);
+        else if (javaType == java.time.Month.class) handler = converting(reader, ResultValueConverters::toMonth);
+        else if (javaType == java.time.YearMonth.class) handler = converting(reader, ResultValueConverters::toYearMonth);
+        else if (javaType == java.time.chrono.JapaneseDate.class) handler = converting(reader, ResultValueConverters::toJapaneseDate);
+        else if (javaType.isEnum()) handler = enumResultHandler(jdbcType, javaType, reader);
+        else throw new IllegalStateException("Validated result route has no handler for " + javaType.getName());
+        return castHandler(handler);
+    }
+
+    private ResultValueReader resultValueReader(JDBCType jdbcType, Class<?> javaType) {
+        if (javaType.isEnum() && javaType != java.time.Month.class) {
+            return isNumeric(jdbcType) ? ResultSet::getObject : ResultSet::getString;
+        }
+        if (javaType == String.class || javaType == Character.class
+                || javaType == java.time.YearMonth.class) {
+            return ResultSet::getString;
+        }
+        if (javaType == byte[].class || javaType == Byte[].class) {
+            return ResultSet::getBytes;
+        }
+        if (javaType == java.time.LocalDate.class || javaType == java.sql.Date.class
+                || javaType == java.time.chrono.JapaneseDate.class
+                || javaType == java.util.Date.class && jdbcType == JDBCType.DATE) {
+            return ResultSet::getDate;
+        }
+        if (javaType == java.time.LocalTime.class) {
+            return (resultSet, columnIndex) ->
+                resultSet.getObject(columnIndex, java.time.LocalTime.class);
+        }
+        if (javaType == java.sql.Time.class
+                || javaType == java.util.Date.class && jdbcType == JDBCType.TIME) {
+            return ResultSet::getTime;
+        }
+        if (javaType == java.time.LocalDateTime.class || javaType == java.time.Instant.class
+                || javaType == java.sql.Timestamp.class
+                || javaType == java.util.Date.class
+                    && (jdbcType == JDBCType.TIMESTAMP
+                        || jdbcType == JDBCType.TIMESTAMP_WITH_TIMEZONE)
+                || javaType == java.time.OffsetDateTime.class && jdbcType == JDBCType.TIMESTAMP) {
+            return ResultSet::getTimestamp;
+        }
+        if (javaType == java.time.OffsetDateTime.class
+                && jdbcType == JDBCType.TIMESTAMP_WITH_TIMEZONE) {
+            return (resultSet, columnIndex) ->
+                resultSet.getObject(columnIndex, java.time.OffsetDateTime.class);
+        }
+        if (javaType == java.util.UUID.class && isCharacter(jdbcType)) {
+            return ResultSet::getString;
+        }
+        return ResultSet::getObject;
+    }
+
+    private <T> ResultHandler<T> converting(
+            ResultValueReader reader, ResultValueConverter<T> converter) {
+        return (resultSet, columnIndex) -> converter.convert(reader.read(resultSet, columnIndex));
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private ResultHandler<?> enumResultHandler(
+            JDBCType jdbcType, Class<?> javaType, ResultValueReader reader) {
+        Class<? extends Enum> enumType = javaType.asSubclass(Enum.class);
+        if (isNumeric(jdbcType)) {
+            return converting(reader, value -> ResultValueConverters.toEnumOrdinal(value, enumType));
+        }
+        return converting(reader, value -> value == null ? null : Enum.valueOf(enumType, value.toString()));
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> ResultHandler<T> castHandler(ResultHandler<?> handler) {
+        return (ResultHandler<T>) handler;
     }
 
     private static boolean supports(Class<?> type, JDBCType jdbcType) {
@@ -292,7 +355,17 @@ public final class TypeHandlerManager {
     }
 
     @FunctionalInterface
-    interface ResultHandler {
-        Object getResult(ResultSet resultSet, int columnIndex) throws SQLException;
+    interface ResultHandler<T> {
+        T getResult(ResultSet resultSet, int columnIndex) throws SQLException;
+    }
+
+    @FunctionalInterface
+    private interface ResultValueReader {
+        Object read(ResultSet resultSet, int columnIndex) throws SQLException;
+    }
+
+    @FunctionalInterface
+    private interface ResultValueConverter<T> {
+        T convert(Object value);
     }
 }

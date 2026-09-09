@@ -271,6 +271,7 @@ class XmlResultMappingTest {
         return proxy(ResultSet.class, (method, arguments) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> ++row[0] == 0;
+            case "getString" -> "Alice";
             case "getObject" -> countQuery ? 2L : (int) arguments[0] == 1 ? 7L : "Alice";
             default -> null;
         });

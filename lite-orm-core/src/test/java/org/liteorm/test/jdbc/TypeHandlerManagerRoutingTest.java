@@ -8,6 +8,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.LocalTime;
+import java.time.Month;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,11 +30,11 @@ class TypeHandlerManagerRoutingTest {
             return null;
         });
         ResultSet resultSet = proxy(ResultSet.class, (method, arguments) ->
-            method.equals("getObject") ? "Alice" : null);
+            method.equals("getString") ? "Alice" : null);
         TypeHandlerManager manager = new TypeHandlerManager();
 
         manager.setParameter(statement, 1, "Alice", String.class, null);
-        Object result = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, String.class)
+        String result = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, String.class)
             .getResult(resultSet, 1);
 
         assertEquals("Alice", written.get());
@@ -49,32 +51,78 @@ class TypeHandlerManagerRoutingTest {
             }
             return null;
         });
-        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) ->
-            method.equals("getObject") ? "value" : null);
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getString" -> "value";
+            case "getMetaData" -> throw new SQLException(
+                "Resolved handlers must not read metadata while mapping rows");
+            default -> null;
+        });
 
-        TypeHandlerManager.ResultHandler handler =
+        TypeHandlerManager.ResultHandler<String> handler =
             new TypeHandlerManager().resolveResult(metadata, 1, String.class);
-        handler.getResult(resultSet, 1);
-        handler.getResult(resultSet, 1);
+        assertEquals("value", handler.getResult(resultSet, 1));
+        assertEquals("value", handler.getResult(resultSet, 1));
 
         assertEquals(1, metadataReads.get());
     }
 
     @Test
-    void leavesEnumValuesForGeneratedEnumConversion() throws Exception {
+    void convertsEnumNamesAndOrdinalsToTheTargetEnum() throws Exception {
         AtomicReference<Object> value = new AtomicReference<>("ACTIVE");
-        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) ->
-            method.equals("getObject") ? value.get() : null);
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getString", "getObject" -> value.get();
+            default -> null;
+        });
         TypeHandlerManager manager = new TypeHandlerManager();
 
-        Object name = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, Status.class)
+        Status name = manager.resolveResult(metadata(JDBCType.VARCHAR), 1, Status.class)
             .getResult(resultSet, 1);
         value.set(1);
-        Object ordinal = manager.resolveResult(metadata(JDBCType.INTEGER), 1, Status.class)
+        Status ordinal = manager.resolveResult(metadata(JDBCType.INTEGER), 1, Status.class)
             .getResult(resultSet, 1);
 
-        assertEquals("ACTIVE", name);
-        assertEquals(1, ordinal);
+        assertEquals(Status.ACTIVE, name);
+        assertEquals(Status.DISABLED, ordinal);
+    }
+
+    @Test
+    void preservesLocalTimePrecisionAndUsesOneBasedMonthValues() throws Exception {
+        LocalTime preciseTime = LocalTime.of(12, 34, 56, 123_456_000);
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getObject" -> arguments.length == 2 ? preciseTime : 9;
+            default -> null;
+        });
+        TypeHandlerManager manager = new TypeHandlerManager();
+
+        LocalTime time = manager.resolveResult(metadata(JDBCType.TIME), 1, LocalTime.class)
+            .getResult(resultSet, 1);
+        Month month = manager.resolveResult(metadata(JDBCType.INTEGER), 2, Month.class)
+            .getResult(resultSet, 2);
+
+        assertEquals(preciseTime, time);
+        assertEquals(Month.SEPTEMBER, month);
+    }
+
+    @Test
+    void usesDeterministicTimestampReadersForTemporalTargets() throws Exception {
+        java.sql.Timestamp timestamp = java.sql.Timestamp.valueOf("2026-09-09 12:34:56.123456");
+        ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getTimestamp" -> timestamp;
+            case "getObject" -> throw new SQLException(
+                "Timestamp routes must not depend on the driver's default object type");
+            default -> null;
+        });
+        TypeHandlerManager manager = new TypeHandlerManager();
+
+        java.util.Date utilDate = manager
+            .resolveResult(metadata(JDBCType.TIMESTAMP_WITH_TIMEZONE), 1, java.util.Date.class)
+            .getResult(resultSet, 1);
+        java.time.OffsetDateTime offsetDateTime = manager
+            .resolveResult(metadata(JDBCType.TIMESTAMP), 2, java.time.OffsetDateTime.class)
+            .getResult(resultSet, 2);
+
+        assertEquals(timestamp.getTime(), utilDate.getTime());
+        assertEquals(timestamp.toInstant(), offsetDateTime.toInstant());
     }
 
     @Test
@@ -181,6 +229,8 @@ class TypeHandlerManagerRoutingTest {
         assertEquals(dateValue.getTime(), ((java.sql.Time) written.get()).getTime());
 
         ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
+            case "getDate" -> new java.sql.Date(dateValue.getTime());
+            case "getTime" -> new java.sql.Time(dateValue.getTime());
             case "getObject" -> arguments[0].equals(1)
                 ? new java.sql.Date(dateValue.getTime())
                 : new java.sql.Time(dateValue.getTime());

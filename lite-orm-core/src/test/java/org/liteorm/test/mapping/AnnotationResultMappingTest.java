@@ -77,6 +77,7 @@ class AnnotationResultMappingTest {
         ResultSet resultSet = proxy(ResultSet.class, (method, arguments) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> row.incrementAndGet() == 0;
+            case "getString" -> "Alice";
             case "getObject" -> (int) arguments[0] == 1 ? "Alice" : 7L;
             default -> null;
         });

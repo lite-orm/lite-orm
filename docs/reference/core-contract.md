@@ -89,7 +89,7 @@ Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at c
 
 Generated code supplies declared Java parameter types and optional placeholder `jdbcType` values. Without an explicit value, the compiler emits the canonical JDBC type, including a stable type for null parameters. Unsupported parameter types fail compilation with guidance to use `@UseParameterBinder`.
 
-For query results, generated code supplies each Java target type and result label. `JdbcSqlExecutor` combines them with live `ResultSetMetaData`, resolves one route per result column, and reuses it for every row. Generated code then performs direct scalar conversion, record construction, or JavaBean setter calls. Unsupported runtime result pairs fail in the mapping phase with the result column, Java target type, JDBC type, and guidance to use `@UseRowMapper`.
+For query results, generated code supplies each Java target type and result label. `JdbcSqlExecutor` reads each result column's JDBC type once, combines it with the generated target type, resolves one typed result handler per column, and reuses that handler for every row. The handler owns the JDBC getter and conversion to its target Java type. Generated code only casts or unboxes the already converted value before direct scalar return, record construction, or JavaBean setter calls. Unsupported runtime result pairs fail in the mapping phase with the result column, Java target type, JDBC type, and guidance to use `@UseRowMapper`.
 
 The manager has no database-product branches, vendor-type registry, schema access, classpath scanning, reflection-based object construction, or `ServiceLoader`. Exceptional scalar representations are deliberately query- or parameter-scoped through `RowMapper` and `ParameterBinder`.
 

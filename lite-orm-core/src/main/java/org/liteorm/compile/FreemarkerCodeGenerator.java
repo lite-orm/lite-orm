@@ -224,22 +224,16 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
 
     private String generatedKeyExpression(MapperCompilationModel.MethodModel methodModel) {
         String key = "executionResult.getGeneratedKey()";
-        if (methodModel.rowMapperFieldName() != null) {
-            return "(" + methodModel.returnType() + ") " + key;
-        }
-        return switch (methodModel.returnType()) {
-            case "int", "java.lang.Integer" -> "ResultValueConverters.toInteger(" + key + ")";
-            case "long", "java.lang.Long" -> "ResultValueConverters.toLong(" + key + ")";
-            case "short", "java.lang.Short" -> "ResultValueConverters.toShort(" + key + ")";
-            case "byte", "java.lang.Byte" -> "ResultValueConverters.toByte(" + key + ")";
-            case "double", "java.lang.Double" -> "ResultValueConverters.toDouble(" + key + ")";
-            case "float", "java.lang.Float" -> "ResultValueConverters.toFloat(" + key + ")";
-            case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + key + ")";
-            case "java.math.BigInteger" -> "ResultValueConverters.toBigInteger(" + key + ")";
-            case "java.lang.String" -> "ResultValueConverters.toStringValue(" + key + ")";
-            default -> throw new IllegalStateException(
-                "Unsupported generated-key return type: " + methodModel.returnType());
+        String targetType = switch (methodModel.returnType()) {
+            case "int" -> "java.lang.Integer";
+            case "long" -> "java.lang.Long";
+            case "short" -> "java.lang.Short";
+            case "byte" -> "java.lang.Byte";
+            case "double" -> "java.lang.Double";
+            case "float" -> "java.lang.Float";
+            default -> methodModel.returnType();
         };
+        return "(" + targetType + ") " + key;
     }
 
     private String resultColumnIndexes(MapperCompilationModel.MethodModel methodModel) {

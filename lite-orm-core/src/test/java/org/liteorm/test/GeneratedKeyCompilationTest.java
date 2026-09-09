@@ -24,7 +24,7 @@ class GeneratedKeyCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void generatesExplicitScalarConversionsForOptedInInsert() throws Exception {
+    void generatesDirectTargetTypeAssignmentsForOptedInInsert() throws Exception {
         CompilationResult result = compile("GeneratedKeyMapper", """
             package org.liteorm.test.generatedkeyfixture;
 
@@ -53,15 +53,16 @@ class GeneratedKeyCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedKeyMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toInteger(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toLong(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toShort(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toByte(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toDouble(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toFloat(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toBigInteger(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
+        assertTrue(generated.contains("(java.lang.Integer) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.Long) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.Short) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.Byte) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.Double) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.Float) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.math.BigDecimal) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.math.BigInteger) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("(java.lang.String) executionResult.getGeneratedKey()"));
+        assertFalse(generated.contains("ResultValueConverters"), generated);
         assertTrue(generated.contains("new ExecutionPlan.TypeRouting("));
         assertFalse(generated.contains("TypeHandlerManager"), generated);
     }

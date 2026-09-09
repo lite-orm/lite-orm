@@ -35,7 +35,7 @@ Annotation and XML forms normalize into the same compiler model. They cannot bot
 
 ## Standard JDBC Routing
 
-Standard routing requires no application setup; its ownership and metadata contract are defined in [Standard JDBC Type Routing](../../reference/core-contract.md#25-standard-jdbc-type-routing). For results, the runtime combines generated target metadata with live `ResultSetMetaData` and resolves the route once per result column.
+Standard routing requires no application setup; its ownership and metadata contract are defined in [Standard JDBC Type Routing](../../reference/core-contract.md#25-standard-jdbc-type-routing). For results, the runtime reads each column's JDBC type once, combines it with the generated Java target type, and resolves a typed handler once per result column. Each row then calls that fixed handler without reading metadata or repeating route selection.
 
 Users do not configure or register this manager. It has no database-product branches, schema lookup, classpath scanning, or `ServiceLoader`.
 
@@ -91,9 +91,11 @@ Mapper annotation/XML
 
 runtime:
 generated execution plan
-  -> TypeHandlerManager routes standard JDBC values
+  -> JdbcSqlExecutor reads each result column JDBC type once
+  -> TypeHandlerManager resolves a typed handler for JDBC type + Java target type
+  -> the fixed handler reads and converts that column for every row
   -> JdbcSqlExecutor executes one JDBC lifecycle
-  -> generated code constructs the final Java result
+  -> generated code casts/unboxes values and constructs the final Java result
 ```
 
 Use the generated path first. Add a binder only for an exceptional write, a row mapper only for an exceptional read, and raw JDBC when the application must own behavior outside these contracts.
