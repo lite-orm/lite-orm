@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.liteorm.api.BatchExecutionPlan;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.StatementOptions;
-import org.liteorm.jdbc.TypeHandlerManager;
 
 import java.sql.JDBCType;
 import java.util.ArrayList;
@@ -106,7 +105,7 @@ class ExecutionPlanContractTest {
         Class<?>[] resultTypes = {Long.class};
         String[] labels = {"id"};
         ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
-            new TypeHandlerManager(), parameterTypes, jdbcTypes, resultTypes, labels);
+            parameterTypes, jdbcTypes, resultTypes, labels);
 
         parameterTypes[0] = Object.class;
         jdbcTypes[0] = JDBCType.OTHER;
@@ -122,7 +121,6 @@ class ExecutionPlanContractTest {
     @Test
     void typeRoutingRequiresLabelsForCompositeResults() {
         assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan.TypeRouting(
-            new TypeHandlerManager(), new Class<?>[0], null,
-            new Class<?>[]{Long.class, String.class}, null));
+            new Class<?>[0], null, new Class<?>[]{Long.class, String.class}, null));
     }
 }

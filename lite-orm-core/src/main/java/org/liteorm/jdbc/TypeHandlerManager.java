@@ -257,6 +257,10 @@ public final class TypeHandlerManager {
     }
 
     private static Class<?> box(Class<?> type) {
+        return getaClass(type);
+    }
+
+    public static Class<?> getaClass(Class<?> type) {
         if (!type.isPrimitive()) return type;
         if (type == boolean.class) return Boolean.class;
         if (type == byte.class) return Byte.class;
