@@ -60,15 +60,14 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/JdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"businessDate\")"), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"createdAt\")"), generated);
-        assertTrue(generated.contains("(java.lang.Long)resultRow[resultColumnIndexes[0]]"), generated);
-        assertTrue(generated.contains("(java.math.BigDecimal)resultRow[resultColumnIndexes[2]]"), generated);
-        assertTrue(generated.contains("(java.time.LocalDate)resultRow[resultColumnIndexes[3]]"), generated);
-        assertTrue(generated.contains("(java.time.LocalDateTime)resultRow[resultColumnIndexes[4]]"), generated);
-        assertTrue(generated.contains("(java.time.Instant)resultRow[resultColumnIndexes[5]]"), generated);
-        assertTrue(generated.contains("(org.liteorm.test.jdbctypefixture.Status)resultRow[resultColumnIndexes[6]]"), generated);
-        assertTrue(generated.contains("(byte[])resultRow[resultColumnIndexes[7]]"), generated);
+        assertTrue(generated.contains("\"businessDate\", \"createdAt\""), generated);
+        assertTrue(generated.contains("(java.lang.Long)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.math.BigDecimal)row.get(2)"), generated);
+        assertTrue(generated.contains("(java.time.LocalDate)row.get(3)"), generated);
+        assertTrue(generated.contains("(java.time.LocalDateTime)row.get(4)"), generated);
+        assertTrue(generated.contains("(java.time.Instant)row.get(5)"), generated);
+        assertTrue(generated.contains("(org.liteorm.test.jdbctypefixture.Status)row.get(6)"), generated);
+        assertTrue(generated.contains("(byte[])row.get(7)"), generated);
         assertFalse(generated.contains("ResultValueConverters"), generated);
     }
 
@@ -119,12 +118,11 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/FrozenJdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("(java.util.UUID)resultRow[0]"), generated);
-        assertTrue(generated.contains("(java.time.LocalTime)resultRow[0]"), generated);
-        assertTrue(generated.contains("(java.time.OffsetDateTime)resultRow[0]"), generated);
-        assertTrue(generated.contains("(java.util.UUID)row[resultColumnIndexes[0]]"), generated);
-        assertTrue(generated.contains("(java.time.LocalTime)row[resultColumnIndexes[1]]"), generated);
-        assertTrue(generated.contains("(java.time.OffsetDateTime)row[resultColumnIndexes[2]]"), generated);
+        assertTrue(generated.contains("(java.util.UUID)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.LocalTime)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.OffsetDateTime)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.LocalTime)row.get(1)"), generated);
+        assertTrue(generated.contains("(java.time.OffsetDateTime)row.get(2)"), generated);
         assertFalse(generated.contains("ResultValueConverters"), generated);
     }
 
@@ -200,16 +198,16 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/StandardJdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("(java.math.BigInteger)resultRow[resultColumnIndexes[0]]"), generated);
-        assertTrue(generated.contains("(java.lang.Byte[])resultRow[resultColumnIndexes[1]]"), generated);
-        assertTrue(generated.contains("(java.util.Date)resultRow[resultColumnIndexes[2]]"), generated);
-        assertTrue(generated.contains("(java.sql.Date)resultRow[resultColumnIndexes[3]]"), generated);
-        assertTrue(generated.contains("(java.sql.Time)resultRow[resultColumnIndexes[4]]"), generated);
-        assertTrue(generated.contains("(java.sql.Timestamp)resultRow[resultColumnIndexes[5]]"), generated);
-        assertTrue(generated.contains("(java.time.Year)resultRow[resultColumnIndexes[6]]"), generated);
-        assertTrue(generated.contains("(java.time.Month)resultRow[resultColumnIndexes[7]]"), generated);
-        assertTrue(generated.contains("(java.time.YearMonth)resultRow[resultColumnIndexes[8]]"), generated);
-        assertTrue(generated.contains("(java.time.chrono.JapaneseDate)resultRow[resultColumnIndexes[9]]"), generated);
+        assertTrue(generated.contains("(java.math.BigInteger)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.lang.Byte[])row.get(1)"), generated);
+        assertTrue(generated.contains("(java.util.Date)row.get(2)"), generated);
+        assertTrue(generated.contains("(java.sql.Date)row.get(3)"), generated);
+        assertTrue(generated.contains("(java.sql.Time)row.get(4)"), generated);
+        assertTrue(generated.contains("(java.sql.Timestamp)row.get(5)"), generated);
+        assertTrue(generated.contains("(java.time.Year)row.get(6)"), generated);
+        assertTrue(generated.contains("(java.time.Month)row.get(7)"), generated);
+        assertTrue(generated.contains("(java.time.YearMonth)row.get(8)"), generated);
+        assertTrue(generated.contains("(java.time.chrono.JapaneseDate)row.get(9)"), generated);
         assertTrue(generated.contains("mapped.setIntegerValue((java.math.BigInteger)"), generated);
         assertTrue(generated.contains("mapped.setYearMonthValue((java.time.YearMonth)"), generated);
         assertFalse(generated.contains("ResultValueConverters"), generated);

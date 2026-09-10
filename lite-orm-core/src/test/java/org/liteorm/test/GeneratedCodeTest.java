@@ -35,7 +35,7 @@ class GeneratedCodeTest {
     void generatedMapperUsesDirectBindingAndMappingWithoutReflection() throws Exception {
         String generatedSource = userMapperSource();
 
-        assertTrue(generatedSource.contains("params[0] = id;"), generatedSource);
+        assertTrue(generatedSource.contains("FIND_BY_ID_DEFINITION.bind(id)"), generatedSource);
         assertTrue(generatedSource.contains("new org.liteorm.test.User("), generatedSource);
         for (String forbiddenApi : List.of(
                 "Class.forName", ".getClass()", "Method.invoke", "Field.set", "Field.get",
@@ -49,7 +49,8 @@ class GeneratedCodeTest {
     void generatedMapperUsesTypedExecutionContractAndDeterministicSource() throws Exception {
         String generatedSource = userMapperSource();
 
-        assertTrue(generatedSource.contains("SqlResult executionResult = sqlExecutor.execute(executionPlan);"));
+        assertTrue(generatedSource.contains(
+            "SqlResult<org.liteorm.test.User> executionResult = sqlExecutor.execute(executionPlan);"));
         assertTrue(generatedSource.contains("return (long) executionResult.getUpdateCount();"));
         assertTrue(generatedSource.contains("Generated Mapper implementation."));
         assertFalse(generatedSource.contains("executionResult.hasError()"));

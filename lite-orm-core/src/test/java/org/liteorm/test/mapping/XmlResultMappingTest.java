@@ -93,10 +93,9 @@ class XmlResultMappingTest {
         assertTrue(generatedSource.contains("new org.liteorm.test.xmlresult.FlatResultMapper.UserRecord("),
             generatedSource);
         assertTrue(generatedSource.contains("mapped.setId("), generatedSource);
-        assertTrue(generatedSource.contains("executionResult.requireColumnIndex(\"user_id\")"),
+        assertTrue(generatedSource.contains("new String[]{\"user_id\", \"user_name\"}"),
             generatedSource);
-        assertTrue(generatedSource.contains("executionResult.requireColumnIndex(\"total\")"),
-            generatedSource);
+        assertTrue(generatedSource.contains("new String[]{\"total\"}"), generatedSource);
 
         try (URLClassLoader loader = new URLClassLoader(
                 new java.net.URL[]{classes.toUri().toURL()}, getClass().getClassLoader())) {

@@ -359,7 +359,7 @@ final class CompilePipeline {
             : extensionBindings.rowMapperFieldName() == null
                 ? generateResultMapping(
                     mapperInterface, method, returnType, declaredResultMapping)
-                : new ResultMapping("(" + extractMappedType(returnType) + ")row[0]", "", List.of());
+                : new ResultMapping("(" + extractMappedType(returnType) + ")row.get(0)", "", List.of());
 
         return new MapperCompilationModel.MethodModel(
             methodName,
@@ -1554,7 +1554,7 @@ final class CompilePipeline {
             ExecutableElement method,
             String objectType,
             ResultMappingDeclaration declaredResultMapping) throws CompileException {
-        String scalarMapping = generateValueMapping(objectType, "row[0]");
+        String scalarMapping = generateValueMapping(objectType, "row.get(0)");
         if (scalarMapping != null) {
             return declaredScalarMapping(
                 mapperInterface, method, objectType, scalarMapping, declaredResultMapping);
@@ -1684,7 +1684,7 @@ final class CompilePipeline {
             }
             
             String convertedValue = generateValueMapping(
-                componentType, "row[resultColumnIndexes[" + i + "]]");
+                componentType, "row.get(" + i + ")");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested record component " + objectType + "." + componentName
@@ -1744,8 +1744,8 @@ final class CompilePipeline {
         String helperName = "map" + Character.toUpperCase(mapperMethod.getSimpleName().charAt(0))
             + mapperMethod.getSimpleName().toString().substring(1) + "Row";
         StringBuilder helper = new StringBuilder();
-        helper.append("    private ").append(objectType).append(" ").append(helperName)
-            .append("(Object[] row, int[] resultColumnIndexes) {\n");
+        helper.append("    private static ").append(objectType).append(" ").append(helperName)
+            .append("(org.liteorm.api.ResultRow row) {\n");
         helper.append("        ").append(objectType).append(" mapped = new ").append(objectType).append("();\n");
         List<NormalizedResultProperty> normalizedProperties = new ArrayList<>(settersByProperty.size());
         Map<String, ResultProperty> declaredProperties = declaredResultMapping.byProperty();
@@ -1767,7 +1767,7 @@ final class CompilePipeline {
                 parameterType, false, -1, declaredProperty,
                 objectType + "." + property));
             String convertedValue = generateValueMapping(
-                parameterType, "row[resultColumnIndexes[" + index + "]]");
+                parameterType, "row.get(" + index + ")");
             if (convertedValue == null) {
                 throw unsupportedResultMapping(mapperInterface, mapperMethod,
                     "nested object property " + objectType + "." + property + " (" + parameterType + ")");
@@ -1780,7 +1780,7 @@ final class CompilePipeline {
         helper.append("        return mapped;\n");
         helper.append("    }\n");
         return new ResultMapping(
-            helperName + "(row, resultColumnIndexes)", helper.toString(),
+            helperName + "(row)", helper.toString(),
             List.copyOf(normalizedProperties));
     }
 

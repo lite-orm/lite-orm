@@ -41,9 +41,18 @@ class FreemarkerCodeGeneratorTest {
 
         String code = generator.generateMethodImpl(method);
 
-        assertTrue(code.contains("ExecutionPlan executionPlan = buildFindByIdExecutionPlan(id);"));
-        assertTrue(code.contains("private ExecutionPlan buildFindByIdExecutionPlan(Long id)"));
-        assertTrue(code.contains("return new ExecutionPlan(\"org.liteorm.test.UserMapper.findById\", sql, params"));
+        assertTrue(code.contains(
+            "QueryExecutionPlan<org.liteorm.test.User> executionPlan = buildFindByIdExecutionPlan(id);"));
+        assertTrue(code.contains("SqlResult<org.liteorm.test.User> executionResult"));
+        assertTrue(code.contains("List<org.liteorm.test.User> resultRows = executionResult.getQueryResults();"));
+        assertTrue(code.contains(
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByIdExecutionPlan(Long id)"));
+        assertTrue(code.contains(
+            "private static final QueryDefinition<org.liteorm.test.User> FIND_BY_ID_DEFINITION"));
+        assertTrue(code.contains("return FIND_BY_ID_DEFINITION.bind(id);"));
+        assertFalse(code.contains("Object[] params"));
+        assertFalse(code.contains(
+            "return new QueryExecutionPlan<>(\"org.liteorm.test.UserMapper.findById\", sql, params"));
     }
 
     @Test

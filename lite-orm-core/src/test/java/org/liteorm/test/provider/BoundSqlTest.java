@@ -12,9 +12,50 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BoundSqlTest {
+
+    @Test
+    void createsBoundSqlFromAlignedGeneratedParameterArrays() {
+        BoundSql boundSql = BoundSql.of(
+            "SELECT id FROM users WHERE id = ?",
+            new Object[]{1L},
+            new org.liteorm.api.ParameterBinder<?>[]{null},
+            new Class<?>[]{Long.class},
+            new java.sql.JDBCType[]{java.sql.JDBCType.BIGINT});
+
+        assertArrayEquals(new Object[]{1L}, boundSql.parameterValues());
+        assertArrayEquals(new Class<?>[]{Long.class}, boundSql.parameterTypes());
+        assertArrayEquals(
+            new java.sql.JDBCType[]{java.sql.JDBCType.BIGINT},
+            boundSql.parameterJdbcTypes());
+    }
+
+    @Test
+    void rejectsMisalignedGeneratedParameterArrays() {
+        assertThrows(ConfigurationException.class, () -> BoundSql.of(
+            "SELECT ?",
+            new Object[]{1L},
+            null,
+            new Class<?>[0],
+            null));
+    }
+
+    @Test
+    void preservesDirectBindingForGeneratedParametersWithoutStaticTypes() {
+        BoundSql boundSql = BoundSql.of(
+            "SELECT ?",
+            new Object[]{"value"},
+            new ParameterBinder<?>[]{null},
+            new Class<?>[]{null},
+            new JDBCType[]{null});
+
+        assertArrayEquals(new Class<?>[]{null}, boundSql.parameterTypes());
+        assertEquals(1, boundSql.parameterBinders().length);
+        assertNotNull(boundSql.parameterBinders()[0]);
+    }
 
     @Test
     void preservesOrderedParametersAndDefensivelyCopiesList() {

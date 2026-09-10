@@ -45,7 +45,8 @@ class LiteOrmAssemblyTest {
             .interceptors(List.of(first, second))
             .build();
 
-        SqlResult result = assembly.sqlExecutor().execute(selectPlan("test.Mapper.find"));
+        SqlResult<Object[]> result = rawQueryResult(
+            assembly.sqlExecutor().execute(selectPlan("test.Mapper.find")));
 
         assertEquals(7L, result.getQueryResults().getFirst()[0]);
         assertEquals(List.of(
@@ -227,6 +228,11 @@ class LiteOrmAssemblyTest {
         }
         @Override public <T> T unwrap(Class<T> iface) { throw new UnsupportedOperationException(); }
         @Override public boolean isWrapperFor(Class<?> iface) { return false; }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static SqlResult<Object[]> rawQueryResult(SqlResult<?> result) {
+        return (SqlResult<Object[]>) result;
     }
 
     @SuppressWarnings("unchecked")

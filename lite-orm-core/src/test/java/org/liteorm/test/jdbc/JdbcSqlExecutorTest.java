@@ -10,6 +10,7 @@ import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
+import org.liteorm.api.QueryExecutionPlan;
 import org.liteorm.api.ResultColumn;
 import org.liteorm.api.StatementOptions;
 import org.liteorm.api.SqlExecutionException;
@@ -117,7 +118,7 @@ class JdbcSqlExecutorTest {
         PreparedStatement statement = statement(events, rows, 0, null, null);
         JdbcSqlExecutor executor = executor(events, statement);
 
-        SqlResult result = executor.execute(selectPlan(null));
+        SqlResult<Object[]> result = rawQueryResult(executor.execute(selectPlan(null)));
 
         assertArrayEquals(new Object[]{1L, "Alice"}, result.getQueryResults().get(0));
         assertArrayEquals(new Object[]{2L, "Bob"}, result.getQueryResults().get(1));
@@ -139,7 +140,7 @@ class JdbcSqlExecutorTest {
             List.<Object[]>of(new Object[]{"Alice", 7L}));
         PreparedStatement statement = statement(events, rows, 0, null, null);
 
-        SqlResult result = executor(events, statement).execute(selectPlan(null));
+        SqlResult<Object[]> result = rawQueryResult(executor(events, statement).execute(selectPlan(null)));
 
         assertEquals(List.of(new ResultColumn("USER_NAME", 0), new ResultColumn("id", 1)),
             result.getResultColumns());
@@ -147,6 +148,31 @@ class JdbcSqlExecutorTest {
         assertEquals(1, result.requireColumnIndex("ID"));
         assertEquals(1, events.stream().filter("metadata.getColumnLabel:1"::equals).count());
         assertEquals(1, events.stream().filter("metadata.getColumnLabel:2"::equals).count());
+    }
+
+    @Test
+    void assemblesTypedQueryResultsInGeneratedMappingOrder() {
+        List<String> events = new ArrayList<>();
+        ResultSet rows = rows(
+            events,
+            List.of("name", "id"),
+            List.<Object[]>of(new Object[]{"Alice", "7"}));
+        PreparedStatement statement = statement(events, rows, 0, null, null);
+        QueryExecutionPlan<MappedUser> plan = new QueryExecutionPlan<>(
+            "test.Mapper.find", "SELECT name, id FROM users", new Object[0],
+            ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.GENERATED,
+            null, null, null,
+            row -> new MappedUser((String) row.get(0), (String) row.get(1)),
+            null,
+            new ExecutionPlan.TypeRouting(
+                new Class<?>[0], null,
+                new Class<?>[]{String.class, String.class},
+                new String[]{"id", "name"}));
+
+        SqlResult<MappedUser> result = executor(events, statement).execute(plan);
+
+        assertEquals(List.of(new MappedUser("7", "Alice")), result.getQueryResults());
+        assertTrue(events.indexOf("rows.getString:2") < events.indexOf("rows.close"));
     }
 
     @Test
@@ -158,7 +184,7 @@ class JdbcSqlExecutorTest {
             List<String> events = new ArrayList<>();
             PreparedStatement statement = statement(events, null, 3, null, null);
 
-            SqlResult result = executor(events, statement).execute(writePlan(type, false, null));
+            SqlResult<?> result = executor(events, statement).execute(writePlan(type, false, null));
 
             assertEquals(3, result.getUpdateCount());
             assertEquals(1, events.stream().filter("executeUpdate"::equals).count());
@@ -171,7 +197,7 @@ class JdbcSqlExecutorTest {
         ResultSet keys = generatedKeys(events, 42L);
         PreparedStatement statement = statement(events, null, 1, keys, null);
 
-        SqlResult result = executor(events, statement).execute(
+        SqlResult<?> result = executor(events, statement).execute(
             writePlan(ExecutionPlan.StatementType.INSERT, true, null));
 
         assertEquals(42L, result.getGeneratedKey());
@@ -222,7 +248,7 @@ class JdbcSqlExecutorTest {
             ExecutionPlan.StatementType.INSERT, ExecutionPlan.SqlSource.ANNOTATION,
             "id", null, resultSet -> UUID.fromString(resultSet.getString(1)));
 
-        SqlResult result = executor(events, statement).execute(plan);
+        SqlResult<?> result = executor(events, statement).execute(plan);
 
         assertEquals(UUID.fromString(keyValue), result.getGeneratedKey());
         assertEquals(1, events.stream().filter("keys.getString:1"::equals).count());
@@ -252,7 +278,7 @@ class JdbcSqlExecutorTest {
             List.of(new Object[]{1L, "Alice"}, new Object[]{2L, "Bob"}),
             ExecutionPlan.SqlSource.GENERATED);
 
-        SqlResult result = executor(events, statement).execute(plan);
+        SqlResult<?> result = executor(events, statement).execute(plan);
 
         assertArrayEquals(new int[]{1, 1}, result.getBatchUpdateCounts());
         assertEquals(List.of(
@@ -269,7 +295,7 @@ class JdbcSqlExecutorTest {
             "test.Mapper.insertAll", "INSERT INTO users(id) VALUES (?)",
             List.of(), ExecutionPlan.SqlSource.GENERATED);
 
-        SqlResult result = executor(events, statement).execute(plan);
+        SqlResult<?> result = executor(events, statement).execute(plan);
 
         assertArrayEquals(new int[0], result.getBatchUpdateCounts());
         assertFalse(events.contains("executeBatch"));
@@ -310,8 +336,9 @@ class JdbcSqlExecutorTest {
 
         List<String> rowEvents = new ArrayList<>();
         ResultSet resultSet = singleColumnRows(rowEvents, List.of("Alice", "Bob"));
-        SqlResult result = executor(rowEvents, statement(rowEvents, resultSet, 0, null, null))
-            .execute(selectPlan(current -> current.getString(1).toUpperCase()));
+        SqlResult<Object[]> result = rawQueryResult(
+            executor(rowEvents, statement(rowEvents, resultSet, 0, null, null))
+                .execute(selectPlan(current -> current.getString(1).toUpperCase())));
 
         assertArrayEquals(new Object[]{"ALICE"}, result.getQueryResults().get(0));
         assertArrayEquals(new Object[]{"BOB"}, result.getQueryResults().get(1));
@@ -353,7 +380,7 @@ class JdbcSqlExecutorTest {
             new TrackingFactory(connection(new ArrayList<>(), statement), new ArrayList<>()),
             List.of(first, failing));
 
-        SqlResult result = executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null));
+        SqlResult<?> result = executor.execute(writePlan(ExecutionPlan.StatementType.UPDATE, false, null));
 
         assertEquals(3, result.getUpdateCount());
         assertEquals(List.of(
@@ -788,13 +815,17 @@ class JdbcSqlExecutorTest {
                 events.add("metadata.getColumnLabel:" + args[0]);
                 yield labels.get((int) args[0] - 1);
             }
-            case "getColumnType" -> Types.OTHER;
+            case "getColumnType" -> Types.VARCHAR;
             default -> null;
         });
         return proxy(ResultSet.class, (method, args) -> switch (method) {
             case "getMetaData" -> metadata;
             case "next" -> ++cursor[0] < values.size();
             case "getObject" -> values.get(cursor[0])[(int) args[0] - 1];
+            case "getString" -> {
+                events.add("rows.getString:" + args[0]);
+                yield values.get(cursor[0])[(int) args[0] - 1];
+            }
             case "close" -> { events.add("rows.close"); yield null; }
             default -> null;
         });
@@ -859,6 +890,11 @@ class JdbcSqlExecutorTest {
     }
 
     @SuppressWarnings("unchecked")
+    private SqlResult<Object[]> rawQueryResult(SqlResult<?> result) {
+        return (SqlResult<Object[]>) result;
+    }
+
+    @SuppressWarnings("unchecked")
     private <T> T proxy(Class<T> type, Invocation action) {
         return (T) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{type}, (proxy, method, args) -> {
             Object result = action.invoke(method.getName(), args == null ? new Object[0] : args);
@@ -878,6 +914,9 @@ class JdbcSqlExecutorTest {
     @FunctionalInterface
     private interface Invocation {
         Object invoke(String method, Object[] args) throws Throwable;
+    }
+
+    private record MappedUser(String id, String name) {
     }
 
     private final class TrackingFactory implements ConnectionHandleFactory {

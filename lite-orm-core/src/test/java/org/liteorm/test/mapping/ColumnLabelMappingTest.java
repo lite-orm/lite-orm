@@ -37,8 +37,9 @@ class ColumnLabelMappingTest {
 
         String generated = Files.readString(compilation.generatedDirectory().resolve(
             "org/liteorm/test/columnfixture/LabelMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"id\")"), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"name\")"), generated);
+        assertTrue(generated.contains("new String[]{\"id\", \"name\"}"), generated);
+        assertTrue(generated.contains("row -> new org.liteorm.test.columnfixture.LabelMapper.UserRecord("),
+            generated);
 
         try (URLClassLoader loader = new URLClassLoader(
                 new java.net.URL[]{compilation.classesDirectory().toUri().toURL()}, getClass().getClassLoader())) {

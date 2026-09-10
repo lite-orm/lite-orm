@@ -79,6 +79,20 @@ Built-in mapping is generated for:
 - JavaBeans through a usable no-argument constructor and supported setters;
 - lists and optionals of supported element types.
 
+For a non-cursor SELECT method, generated code creates a typed `QueryExecutionPlan<T>` carrying a
+`ResultAssembler<T>`. `JdbcSqlExecutor` first reads and converts column values through standard Core
+type routing, then invokes the assembler before closing the result set. The resulting `SqlResult<T>`
+contains an immutable `List<T>`, so generated Mapper return handling does not expose or remap
+`Object[]` rows. Direct low-level `ExecutionPlan` queries continue to return immutable raw row arrays.
+
+Generated Mappers separate stable statement definitions from invocation bindings. Fixed SQL methods
+retain their statement identity, SQL text, source, options, extension references, type routing, and
+result assembly in immutable `QueryDefinition`, `CommandDefinition`, or `BatchDefinition` fields.
+Their execution-plan factories bind only ordered invocation values. Dynamic and provider queries bind
+validated `BoundSql` to a query definition so their variable SQL and parameter routes remain
+invocation-scoped while result routing and assembly remain fixed. Definitions never retain Mapper
+argument values.
+
 Column labels are matched case-insensitively. SQL aliases, method-level `@Results` / `@Result`, or XML `resultMap` metadata may define explicit labels. Result mappings are flat: each entry maps one column to one record component or JavaBean property, while a scalar mapping declares one column without a property. XML records use `<constructor>` with `<arg>` / `<idArg>` entries; JavaBeans use `<id>` / `<result>`. XML and annotation mappings normalize into the same compiler model and cannot both configure one method or be combined with `@UseRowMapper`. Missing required columns, duplicate labels, unsupported conversions, invalid row widths, and construction failures are mapping errors rather than silent fallback.
 
 Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at compilation, instantiated once per generated Mapper instance, and invoked directly without reflection dispatch. They must be stateless, thread-safe, or externally synchronized.
@@ -89,7 +103,7 @@ Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at c
 
 Generated code supplies declared Java parameter types and optional placeholder `jdbcType` values. Without an explicit value, the compiler emits the canonical JDBC type, including a stable type for null parameters. Unsupported parameter types fail compilation with guidance to use `@UseParameterBinder`.
 
-For query results, generated code supplies each Java target type and result label. `JdbcSqlExecutor` reads each result column's JDBC type once, combines it with the generated target type, resolves one typed result handler per column, and reuses that handler for every row. The handler owns the JDBC getter and conversion to its target Java type. Generated code only casts or unboxes the already converted value before direct scalar return, record construction, or JavaBean setter calls. Unsupported runtime result pairs fail in the mapping phase with the result column, Java target type, JDBC type, and guidance to use `@UseRowMapper`.
+For query results, generated code supplies each Java target type, result label, and result assembler. `JdbcSqlExecutor` reads each result column's JDBC type once, combines it with the generated target type, resolves one typed result handler per column, and reuses that handler for every row. The handler owns the JDBC getter and conversion to its target Java type. The generated assembler then casts or unboxes those converted values for direct scalar return, record construction, or JavaBean setter calls. Unsupported runtime result pairs fail in the mapping phase with the result column, Java target type, JDBC type, and guidance to use `@UseRowMapper`.
 
 The manager has no database-product branches, vendor-type registry, schema access, classpath scanning, reflection-based object construction, or `ServiceLoader`. Exceptional scalar representations are deliberately query- or parameter-scoped through `RowMapper` and `ParameterBinder`.
 

@@ -12,7 +12,7 @@ The annotation processor validates Mapper methods, selects SQL sources, compiles
 
 ## Runtime
 
-Generated Mappers build immutable execution plans and call `SqlExecutor`. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover handlers. Core standard values are routed from generated Java types and JDBC metadata; generated code performs direct object construction and setter calls.
+Generated Mappers retain immutable statement definitions and bind only each invocation's SQL parameter values into execution plans before calling `SqlExecutor`. Fixed SQL, statement identity, options, JDBC routing, and result assembly live in generated `QueryDefinition`, `CommandDefinition`, or `BatchDefinition` fields instead of being rebuilt on every call. Standard SELECT methods use a typed `QueryExecutionPlan<T>` whose generated result assembler performs direct object construction and setter calls after Core JDBC value conversion. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading and assembly, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover handlers.
 
 ## Host Integrations
 

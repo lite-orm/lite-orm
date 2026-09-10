@@ -26,11 +26,12 @@ class GeneratedSourceGoldenTest {
         assertFalse(source.contains("import org.liteorm.runtime.*;"));
         assertTrue(source.contains("Mapper method: org.liteorm.test.UserMapper#findById"));
         assertTrue(source.contains("SQL source: ANNOTATION"));
-        assertTrue(source.contains("ExecutionPlan executionPlan"));
-        assertTrue(source.contains("SqlResult executionResult"));
-        assertTrue(source.contains("List<Object[]> resultRows"));
-        assertTrue(source.contains("List<org.liteorm.test.User> mappedResults"));
-        assertTrue(source.contains("Object[] resultRow"));
+        assertTrue(source.contains("QueryExecutionPlan<org.liteorm.test.User> executionPlan"));
+        assertTrue(source.contains("SqlResult<org.liteorm.test.User> executionResult"));
+        assertTrue(source.contains("List<org.liteorm.test.User> resultRows"));
+        assertTrue(source.contains("row -> new org.liteorm.test.User("));
+        assertFalse(source.contains("List<Object[]> resultRows"));
+        assertFalse(source.contains("Object[] resultRow"));
         assertFalse(source.matches("(?s).*\\b(?:trimSql|trimParams|setSql|setParams|firstItem)\\d+\\b.*"));
         assertFalse(source.contains("java.lang.reflect"));
         assertFalse(source.contains("Map<String, Object>"));
@@ -52,6 +53,8 @@ class GeneratedSourceGoldenTest {
         assertTrue(source.contains("List<java.sql.JDBCType> parameterJdbcTypes = new ArrayList<>();"));
         assertTrue(source.contains("parameterTypes.toArray(new Class<?>[0])"));
         assertTrue(source.contains("parameterJdbcTypes.toArray(new java.sql.JDBCType[0])"));
+        assertTrue(source.contains(".bind(BoundSql.of("));
+        assertFalse(source.contains("return new QueryExecutionPlan<>("));
         assertFalse(source.contains("TypeHandlerManager"));
         assertFalse(source.matches("(?s).*\\b(?:firstItem|matched|whereSql|whereParams|setSql|setParams|trimSql|trimParams)\\d+\\b.*"));
     }

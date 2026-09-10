@@ -3,7 +3,7 @@
 LiteORM has one generated default path and two custom mapping escape hatches:
 
 - Core standard routing converts supported single JDBC values in both directions.
-- Generated result mapping constructs scalars, records, and JavaBeans.
+- Generated result assemblers construct scalars, records, and JavaBeans inside the executor lifecycle.
 - `ParameterBinder` handles one exceptional Java-to-JDBC parameter.
 - `RowMapper` handles one exceptional JDBC-row-to-Java result.
 
@@ -32,6 +32,11 @@ User findById(long id);
 ```
 
 Annotation and XML forms normalize into the same compiler model. They cannot both configure one method, and neither can be combined with `@UseRowMapper`. Current result mappings are flat: one column maps to one scalar, record component, or JavaBean property. Associations and collections are future work.
+
+Generated Mapper implementations carry ordinary mappings in a typed `QueryExecutionPlan<T>`. Core
+converts each JDBC value first and passes a read-only `ResultRow` to the generated
+`ResultAssembler<T>`. Mapper methods therefore consume `SqlResult<T>` and `List<T>` rather than raw
+`Object[]` rows. Application code does not implement or configure result assemblers.
 
 ## Standard JDBC Routing
 

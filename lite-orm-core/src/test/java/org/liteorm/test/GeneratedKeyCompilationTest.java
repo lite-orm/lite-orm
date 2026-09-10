@@ -64,6 +64,8 @@ class GeneratedKeyCompilationTest {
         assertTrue(generated.contains("(java.lang.String) executionResult.getGeneratedKey()"));
         assertFalse(generated.contains("ResultValueConverters"), generated);
         assertTrue(generated.contains("new ExecutionPlan.TypeRouting("));
+        assertTrue(generated.contains("CommandDefinition.generatedKey("));
+        assertTrue(generated.contains("return INSERT_INT_DEFINITION.bind(name);"));
         assertFalse(generated.contains("TypeHandlerManager"), generated);
     }
 
@@ -97,8 +99,9 @@ class GeneratedKeyCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
         assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
+        assertTrue(generated.contains("CommandDefinition.rowMappedGeneratedKey("));
         assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
-        assertTrue(generated.contains("insertRowMapper, StatementOptions.defaults()"));
+        assertTrue(generated.contains("insertRowMapper, null, StatementOptions.defaults()"));
     }
 
     @Test

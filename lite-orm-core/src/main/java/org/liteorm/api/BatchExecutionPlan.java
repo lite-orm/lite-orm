@@ -10,6 +10,11 @@ public final class BatchExecutionPlan extends ExecutionPlan {
 
     private final List<Object[]> batchParameters;
 
+    BatchExecutionPlan(Definition definition, String sql, List<Object[]> batchParameters) {
+        super(definition, sql, new Object[0]);
+        this.batchParameters = copy(Objects.requireNonNull(batchParameters, "batchParameters"));
+    }
+
     public BatchExecutionPlan(
             String statementId,
             String sql,

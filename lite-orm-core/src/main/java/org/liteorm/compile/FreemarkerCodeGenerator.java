@@ -83,6 +83,14 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     public String generateMethodImpl(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
 
+        if (queryDefinition(methodModel)) {
+            code.append(generateQueryDefinition(methodModel)).append("\n");
+        } else if (commandDefinition(methodModel)) {
+            code.append(generateCommandDefinition(methodModel)).append("\n");
+        } else if (batchDefinition(methodModel)) {
+            code.append(generateBatchDefinition(methodModel)).append("\n");
+        }
+
         code.append("    /**\n");
         code.append("     * Mapper method: ").append(mapperMethodLocation(methodModel)).append("\n");
         code.append("     * SQL source: ").append(methodModel.sourceType().name()).append("\n");
@@ -90,7 +98,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("    @Override\n");
         code.append("    public ").append(methodModel.returnType()).append(" ")
             .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
-        code.append("        ExecutionPlan executionPlan = ").append(methodModel.executionPlanFactoryName()).append("(")
+        code.append("        ").append(executionPlanType(methodModel)).append(" executionPlan = ")
+            .append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
         if (methodModel.cursorCallbackParameterName() != null) {
             code.append("        return sqlExecutor.queryCursor(executionPlan, ")
@@ -99,7 +108,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             code.append(generateExecutionPlanFactory(methodModel));
             return code.toString();
         }
-        code.append("        SqlResult executionResult = sqlExecutor.execute(executionPlan);\n");
+        code.append("        ").append(sqlResultType(methodModel))
+            .append(" executionResult = sqlExecutor.execute(executionPlan);\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));
@@ -167,18 +177,12 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         if (returnType.contains("List<")) {
             String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
             return """
-                List<Object[]> resultRows = executionResult.getQueryResults();
+                List<%s> resultRows = executionResult.getQueryResults();
                 if (resultRows == null || resultRows.isEmpty()) {
                     return new ArrayList<>();
                 }
-                %s
-                List<%s> mappedResults = new ArrayList<>(resultRows.size());
-                for (Object[] resultRow : resultRows) {
-                    mappedResults.add(%s);
-                }
-                return mappedResults;
-                """.formatted(resultColumnIndexes(methodModel), elementType,
-                    resultRowExpression(methodModel.resultMappingCode())).indent(8);
+                return new ArrayList<>(resultRows);
+                """.formatted(elementType).indent(8);
         }
 
         if ("void".equals(returnType)) {
@@ -195,24 +199,21 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                     + ", " + javaString(methodModel.statementId()) + ", " + returnType
                     + ".class, null, null, null);"
                 : "return null;";
-        String mappedValue = resultRowExpression(methodModel.resultMappingCode());
         String mappedReturn = optional
-            ? "java.util.Optional.ofNullable(" + mappedValue + ")"
-            : mappedValue;
+            ? "java.util.Optional.ofNullable(resultRows.get(0))"
+            : "resultRows.get(0)";
 
         return """
-            List<Object[]> resultRows = executionResult.getQueryResults();
+            List<%s> resultRows = executionResult.getQueryResults();
             if (resultRows == null || resultRows.isEmpty()) {
                 %s
             }
             if (resultRows.size() > 1) {
                 throw new NonUniqueResultException(%s, resultRows.size());
             }
-            %s
-            Object[] resultRow = resultRows.get(0);
             return %s;
-            """.formatted(noRows, javaString(methodModel.statementId()), resultColumnIndexes(methodModel),
-                mappedReturn).indent(8);
+            """.formatted(mappedResultType(methodModel), noRows,
+                javaString(methodModel.statementId()), mappedReturn).indent(8);
     }
 
     private boolean isPrimitive(String typeName) {
@@ -236,15 +237,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         return "(" + targetType + ") " + key;
     }
 
-    private String resultColumnIndexes(MapperCompilationModel.MethodModel methodModel) {
-        if (methodModel.resultColumnLabels().isEmpty()) {
-            return "";
-        }
-        return "int[] resultColumnIndexes = new int[]{" + methodModel.resultColumnLabels().stream()
-            .map(label -> "executionResult.requireColumnIndex(" + javaString(label) + ")")
-            .collect(java.util.stream.Collectors.joining(", ")) + "};";
-    }
-
     private String mapperMethodLocation(MapperCompilationModel.MethodModel methodModel) {
         int methodSeparator = methodModel.statementId().lastIndexOf('.');
         if (methodSeparator < 0) {
@@ -254,15 +246,10 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             + methodModel.statementId().substring(methodSeparator + 1);
     }
 
-    private String resultRowExpression(String mappingCode) {
-        return mappingCode.replace("row[", "resultRow[")
-            .replace("(row,", "(resultRow,")
-            .replace("(row)", "(resultRow)");
-    }
-
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
-        code.append("    private ExecutionPlan ").append(methodModel.executionPlanFactoryName()).append("(")
+        code.append("    private ").append(executionPlanType(methodModel)).append(" ")
+            .append(methodModel.executionPlanFactoryName()).append("(")
             .append(methodModel.executionPlanParameterList()).append(") {\n");
 
         if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
@@ -281,26 +268,27 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             }
             code.append("            batchParameters.add(params);\n");
             code.append("        }\n");
-            code.append("        return new BatchExecutionPlan(")
-                .append(javaString(methodModel.statementId())).append(", ")
-                .append(javaString(methodModel.sqlTemplate())).append(", batchParameters, ")
-                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
-                .append(parameterBinderArray(methodModel)).append(", StatementOptions.defaults(), ")
-                .append(typeRoutingExpression(methodModel)).append(");\n");
+            code.append("        return ").append(definitionFieldName(methodModel))
+                .append(".bind(batchParameters);\n");
         } else if (methodModel.providerClassName() != null) {
             code.append("        BoundSql boundSql = BoundSql.requireValid(")
                 .append(methodModel.providerFieldName()).append(".provide(")
                 .append(methodModel.providerArgumentExpression()).append("), ")
                 .append(javaString(methodModel.statementId())).append(");\n");
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(boundSql);\n");
+            } else {
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", boundSql.sql(), ")
                 .append("boundSql.parameterValues(), ExecutionPlan.StatementType.")
                 .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, null, ")
                 .append("boundSql.parameterBinders()").append(", ")
-                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
                 .append(typeRoutingExpression(
                     methodModel, "boundSql.parameterTypes()", "boundSql.parameterJdbcTypes()"))
                 .append(");\n");
+            }
         } else if (methodModel.dynamic()) {
             code.append("        StringBuilder sql = new StringBuilder();\n");
             ParameterListVariables parameterVariables = new ParameterListVariables(
@@ -327,7 +315,16 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 throw new GenerationException(methodModel.statementId()
                     + ": generated JDBC parameter route contains unused entries");
             }
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(BoundSql.of(sql.toString().trim(), ")
+                    .append(parameterVariables.values()).append(".toArray(new Object[0]), ")
+                    .append(parameterVariables.binders()).append(".toArray(new ParameterBinder<?>[0]), ")
+                    .append(parameterVariables.javaTypes()).append(".toArray(new Class<?>[0]), ")
+                    .append(parameterVariables.jdbcTypes())
+                    .append(".toArray(new java.sql.JDBCType[0])));\n");
+            } else {
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append("sql.toString().trim(), ").append(parameterVariables.values())
                 .append(".toArray(new Object[0]), ")
@@ -336,27 +333,138 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append(parameterVariables.binders())
                 .append(".toArray(new ParameterBinder<?>[0])").append(", ")
-                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
                 .append(typeRoutingExpression(
                     methodModel,
                     parameterVariables.javaTypes() + ".toArray(new Class<?>[0])",
                     parameterVariables.jdbcTypes() + ".toArray(new java.sql.JDBCType[0])"))
                 .append(");\n");
+            }
         } else {
-            code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
-            code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(").append(staticBindingArguments(methodModel)).append(");\n");
+            } else {
+                code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
+                code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append("sql, params, ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
-                .append(rowMapperExpression(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
                 .append(typeRoutingExpression(methodModel)).append(");\n");
+            }
         }
 
         code.append("    }\n");
         return code.toString();
+    }
+
+    private String generateQueryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        boolean invocationSql = methodModel.dynamic() || methodModel.providerClassName() != null;
+        boolean rowMapped = methodModel.rowMapperFieldName() != null;
+        StringBuilder definition = new StringBuilder("    private ");
+        if (staticQueryDefinition(methodModel)) {
+            definition.append("static ");
+        }
+        definition.append("final QueryDefinition<").append(mappedResultType(methodModel)).append("> ")
+            .append(definitionFieldName(methodModel)).append(" = QueryDefinition.")
+            .append(rowMapped ? "rowMapped(" : "assembled(")
+            .append(javaString(methodModel.statementId())).append(", ");
+        if (!invocationSql) {
+            definition.append(javaString(methodModel.sqlTemplate())).append(", ");
+        }
+        definition.append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+            .append(rowMapped ? rowMapperExpression(methodModel) : resultAssemblerExpression(methodModel))
+            .append(", ");
+        if (!invocationSql) {
+            definition.append(parameterBinderArray(methodModel)).append(", ");
+        }
+        definition.append("StatementOptions.defaults(), ")
+            .append(invocationSql
+                ? typeRoutingExpression(methodModel, "new Class<?>[0]", "null")
+                : typeRoutingExpression(methodModel))
+            .append(");\n");
+        return definition.toString();
+    }
+
+    private boolean queryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel);
+    }
+
+    private boolean commandDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() != ExecutionPlan.StatementType.SELECT
+            && methodModel.statementType() != ExecutionPlan.StatementType.BATCH;
+    }
+
+    private boolean batchDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() == ExecutionPlan.StatementType.BATCH;
+    }
+
+    private String generateCommandDefinition(MapperCompilationModel.MethodModel methodModel) {
+        boolean invocationSql = methodModel.dynamic() || methodModel.providerClassName() != null;
+        boolean rowMappedKey = methodModel.generatedKey() && methodModel.rowMapperFieldName() != null;
+        String factory = rowMappedKey ? "rowMappedGeneratedKey"
+            : methodModel.generatedKey() ? "generatedKey" : "command";
+        StringBuilder definition = new StringBuilder("    private ");
+        if (methodModel.extensionFields().isEmpty()) definition.append("static ");
+        definition.append("final CommandDefinition ").append(definitionFieldName(methodModel))
+            .append(" = CommandDefinition.").append(factory).append("(")
+            .append(javaString(methodModel.statementId())).append(", ");
+        if (!invocationSql) definition.append(javaString(methodModel.sqlTemplate())).append(", ");
+        if (!methodModel.generatedKey()) {
+            definition.append("ExecutionPlan.StatementType.")
+                .append(methodModel.statementType().name()).append(", ");
+        }
+        definition.append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ");
+        if (methodModel.generatedKey()) {
+            definition.append(javaString(methodModel.generatedKeyColumn())).append(", ");
+            if (rowMappedKey) definition.append(rowMapperExpression(methodModel)).append(", ");
+        }
+        if (!invocationSql) definition.append(parameterBinderArray(methodModel)).append(", ");
+        definition.append("StatementOptions.defaults(), ")
+            .append(invocationSql
+                ? typeRoutingExpression(methodModel, "new Class<?>[0]", "null")
+                : typeRoutingExpression(methodModel))
+            .append(");\n");
+        return definition.toString();
+    }
+
+    private String generateBatchDefinition(MapperCompilationModel.MethodModel methodModel) {
+        String modifier = methodModel.extensionFields().isEmpty() ? "static " : "";
+        return "    private " + modifier + "final BatchDefinition " + definitionFieldName(methodModel)
+            + " = new BatchDefinition(" + javaString(methodModel.statementId()) + ", "
+            + javaString(methodModel.sqlTemplate()) + ", ExecutionPlan.SqlSource."
+            + methodModel.sourceType().name() + ", " + parameterBinderArray(methodModel)
+            + ", StatementOptions.defaults(), " + typeRoutingExpression(methodModel) + ");\n";
+    }
+
+    private boolean staticQueryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return queryDefinition(methodModel)
+            && methodModel.rowMapperFieldName() == null
+            && (methodModel.dynamic() || methodModel.providerClassName() != null
+                || methodModel.parameterRoutes().stream()
+                .noneMatch(route -> route.binderFieldName() != null));
+    }
+
+    private String definitionFieldName(MapperCompilationModel.MethodModel methodModel) {
+        StringBuilder name = new StringBuilder();
+        for (int index = 0; index < methodModel.methodName().length(); index++) {
+            char current = methodModel.methodName().charAt(index);
+            if (Character.isUpperCase(current) && index > 0) {
+                name.append('_');
+            }
+            name.append(Character.toUpperCase(current));
+        }
+        return name.append("_DEFINITION").toString();
+    }
+
+    private String staticBindingArguments(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.parameterBindings().stream()
+            .map(SqlParameterParser.ParameterBinding::accessCode)
+            .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private String parameterBinderArray(MapperCompilationModel.MethodModel methodModel) {
@@ -372,6 +480,62 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
 
     private String rowMapperExpression(MapperCompilationModel.MethodModel methodModel) {
         return methodModel.rowMapperFieldName() == null ? "null" : methodModel.rowMapperFieldName();
+    }
+
+    private String mappingStrategyArguments(MapperCompilationModel.MethodModel methodModel) {
+        String rowMapper = rowMapperExpression(methodModel);
+        return typedQuery(methodModel)
+            ? rowMapper + ", " + resultAssemblerExpression(methodModel)
+            : rowMapper;
+    }
+
+    private String resultAssemblerExpression(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.rowMapperFieldName() == null
+            ? "row -> " + methodModel.resultMappingCode()
+            : "null";
+    }
+
+    private String executionPlanType(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel)
+            ? "QueryExecutionPlan<" + mappedResultType(methodModel) + ">"
+            : "ExecutionPlan";
+    }
+
+    private String executionPlanConstructor(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel) ? "new QueryExecutionPlan<>" : "new ExecutionPlan";
+    }
+
+    private String sqlResultType(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel)
+            ? "SqlResult<" + mappedResultType(methodModel) + ">"
+            : "SqlResult<?>";
+    }
+
+    private boolean typedQuery(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() == ExecutionPlan.StatementType.SELECT
+            && methodModel.cursorCallbackParameterName() == null
+            && !"void".equals(methodModel.returnType());
+    }
+
+    private String mappedResultType(MapperCompilationModel.MethodModel methodModel) {
+        String returnType = methodModel.returnType();
+        if (returnType.contains("List<")) {
+            return returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
+        }
+        if (returnType.startsWith("java.util.Optional<")) {
+            return returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
+        }
+        return switch (returnType) {
+            case "boolean" -> "java.lang.Boolean";
+            case "byte" -> "java.lang.Byte";
+            case "short" -> "java.lang.Short";
+            case "int" -> "java.lang.Integer";
+            case "long" -> "java.lang.Long";
+            case "char" -> "java.lang.Character";
+            case "float" -> "java.lang.Float";
+            case "double" -> "java.lang.Double";
+            default -> returnType;
+        };
     }
 
     private String typeRoutingExpression(MapperCompilationModel.MethodModel methodModel) {

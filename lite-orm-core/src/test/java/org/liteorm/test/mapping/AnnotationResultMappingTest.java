@@ -45,7 +45,11 @@ class AnnotationResultMappingTest {
             "org/liteorm/test/resultfixture/ResultMapperImpl.java"));
         assertTrue(generated.contains("new org.liteorm.test.resultfixture.ResultMapper.UserRecord("), generated);
         assertTrue(generated.contains("mapped.setName("), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"user_name\")"), generated);
+        assertTrue(generated.contains("new String[]{\"user_id\", \"user_name\"}"), generated);
+        assertTrue(generated.contains("private static final QueryDefinition<"
+            + "org.liteorm.test.resultfixture.ResultMapper.UserBean> FIND_BEAN_DEFINITION"), generated);
+        assertTrue(generated.contains("private static org.liteorm.test.resultfixture.ResultMapper.UserBean "
+            + "mapFindBeanRow("), generated);
 
         try (URLClassLoader loader = new URLClassLoader(
                 new java.net.URL[]{compilation.classesDirectory().toUri().toURL()}, getClass().getClassLoader())) {
@@ -119,7 +123,7 @@ class AnnotationResultMappingTest {
         assertTrue(compilation.succeeded(), compilation::diagnosticsText);
         String generated = Files.readString(compilation.generatedDirectory().resolve(
             "org/liteorm/test/resultfixture/ScalarMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"total\")"), generated);
+        assertTrue(generated.contains("new String[]{\"total\"}"), generated);
     }
 
     @Test
@@ -148,7 +152,7 @@ class AnnotationResultMappingTest {
         String generated = Files.readString(compilation.generatedDirectory().resolve(
             "org/liteorm/test/resultfixture/SetterPropertyMapperImpl.java"));
         assertTrue(generated.contains("mapped.setId("), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"user_id\")"), generated);
+        assertTrue(generated.contains("new String[]{\"user_id\"}"), generated);
     }
 
     @Test

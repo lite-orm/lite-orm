@@ -66,7 +66,7 @@ class JdbcSqlExecutorTypeRoutingTest {
             ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.GENERATED,
             null, null, null, null, routing);
 
-        SqlResult result = new JdbcSqlExecutor(() -> handle).execute(plan);
+        SqlResult<Object[]> result = rawQueryResult(new JdbcSqlExecutor(() -> handle).execute(plan));
 
         assertEquals("Alice", written.get());
         assertEquals(2, metadataTypeReads.get());
@@ -74,6 +74,11 @@ class JdbcSqlExecutorTypeRoutingTest {
         assertEquals("row0-column2", result.getQueryResults().get(0)[1]);
         assertEquals("row1-column1", result.getQueryResults().get(1)[0]);
         assertEquals("row1-column2", result.getQueryResults().get(1)[1]);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SqlResult<Object[]> rawQueryResult(SqlResult<?> result) {
+        return (SqlResult<Object[]>) result;
     }
 
     @SuppressWarnings("unchecked")

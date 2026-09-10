@@ -48,10 +48,15 @@ _Avoid_: JDBC value adapter, row mapper, global type-handler registry
 A query-level declaration that maps result columns to one scalar, record constructor, or JavaBean property structure. Annotation and XML forms normalize into the same compilation model.
 _Avoid_: Type handler, entity column mapping, row mapper
 
+**Result assembler**:
+A compile-time-generated strategy carried by a typed query execution plan. It constructs one scalar, record, or JavaBean from a read-only row whose values have already passed through standard Core JDBC type routing.
+_Avoid_: Type handler, row mapper, result-set interceptor
+
 **Parameter binder**:
 A Mapper-parameter-specific strategy for writing a value outside Core standard routing. It is not a result-reading strategy.
 _Avoid_: Type handler, row mapper, global type handler
 
 **Row mapper**:
 A Mapper-method-specific strategy for constructing one result object from the current result row. It may combine several columns and does not bind statement parameters.
-_Avoid_: Type handler, parameter binder, result-set interceptor
+Unlike a generated result assembler, it reads the live `ResultSet` directly for an explicitly configured exceptional mapping.
+_Avoid_: Type handler, parameter binder, result assembler, result-set interceptor

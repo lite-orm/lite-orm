@@ -58,9 +58,10 @@ class SqlProviderCompilationTest {
             .resolve("org/liteorm/test/providerfixture/ValidProviderMapperImpl.java"));
         assertTrue(generated.contains("private final org.liteorm.test.providerfixture.IdProvider findSqlProvider = new org.liteorm.test.providerfixture.IdProvider();"), generated);
         assertTrue(generated.contains("findSqlProvider.provide(query)"), generated);
-        assertTrue(generated.contains("boundSql.parameterBinders()"), generated);
-        assertTrue(generated.contains("boundSql.parameterTypes()"), generated);
-        assertTrue(generated.contains("boundSql.parameterJdbcTypes()"), generated);
+        assertTrue(generated.contains("QueryDefinition<org.liteorm.test.providerfixture.Result>"), generated);
+        assertTrue(generated.contains("return FIND_DEFINITION.bind(boundSql);"), generated);
+        assertFalse(generated.contains("boundSql.parameterBinders()"), generated);
+        assertFalse(generated.contains("return new QueryExecutionPlan<>("), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }
@@ -107,6 +108,8 @@ class SqlProviderCompilationTest {
             .resolve("org/liteorm/test/providerfixture/ProviderRowMapperMapperImpl.java"));
         assertTrue(generated.contains("findOneRowMapper"), generated);
         assertTrue(generated.contains("findAllRowMapper"), generated);
+        assertTrue(generated.contains("QueryDefinition.rowMapped("), generated);
+        assertTrue(generated.contains("return FIND_ONE_DEFINITION.bind(boundSql);"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }

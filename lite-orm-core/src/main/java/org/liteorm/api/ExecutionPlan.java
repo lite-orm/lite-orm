@@ -8,16 +8,9 @@ import java.util.Objects;
  */
 public class ExecutionPlan {
 
-    private final String statementId;
     private final String sql;
     private final Object[] parameters;
-    private final StatementType statementType;
-    private final SqlSource sourceType;
-    private final String generatedKeyColumn;
-    private final ParameterBinder<?>[] parameterBinders;
-    private final RowMapper<?> rowMapper;
-    private final StatementOptions statementOptions;
-    private final TypeRouting typeRouting;
+    private final Definition definition;
 
     public ExecutionPlan(
             String statementId,
@@ -66,23 +59,18 @@ public class ExecutionPlan {
             RowMapper<?> rowMapper,
             StatementOptions statementOptions,
             TypeRouting typeRouting) {
-        this.statementId = Objects.requireNonNull(statementId, "statementId");
+        this(new Definition(statementId, statementType, sourceType, generatedKeyColumn,
+            parameterBinders, rowMapper, statementOptions, typeRouting), sql, parameters);
+    }
+
+    ExecutionPlan(Definition definition, String sql, Object[] parameters) {
+        this.definition = Objects.requireNonNull(definition, "definition");
         this.sql = Objects.requireNonNull(sql, "sql");
         this.parameters = parameters == null ? new Object[0] : parameters.clone();
-        this.statementType = Objects.requireNonNull(statementType, "statementType");
-        this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
-        if (generatedKeyColumn != null && generatedKeyColumn.isBlank()) {
-            throw new IllegalArgumentException("generatedKeyColumn must not be blank");
-        }
-        this.generatedKeyColumn = generatedKeyColumn;
-        this.parameterBinders = parameterBinders == null ? null : parameterBinders.clone();
-        this.rowMapper = rowMapper;
-        this.statementOptions = statementOptions == null ? StatementOptions.defaults() : statementOptions;
-        this.typeRouting = typeRouting;
     }
 
     public String getStatementId() {
-        return statementId;
+        return definition.statementId;
     }
 
     public String getSql() {
@@ -94,36 +82,65 @@ public class ExecutionPlan {
     }
 
     public StatementType getStatementType() {
-        return statementType;
+        return definition.statementType;
     }
 
     public SqlSource getSourceType() {
-        return sourceType;
+        return definition.sourceType;
     }
 
     public boolean returnsGeneratedKey() {
-        return generatedKeyColumn != null;
+        return definition.generatedKeyColumn != null;
     }
 
     public String getGeneratedKeyColumn() {
-        return generatedKeyColumn;
+        return definition.generatedKeyColumn;
     }
 
     public ParameterBinder<?>[] getParameterBinders() {
-        return parameterBinders == null ? null : parameterBinders.clone();
+        return definition.parameterBinders == null ? null : definition.parameterBinders.clone();
     }
 
     public RowMapper<?> getRowMapper() {
-        return rowMapper;
+        return definition.rowMapper;
     }
 
     public StatementOptions getStatementOptions() {
-        return statementOptions;
+        return definition.statementOptions;
     }
 
     /** Returns generated routing metadata, or {@code null} when the plan uses default JDBC access. */
     public TypeRouting getTypeRouting() {
-        return typeRouting;
+        return definition.typeRouting;
+    }
+
+    static final class Definition {
+        private final String statementId;
+        private final StatementType statementType;
+        private final SqlSource sourceType;
+        private final String generatedKeyColumn;
+        private final ParameterBinder<?>[] parameterBinders;
+        private final RowMapper<?> rowMapper;
+        private final StatementOptions statementOptions;
+        private final TypeRouting typeRouting;
+
+        Definition(
+                String statementId, StatementType statementType, SqlSource sourceType,
+                String generatedKeyColumn, ParameterBinder<?>[] parameterBinders,
+                RowMapper<?> rowMapper, StatementOptions statementOptions, TypeRouting typeRouting) {
+            this.statementId = Objects.requireNonNull(statementId, "statementId");
+            this.statementType = Objects.requireNonNull(statementType, "statementType");
+            this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
+            if (generatedKeyColumn != null && generatedKeyColumn.isBlank()) {
+                throw new IllegalArgumentException("generatedKeyColumn must not be blank");
+            }
+            this.generatedKeyColumn = generatedKeyColumn;
+            this.parameterBinders = parameterBinders == null ? null : parameterBinders.clone();
+            this.rowMapper = rowMapper;
+            this.statementOptions = statementOptions == null
+                ? StatementOptions.defaults() : statementOptions;
+            this.typeRouting = typeRouting;
+        }
     }
 
     /**
@@ -185,6 +202,15 @@ public class ExecutionPlan {
 
         private static Class<?>[] copy(Class<?>[] types) {
             return types == null ? new Class<?>[0] : types.clone();
+        }
+
+        static TypeRouting bindParameters(TypeRouting resultRouting, BoundSql boundSql) {
+            Class<?>[] resultTypes = resultRouting == null
+                ? new Class<?>[0] : resultRouting.resultTypes();
+            String[] resultLabels = resultRouting == null
+                ? null : resultRouting.resultColumnLabels();
+            return new TypeRouting(
+                boundSql.parameterTypes(), boundSql.parameterJdbcTypes(), resultTypes, resultLabels);
         }
     }
 
