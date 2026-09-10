@@ -56,6 +56,10 @@ _Avoid_: Type handler, row mapper, result-set interceptor
 A Mapper-parameter-specific strategy for writing a value outside Core standard routing. It is not a result-reading strategy.
 _Avoid_: Type handler, row mapper, global type handler
 
+**Bound SQL builder**:
+An invocation-scoped generated-code module that constructs dynamic SQL and atomically aligns every emitted placeholder with its value and JDBC routing metadata. It owns SQL spacing and dynamic clause normalization but does not interpret Mapper syntax or provide an application query DSL.
+_Avoid_: Query DSL, runtime SQL interpreter, parameter list accumulator
+
 **Row mapper**:
 A Mapper-method-specific strategy for constructing one result object from the current result row. It may combine several columns and does not bind statement parameters.
 Unlike a generated result assembler, it reads the live `ResultSet` directly for an explicitly configured exceptional mapping.

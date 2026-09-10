@@ -19,8 +19,13 @@ public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
         parameters = List.copyOf(parameters);
     }
 
-    /** Creates bound SQL from aligned arrays emitted by generated dynamic SQL code. */
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    /**
+     * Creates bound SQL from aligned arrays retained for public compatibility.
+     *
+     * <p>Generated Mappers use {@link BoundSqlBuilder}; providers may continue constructing
+     * {@code BoundSql} directly. Null values represent an empty value array or absent optional
+     * metadata arrays.</p>
+     */
     public static BoundSql of(
             String sql,
             Object[] values,
@@ -36,15 +41,23 @@ public record BoundSql(String sql, List<BoundParameter<?>> parameters) {
         }
         List<BoundParameter<?>> parameters = new ArrayList<>(safeValues.length);
         for (int index = 0; index < safeValues.length; index++) {
-            ParameterBinder binder = binders == null ? null : binders[index];
-            Class<?> javaType = safeJavaTypes[index];
-            JDBCType jdbcType = jdbcTypes == null ? null : jdbcTypes[index];
-            if (binder == null && javaType == null) {
-                binder = DIRECT_BINDER;
-            }
-            parameters.add(new BoundParameter(safeValues[index], binder, javaType, jdbcType));
+            parameters.add(generatedParameter(
+                safeValues[index],
+                binders == null ? null : binders[index],
+                safeJavaTypes[index],
+                jdbcTypes == null ? null : jdbcTypes[index]));
         }
         return new BoundSql(sql, parameters);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static BoundParameter<?> generatedParameter(
+            Object value, ParameterBinder<?> binder, Class<?> javaType, JDBCType jdbcType) {
+        ParameterBinder effectiveBinder = binder;
+        if (effectiveBinder == null && javaType == null) {
+            effectiveBinder = DIRECT_BINDER;
+        }
+        return new BoundParameter(value, effectiveBinder, javaType, jdbcType);
     }
 
     public static BoundSql requireValid(BoundSql boundSql, String statementId) {

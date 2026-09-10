@@ -41,6 +41,8 @@ Effective Mapper SQL methods cannot be overloaded. LiteORM reports all conflicti
 
 Supported dynamic SQL elements are `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`. Supported expressions are compiled to Java. Arbitrary OGNL, static method access, and unsupported method calls fail compilation. Unsafe `${...}` substitution is rejected; values use `#{...}` and exceptional SQL structure uses a typed provider.
 
+Generated dynamic methods use one invocation-scoped `BoundSqlBuilder`. The builder owns SQL-fragment spacing, `where`, `set`, and `trim` normalization, and atomic placeholder registration with its value, optional binder, Java type, and JDBC type. Child fragments retain their parameters only when the enclosing clause is emitted. `build()` produces immutable `BoundSql` with statement-aware failures for blank SQL or incompatible fragment composition. This generated-code seam is not an application query DSL and does not interpret XML or expressions at runtime.
+
 Mapper XML and annotation `<script>` content use one fail-closed parser configuration. `DOCTYPE`, external entities, external DTD loading, XInclude, and external schema access are disabled; failure to enforce the required parser controls rejects compilation. LiteORM does not resolve referenced external XML resources from the filesystem or network during SQL parsing.
 
 ### 2.2 Parameters

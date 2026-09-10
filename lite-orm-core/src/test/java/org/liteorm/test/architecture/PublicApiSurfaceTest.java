@@ -36,6 +36,7 @@ class PublicApiSurfaceTest {
         "org.liteorm.api.BatchDefinition",
         "org.liteorm.api.BoundParameter",
         "org.liteorm.api.BoundSql",
+        "org.liteorm.api.BoundSqlBuilder",
         "org.liteorm.api.ConfigurationException",
         "org.liteorm.api.CommandDefinition",
         "org.liteorm.api.ConnectionHandle",

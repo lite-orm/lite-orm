@@ -22,15 +22,13 @@ class BoundSqlTest {
         BoundSql boundSql = BoundSql.of(
             "SELECT id FROM users WHERE id = ?",
             new Object[]{1L},
-            new org.liteorm.api.ParameterBinder<?>[]{null},
+            new ParameterBinder<?>[]{null},
             new Class<?>[]{Long.class},
-            new java.sql.JDBCType[]{java.sql.JDBCType.BIGINT});
+            new JDBCType[]{JDBCType.BIGINT});
 
         assertArrayEquals(new Object[]{1L}, boundSql.parameterValues());
         assertArrayEquals(new Class<?>[]{Long.class}, boundSql.parameterTypes());
-        assertArrayEquals(
-            new java.sql.JDBCType[]{java.sql.JDBCType.BIGINT},
-            boundSql.parameterJdbcTypes());
+        assertArrayEquals(new JDBCType[]{JDBCType.BIGINT}, boundSql.parameterJdbcTypes());
     }
 
     @Test
