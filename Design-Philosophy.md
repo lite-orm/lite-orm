@@ -58,7 +58,10 @@ Runtime work includes:
 
 Anything that can be determined reliably by javac should not be rediscovered on every Mapper call. Unsupported signatures, unknown parameters, invalid XML, unsafe substitution, incompatible result types, and unsupported dynamic expressions should fail during compilation.
 
-Compile-time processing must remain deterministic. The processor must not depend on network resources, runtime container state, or a general template engine.
+Compile-time processing must remain deterministic. The processor must not depend on network resources or
+runtime container state. A processor-local template engine may render the final source layout from a
+structured model, but it must not carry SQL semantics, type decisions, diagnostics, or dynamic-expression
+evaluation.
 
 ### Keep Runtime Explicit
 

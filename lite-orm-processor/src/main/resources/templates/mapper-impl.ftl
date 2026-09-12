@@ -18,12 +18,20 @@ public class ${mapper.implementationName} implements ${mapper.interfaceName} {
 
 <#if mapper.fields?size gt 0>
 <#list mapper.fields as field>
-${field}
+${field.declaration}
 </#list>
 
 </#if>
 <#list mapper.members as member>
-${member}
+<#if member.method??>
+${member.method.documentation}
+    @Override
+    public ${member.method.returnType} ${member.method.methodName}(${member.method.parameters}) {
+${member.method.body}
+    }
+<#else>
+${member.source}
+</#if>
 
 </#list>
 

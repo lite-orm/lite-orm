@@ -16,8 +16,23 @@ class FreemarkerSourceRendererTest {
             "UserMapper",
             "UserMapperImpl",
             List.of("org.liteorm.api.SqlExecutor"),
-            List.of("    private final String provider = \"provider\";"),
-            List.of("    public String find() { return provider; }")
+            List.of(new GeneratedSourceField("    private final String provider = \"provider\";")),
+            List.of(
+                new GeneratedTextMember(
+                    GeneratedSourceMember.Kind.DEFINITION,
+                    "    private static final String FIND_DEFINITION = \"definition\";"),
+                new GeneratedMethodMember(new GeneratedMethodSource(
+                    "    /** Generated method. */",
+                    "String",
+                    "find",
+                    "",
+                    "        return provider;\n")),
+                new GeneratedTextMember(
+                    GeneratedSourceMember.Kind.EXECUTION_FACTORY,
+                    "    private String buildPlan() { return FIND_DEFINITION; }"),
+                new GeneratedTextMember(
+                    GeneratedSourceMember.Kind.HELPER,
+                    "    private static String helper() { return \"value\"; }"))
         );
 
         String code = new FreemarkerSourceRenderer().render(sourceModel);
@@ -25,7 +40,21 @@ class FreemarkerSourceRendererTest {
         assertTrue(code.contains("package org.liteorm.test;"));
         assertTrue(code.contains("import org.liteorm.api.SqlExecutor;"));
         assertTrue(code.contains("private final String provider = \"provider\";"));
-        assertTrue(code.contains("public String find() { return provider; }"));
+        assertTrue(code.contains("public String find()"));
+        assertTrue(code.contains("return provider;"));
+        assertTrue(code.contains("FIND_DEFINITION"));
+        assertTrue(code.contains("buildPlan"));
+        assertTrue(code.contains("helper"));
         assertFalse(code.contains("generatedMethods"));
+    }
+
+    @Test
+    void preservesTextMemberKindsAtTheModelBoundary() {
+        GeneratedTextMember member = new GeneratedTextMember(
+            GeneratedSourceMember.Kind.HELPER,
+            "private static String helper() { return \"value\"; }");
+
+        assertTrue(member.kind() == GeneratedSourceMember.Kind.HELPER);
+        assertTrue(member.source().contains("helper"));
     }
 }

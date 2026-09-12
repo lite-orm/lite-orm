@@ -70,25 +70,35 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
 
     private GeneratedMapperSourceModel buildSourceModel(MapperCompilationModel compilationModel)
             throws GenerationException {
-        List<String> fields = new ArrayList<>();
+        List<GeneratedSourceField> fields = new ArrayList<>();
         for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
             if (method.providerClassName() != null) {
-                fields.add("    private final " + method.providerClassName() + " "
+                fields.add(new GeneratedSourceField("    private final " + method.providerClassName() + " "
                     + method.providerFieldName() + " = new "
-                    + method.providerClassName() + "();");
+                    + method.providerClassName() + "();"));
             }
             for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
-                fields.add("    private final " + extensionField.typeName() + " "
+                fields.add(new GeneratedSourceField("    private final " + extensionField.typeName() + " "
                     + extensionField.fieldName() + " = new "
-                    + extensionField.typeName() + "();");
+                    + extensionField.typeName() + "();"));
             }
         }
 
-        List<String> members = new ArrayList<>();
+        List<GeneratedSourceMember> members = new ArrayList<>();
         for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
-            members.add(generateMethodImpl(method));
+            if (queryDefinition(method) || commandDefinition(method) || batchDefinition(method)) {
+                members.add(new GeneratedTextMember(
+                    GeneratedSourceMember.Kind.DEFINITION,
+                    generateDefinition(method)));
+            }
+            members.add(new GeneratedMethodMember(generateMapperMethod(method)));
+            members.add(new GeneratedTextMember(
+                GeneratedSourceMember.Kind.EXECUTION_FACTORY,
+                generateExecutionPlanFactory(method)));
             if (!method.resultMappingHelperCode().isBlank()) {
-                members.add(method.resultMappingHelperCode());
+                members.add(new GeneratedTextMember(
+                    GeneratedSourceMember.Kind.HELPER,
+                    method.resultMappingHelperCode()));
             }
         }
 
@@ -113,37 +123,61 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
     public String generateMethodImpl(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
 
-        if (queryDefinition(methodModel)) {
-            code.append(generateQueryDefinition(methodModel)).append("\n");
-        } else if (commandDefinition(methodModel)) {
-            code.append(generateCommandDefinition(methodModel)).append("\n");
-        } else if (batchDefinition(methodModel)) {
-            code.append(generateBatchDefinition(methodModel)).append("\n");
+        String definition = generateDefinition(methodModel);
+        if (!definition.isBlank()) {
+            code.append(definition).append("\n");
         }
 
-        code.append("    /**\n");
-        code.append("     * Mapper method: ").append(mapperMethodLocation(methodModel)).append("\n");
-        code.append("     * SQL source: ").append(methodModel.sourceType().name()).append("\n");
-        code.append("     */\n");
-        code.append("    @Override\n");
-        code.append("    public ").append(methodModel.returnType()).append(" ")
-            .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
-        code.append("        ").append(executionPlanType(methodModel)).append(" executionPlan = ")
+        code.append(renderMapperMethod(generateMapperMethod(methodModel))).append("\n\n");
+        code.append(generateExecutionPlanFactory(methodModel));
+        return code.toString();
+    }
+
+    private String generateDefinition(MapperCompilationModel.MethodModel methodModel) {
+        if (queryDefinition(methodModel)) {
+            return generateQueryDefinition(methodModel);
+        }
+        if (commandDefinition(methodModel)) {
+            return generateCommandDefinition(methodModel);
+        }
+        if (batchDefinition(methodModel)) {
+            return generateBatchDefinition(methodModel);
+        }
+        return "";
+    }
+
+    private GeneratedMethodSource generateMapperMethod(MapperCompilationModel.MethodModel methodModel) {
+        StringBuilder body = new StringBuilder();
+        body.append("        ").append(executionPlanType(methodModel)).append(" executionPlan = ")
             .append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
         if (methodModel.cursorCallbackParameterName() != null) {
-            code.append("        return sqlExecutor.queryCursor(executionPlan, ")
+            body.append("        return sqlExecutor.queryCursor(executionPlan, ")
                 .append(methodModel.cursorCallbackParameterName()).append(");\n");
-            code.append("    }\n\n");
-            code.append(generateExecutionPlanFactory(methodModel));
-            return code.toString();
+        } else {
+            body.append("        ").append(executionResultType(methodModel))
+                .append(" executionResult = ").append(executionCall(methodModel)).append(";\n");
+            body.append(generateReturnCode(methodModel));
         }
-        code.append("        ").append(executionResultType(methodModel))
-            .append(" executionResult = ").append(executionCall(methodModel)).append(";\n");
-        code.append(generateReturnCode(methodModel));
-        code.append("    }\n\n");
-        code.append(generateExecutionPlanFactory(methodModel));
-        return code.toString();
+        return new GeneratedMethodSource(
+            "    /**\n"
+                + "     * Mapper method: " + mapperMethodLocation(methodModel) + "\n"
+                + "     * SQL source: " + methodModel.sourceType().name() + "\n"
+                + "     */",
+            methodModel.returnType(),
+            methodModel.methodName(),
+            methodModel.parameterList(),
+            body.toString()
+        );
+    }
+
+    private String renderMapperMethod(GeneratedMethodSource method) {
+        return method.documentation() + "\n"
+            + "    @Override\n"
+            + "    public " + method.returnType() + " " + method.methodName()
+            + "(" + method.parameters() + ") {\n"
+            + method.body()
+            + "    }";
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {

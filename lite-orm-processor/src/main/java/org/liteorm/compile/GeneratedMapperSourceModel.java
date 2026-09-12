@@ -13,8 +13,8 @@ record GeneratedMapperSourceModel(
     String interfaceName,
     String implementationName,
     List<String> imports,
-    List<String> fields,
-    List<String> members
+    List<GeneratedSourceField> fields,
+    List<GeneratedSourceMember> members
 ) {
 
     GeneratedMapperSourceModel {
