@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.liteorm</groupId>
+        <artifactId>lite-orm-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>lite-orm-processor</artifactId>
+    <packaging>jar</packaging>
+
+    <name>LiteORM Processor</name>
+    <description>LiteORM annotation processor and compile-time source generation</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.liteorm</groupId>
+            <artifactId>lite-orm-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.freemarker</groupId>
+            <artifactId>freemarker</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.liteorm</groupId>
+            <artifactId>lite-orm-test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <configuration>
+                            <proc>none</proc>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-invoker-plugin</artifactId>
+                <configuration>
+                    <projectsDirectory>${project.parent.basedir}/lite-orm-examples</projectsDirectory>
+                    <pomIncludes>
+                        <pomInclude>external-maven-processor/pom.xml</pomInclude>
+                    </pomIncludes>
+                    <cloneProjectsTo>${project.build.directory}/invoker-projects</cloneProjectsTo>
+                    <localRepositoryPath>${project.build.directory}/invoker-repository</localRepositoryPath>
+                    <streamLogsOnFailures>true</streamLogsOnFailures>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>external-maven-processor-fixture</id>
+                        <goals>
+                            <goal>install</goal>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

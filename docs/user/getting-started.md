@@ -14,7 +14,8 @@ For Spring Boot:
 </dependency>
 ```
 
-For standalone JDBC, depend on `lite-orm-core`. While working from this repository, install snapshots locally first:
+For standalone JDBC, depend on `lite-orm-core` and add `lite-orm-processor` to the compiler's
+annotation processor path. While working from this repository, install snapshots locally first:
 
 ```bash
 mvn -DskipTests install
@@ -28,6 +29,13 @@ Explicitly enable the processor with Maven:
     <artifactId>maven-compiler-plugin</artifactId>
     <configuration>
         <proc>full</proc>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>org.liteorm</groupId>
+                <artifactId>lite-orm-processor</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </path>
+        </annotationProcessorPaths>
         <annotationProcessors>
             <annotationProcessor>org.liteorm.compile.LiteOrmProcessor</annotationProcessor>
         </annotationProcessors>

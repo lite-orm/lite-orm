@@ -22,7 +22,8 @@ LiteORM 不追求完整复刻 MyBatis。它关注显式 SQL、编译期诊断、
 
 | 模块 | 职责 |
 | --- | --- |
-| `lite-orm-core` | 注解、处理器、生成 Mapper 契约和 Standalone JDBC 运行时 |
+| `lite-orm-core` | 运行时注解、生成 Mapper 契约、执行计划和 Standalone JDBC 运行时 |
+| `lite-orm-processor` | 注解处理器、SQL 编译、校验和源码生成 |
 | `lite-orm-spring-boot-starter` | Mapper 注册、命名 DataSource 绑定和 Spring 事务参与 |
 | `lite-orm-examples/basic-mapper` | 可运行的注解、XML、映射、事务、批处理和生成键示例 |
 | `lite-orm-benchmarks` | Direct JDBC、LiteORM 和 MyBatis 的可复现 JMH 基准 |

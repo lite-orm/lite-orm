@@ -58,7 +58,7 @@
                         </path>
                         <path>
                             <groupId>org.liteorm</groupId>
-                            <artifactId>lite-orm-core</artifactId>
+                            <artifactId>lite-orm-processor</artifactId>
                             <version>${project.version}</version>
                         </path>
                     </annotationProcessorPaths>

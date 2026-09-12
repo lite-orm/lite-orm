@@ -72,7 +72,6 @@ class PublicApiSurfaceTest {
         "org.liteorm.api.TransactionException",
         "org.liteorm.api.TransactionalExecutor",
         "org.liteorm.api.UpdateResult",
-        "org.liteorm.compile.LiteOrmProcessor",
         "org.liteorm.interceptor.AuditExecutionInterceptor",
         "org.liteorm.interceptor.LoggingExecutionInterceptor",
         "org.liteorm.interceptor.SlowQueryExecutionInterceptor",
@@ -105,6 +104,15 @@ class PublicApiSurfaceTest {
                     () -> classFile + " references org.liteorm.jdbc");
             }
         }
+    }
+
+    @Test
+    void keepsCompilerImplementationOutOfTheRuntimeArtifact() {
+        Path compilerPackage = Path.of("target", "classes", "org", "liteorm", "compile");
+        Path freemarkerClasses = Path.of("target", "classes", "freemarker");
+
+        assertFalse(Files.exists(compilerPackage));
+        assertFalse(Files.exists(freemarkerClasses));
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {

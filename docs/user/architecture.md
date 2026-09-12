@@ -8,7 +8,13 @@ The editable source is stored beside the published image as [`liteorm-architectu
 
 ## Compilation
 
-The annotation processor validates Mapper methods, selects SQL sources, compiles supported dynamic SQL, plans parameters and result mapping, and generates ordinary Java implementations. Generated dynamic methods keep native Java branches and loops visible while using one `BoundSqlBuilder` to own SQL spacing, clause normalization, and aligned placeholder routing. The builder is a generated-code/runtime seam rather than an application query DSL. Invalid signatures, unsupported expressions, ambiguous mappings, and malformed XML fail during compilation whenever javac can identify the location.
+The `lite-orm-processor` artifact validates Mapper methods, selects SQL sources, compiles supported
+dynamic SQL, plans parameters and result mapping, and generates ordinary Java implementations.
+`lite-orm-core` is the runtime artifact consumed by generated source. Generated dynamic methods keep
+native Java branches and loops visible while using one `BoundSqlBuilder` to own SQL spacing, clause
+normalization, and aligned placeholder routing. The builder is a generated-code/runtime seam rather
+than an application query DSL. Invalid signatures, unsupported expressions, ambiguous mappings, and
+malformed XML fail during compilation whenever javac can identify the location.
 
 ## Runtime
 
