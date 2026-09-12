@@ -147,4 +147,101 @@ class JavaSourceCodeGeneratorTest {
         assertTrue(code.contains("if (excludedIds != null && excludedIds.length > 0)"));
         assertFalse(code.matches("(?s).*\\b(?:ognl|Ognl|MVEL|SpEL)\\b.*"));
     }
+
+    @Test
+    void generatesCompleteMapperThroughSourceModelAndRendererPipeline() throws Exception {
+        MapperCompilationModel.MethodModel query = new MapperCompilationModel.MethodModel(
+            "find",
+            "java.lang.String",
+            "",
+            "buildFindExecutionPlan",
+            "org.liteorm.test.PipelineMapper.find",
+            ExecutionPlan.StatementType.SELECT,
+            ExecutionPlan.SqlSource.ANNOTATION,
+            "SELECT value FROM values_table",
+            false,
+            "java.lang.String",
+            "(java.lang.String) row[0]",
+            "    private static String mapHelper() { return \"helper\"; }\n",
+            List.of(),
+            null,
+            null,
+            null,
+            List.of(new MapperCompilationModel.ExtensionField(
+                "java.util.ArrayList<java.lang.String>", "extension")),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            null
+        );
+        MapperCompilationModel.MethodModel update = new MapperCompilationModel.MethodModel(
+            "update",
+            "int",
+            "",
+            "buildUpdateExecutionPlan",
+            "org.liteorm.test.PipelineMapper.update",
+            ExecutionPlan.StatementType.UPDATE,
+            ExecutionPlan.SqlSource.ANNOTATION,
+            "UPDATE values_table SET value = 'updated'",
+            false,
+            "",
+            "",
+            "",
+            List.of(),
+            null,
+            null,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            null
+        );
+        MapperCompilationModel compilationModel = new MapperCompilationModel(
+            "org.liteorm.test",
+            "PipelineMapper",
+            "PipelineMapperImpl",
+            "org.liteorm.test.PipelineMapper",
+            List.of(query, update)
+        );
+
+        String source = generator.generateMapperImpl(null, compilationModel, null, null);
+
+        assertTrue(source.contains("public class PipelineMapperImpl implements PipelineMapper"));
+        assertTrue(source.contains(
+            "private final java.util.ArrayList<java.lang.String> extension = new "
+                + "java.util.ArrayList<java.lang.String>();"));
+        assertTrue(source.contains("private static final QueryDefinition<java.lang.String> FIND_DEFINITION"));
+        assertTrue(source.contains("public java.lang.String find()"));
+        assertTrue(source.contains(
+            "QueryResult<java.lang.String> executionResult = sqlExecutor.query(executionPlan);"));
+        assertTrue(source.contains("return executionResult.oneOrNull();"));
+        assertTrue(source.contains("private QueryExecutionPlan<java.lang.String> buildFindExecutionPlan()"));
+        assertTrue(source.contains("private static final CommandDefinition UPDATE_DEFINITION"));
+        assertTrue(source.contains("public int update()"));
+        assertTrue(source.contains("UpdateResult executionResult = sqlExecutor.update(executionPlan);"));
+        assertTrue(source.contains("return executionResult.count();"));
+        assertTrue(source.contains("private static String mapHelper()"));
+        assertFalse(source.contains("generatedMethods"));
+        assertFalse(source.contains("<#"));
+        assertFalse(source.contains("${"));
+
+        assertBefore(source, "extension = new", "FIND_DEFINITION");
+        assertBefore(source, "FIND_DEFINITION", "public java.lang.String find()");
+        assertBefore(source, "public java.lang.String find()", "buildFindExecutionPlan()");
+        assertBefore(source, "buildFindExecutionPlan()", "mapHelper()");
+        assertBefore(source, "mapHelper()", "UPDATE_DEFINITION");
+        assertBefore(source, "UPDATE_DEFINITION", "public int update()");
+        assertBefore(source, "public int update()", "buildUpdateExecutionPlan()");
+    }
+
+    private static void assertBefore(String source, String first, String second) {
+        assertTrue(
+            source.indexOf(first) >= 0 && source.indexOf(second) >= 0
+                && source.indexOf(first) < source.indexOf(second),
+            () -> "Expected '" + first + "' before '" + second + "'\n" + source
+        );
+    }
 }
