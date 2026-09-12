@@ -23,7 +23,15 @@ ${field.declaration}
 
 </#if>
 <#list mapper.members as member>
+<#if member.kind == "MAPPER_METHOD">
+${member.method.documentation}
+    @Override
+    public ${member.method.returnType} ${member.method.methodName}(${member.method.parameters}) {
+${member.method.body}
+    }
+<#else>
 ${member.source}
+</#if>
 
 </#list>
 

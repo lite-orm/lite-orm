@@ -56,9 +56,28 @@ final class FreemarkerSourceRenderer {
 
     private List<Map<String, Object>> sourceMembers(List<GeneratedSourceMember> members) {
         return members.stream()
-            .map(member -> Map.<String, Object>of(
-                "kind", member.kind().name(),
-                "source", member.source()))
+            .map(this::sourceMember)
             .toList();
+    }
+
+    private Map<String, Object> sourceMember(GeneratedSourceMember member) {
+        if (member instanceof GeneratedMethodMember methodMember) {
+            GeneratedMethodSource method = methodMember.method();
+            return Map.of(
+                "kind", member.kind().name(),
+                "method", Map.<String, Object>of(
+                    "documentation", method.documentation(),
+                    "returnType", method.returnType(),
+                    "methodName", method.methodName(),
+                    "parameters", method.parameters(),
+                    "body", method.body()
+                )
+            );
+        }
+        GeneratedTextMember textMember = (GeneratedTextMember) member;
+        return Map.of(
+            "kind", member.kind().name(),
+            "source", textMember.source()
+        );
     }
 }
