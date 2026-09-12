@@ -25,7 +25,7 @@ Owns compiler-only code and dependencies:
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
-- deterministic JDK-only source rendering.
+- structured source modeling and processor-only FreeMarker source rendering.
 
 ### `lite-orm-spring-boot-starter`
 

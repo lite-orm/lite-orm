@@ -55,11 +55,11 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
         Pattern.compile("([a-zA-Z_][\\w().]*)\\s*!=\\s*'([^']*)'");
 
     private final SqlParameterParser parameterParser;
-    private final JavaSourceRenderer sourceRenderer;
+    private final FreemarkerSourceRenderer sourceRenderer;
 
     JavaSourceCodeGenerator() {
         this.parameterParser = new SqlParameterParser();
-        this.sourceRenderer = new JavaSourceRenderer();
+        this.sourceRenderer = new FreemarkerSourceRenderer();
     }
 
     @Override

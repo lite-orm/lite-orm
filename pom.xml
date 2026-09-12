@@ -27,6 +27,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- Dependency Versions -->
+        <freemarker.version>2.3.32</freemarker.version>
         <slf4j.version>2.0.9</slf4j.version>
         <logback.version>1.4.11</logback.version>
         <hikaricp.version>5.0.1</hikaricp.version>
@@ -58,6 +59,13 @@
                 <groupId>org.liteorm</groupId>
                 <artifactId>lite-orm-test-support</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+
+            <!-- FreeMarker -->
+            <dependency>
+                <groupId>org.freemarker</groupId>
+                <artifactId>freemarker</artifactId>
+                <version>${freemarker.version}</version>
             </dependency>
 
             <!-- SLF4J -->
