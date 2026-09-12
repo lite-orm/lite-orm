@@ -20,7 +20,8 @@ Use MyBatis 3.5.19 deterministic built-in TypeHandlers as the compatibility base
 
 Freeze the supported public API with binary compatibility checks. Keep annotation processing in
 `lite-orm-processor` so runtime consumers do not carry compiler implementation or template
-dependencies, with deterministic JDK-only source generation in the processor.
+dependencies. Within the processor, keep compiler semantics in Java and use FreeMarker only to
+render the structured generated-source layout.
 
 ### External Consumption And Spring Support
 

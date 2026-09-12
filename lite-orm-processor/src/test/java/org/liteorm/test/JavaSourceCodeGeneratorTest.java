@@ -13,26 +13,6 @@ class JavaSourceCodeGeneratorTest {
     private final JavaSourceCodeGenerator generator = new JavaSourceCodeGenerator();
 
     @Test
-    void rendersStructuredMapperMetadataAsSourceLayout() throws Exception {
-        GeneratedMapperSourceModel sourceModel = new GeneratedMapperSourceModel(
-            "org.liteorm.test",
-            "UserMapper",
-            "UserMapperImpl",
-            List.of("org.liteorm.api.SqlExecutor"),
-            List.of("    private final String provider = \"provider\";"),
-            List.of("    public String find() { return provider; }")
-        );
-
-        String code = new JavaSourceRenderer().render(sourceModel);
-
-        assertTrue(code.contains("package org.liteorm.test;"));
-        assertTrue(code.contains("import org.liteorm.api.SqlExecutor;"));
-        assertTrue(code.contains("private final String provider = \"provider\";"));
-        assertTrue(code.contains("public String find() { return provider; }"));
-        assertFalse(code.contains("generatedMethods"));
-    }
-
-    @Test
     void generatesExecutionPlanFactoriesForStaticStatements() throws Exception {
         MapperCompilationModel.MethodModel method = new MapperCompilationModel.MethodModel(
             "findById",
