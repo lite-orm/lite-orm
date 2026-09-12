@@ -83,9 +83,14 @@ Built-in mapping is generated for:
 
 For a non-cursor SELECT method, generated code creates a typed `QueryExecutionPlan<T>` carrying a
 `ResultAssembler<T>`. `JdbcSqlExecutor` first reads and converts column values through standard Core
-type routing, then invokes the assembler before closing the result set. The resulting `SqlResult<T>`
-contains an immutable `List<T>`, so generated Mapper return handling does not expose or remap
-`Object[]` rows. Direct low-level `ExecutionPlan` queries continue to return immutable raw row arrays.
+type routing, then invokes the assembler before closing the result set. The resulting
+`QueryResult<T>` contains a non-null immutable `List<T>` and provides `oneOrNull()`, `optional()`,
+and `required()` for single-row contracts, so generated Mapper return handling does not expose or
+remap `Object[]` rows. Updates use `UpdateResult`, generated-key inserts use
+`GeneratedKeyResult<K>`, and JDBC batches use `BatchResult`. `SqlResult` remains the compatibility
+union returned by the low-level `execute(ExecutionPlan)` entry point; typed `SqlExecutor` methods
+adapt it without creating a second JDBC lifecycle. Direct low-level `ExecutionPlan` queries
+continue to return immutable raw row arrays.
 
 Generated Mappers separate stable statement definitions from invocation bindings. Fixed SQL methods
 retain their statement identity, SQL text, source, options, extension references, type routing, and

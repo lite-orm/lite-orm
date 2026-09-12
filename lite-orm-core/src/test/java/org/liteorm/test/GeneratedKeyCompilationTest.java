@@ -53,15 +53,17 @@ class GeneratedKeyCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedKeyMapperImpl.java"));
-        assertTrue(generated.contains("(java.lang.Integer) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.Long) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.Short) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.Byte) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.Double) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.Float) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.math.BigDecimal) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.math.BigInteger) executionResult.getGeneratedKey()"));
-        assertTrue(generated.contains("(java.lang.String) executionResult.getGeneratedKey()"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Integer> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Long> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Short> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Byte> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Double> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Float> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.math.BigDecimal> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.math.BigInteger> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.String> executionResult"));
+        assertTrue(generated.contains("sqlExecutor.generatedKey(executionPlan)"));
+        assertTrue(generated.contains("return executionResult.key();"));
         assertFalse(generated.contains("ResultValueConverters"), generated);
         assertTrue(generated.contains("new ExecutionPlan.TypeRouting("));
         assertTrue(generated.contains("CommandDefinition.generatedKey("));
@@ -100,7 +102,8 @@ class GeneratedKeyCompilationTest {
             "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
         assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
         assertTrue(generated.contains("CommandDefinition.rowMappedGeneratedKey("));
-        assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.util.UUID> executionResult"));
+        assertTrue(generated.contains("return executionResult.key();"));
         assertTrue(generated.contains("insertRowMapper, null, StatementOptions.defaults()"));
     }
 

@@ -108,8 +108,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             code.append(generateExecutionPlanFactory(methodModel));
             return code.toString();
         }
-        code.append("        ").append(sqlResultType(methodModel))
-            .append(" executionResult = sqlExecutor.execute(executionPlan);\n");
+        code.append("        ").append(executionResultType(methodModel))
+            .append(" executionResult = ").append(executionCall(methodModel)).append(";\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));
@@ -157,32 +157,22 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         boolean isSelect = methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.SELECT;
 
         if (methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.BATCH) {
-            return "        return executionResult.getBatchUpdateCounts();\n";
+            return "        return executionResult.counts();\n";
         }
 
         if (methodModel.generatedKey()) {
-            return "        return " + generatedKeyExpression(methodModel) + ";\n";
+            return "        return executionResult.key();\n";
         }
 
         if (!isSelect) {
             if ("void".equals(returnType)) {
                 return "        return;\n";
             }
-            if ("long".equals(returnType)) {
-                return "        return (long) executionResult.getUpdateCount();\n";
-            }
-            return "        return executionResult.getUpdateCount();\n";
+            return "        return executionResult.count();\n";
         }
 
         if (returnType.contains("List<")) {
-            String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
-            return """
-                List<%s> resultRows = executionResult.getQueryResults();
-                if (resultRows == null || resultRows.isEmpty()) {
-                    return new ArrayList<>();
-                }
-                return new ArrayList<>(resultRows);
-                """.formatted(elementType).indent(8);
+            return "        return new ArrayList<>(executionResult.rows());\n";
         }
 
         if ("void".equals(returnType)) {
@@ -191,29 +181,10 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
 
         boolean optional = returnType.startsWith("java.util.Optional<");
         boolean primitive = isPrimitive(returnType);
-        String noRows = optional
-            ? "return java.util.Optional.empty();"
-            : primitive
-                ? "throw new MappingException(" + javaString(
-                    "No row returned for " + methodModel.statementId() + " required primitive " + returnType)
-                    + ", " + javaString(methodModel.statementId()) + ", " + returnType
-                    + ".class, null, null, null);"
-                : "return null;";
-        String mappedReturn = optional
-            ? "java.util.Optional.ofNullable(resultRows.get(0))"
-            : "resultRows.get(0)";
-
-        return """
-            List<%s> resultRows = executionResult.getQueryResults();
-            if (resultRows == null || resultRows.isEmpty()) {
-                %s
-            }
-            if (resultRows.size() > 1) {
-                throw new NonUniqueResultException(%s, resultRows.size());
-            }
-            return %s;
-            """.formatted(mappedResultType(methodModel), noRows,
-                javaString(methodModel.statementId()), mappedReturn).indent(8);
+        if (optional) {
+            return "        return executionResult.optional();\n";
+        }
+        return "        return executionResult." + (primitive ? "required()" : "oneOrNull()") + ";\n";
     }
 
     private boolean isPrimitive(String typeName) {
@@ -223,9 +194,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         };
     }
 
-    private String generatedKeyExpression(MapperCompilationModel.MethodModel methodModel) {
-        String key = "executionResult.getGeneratedKey()";
-        String targetType = switch (methodModel.returnType()) {
+    private String generatedKeyType(MapperCompilationModel.MethodModel methodModel) {
+        return switch (methodModel.returnType()) {
             case "int" -> "java.lang.Integer";
             case "long" -> "java.lang.Long";
             case "short" -> "java.lang.Short";
@@ -234,7 +204,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             case "float" -> "java.lang.Float";
             default -> methodModel.returnType();
         };
-        return "(" + targetType + ") " + key;
     }
 
     private String mapperMethodLocation(MapperCompilationModel.MethodModel methodModel) {
@@ -485,6 +454,9 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private String executionPlanType(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "BatchExecutionPlan";
+        }
         return typedQuery(methodModel)
             ? "QueryExecutionPlan<" + mappedResultType(methodModel) + ">"
             : "ExecutionPlan";
@@ -494,10 +466,36 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         return typedQuery(methodModel) ? "new QueryExecutionPlan<>" : "new ExecutionPlan";
     }
 
-    private String sqlResultType(MapperCompilationModel.MethodModel methodModel) {
-        return typedQuery(methodModel)
-            ? "SqlResult<" + mappedResultType(methodModel) + ">"
-            : "SqlResult<?>";
+    private String executionResultType(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT && typedQuery(methodModel)) {
+            return "QueryResult<" + mappedResultType(methodModel) + ">";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT) {
+            return "SqlResult<?>";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "BatchResult";
+        }
+        if (methodModel.generatedKey()) {
+            return "GeneratedKeyResult<" + generatedKeyType(methodModel) + ">";
+        }
+        return "UpdateResult";
+    }
+
+    private String executionCall(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT && typedQuery(methodModel)) {
+            return "sqlExecutor.query(executionPlan)";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT) {
+            return "sqlExecutor.execute(executionPlan)";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "sqlExecutor.batch(executionPlan)";
+        }
+        if (methodModel.generatedKey()) {
+            return "sqlExecutor.generatedKey(executionPlan)";
+        }
+        return "sqlExecutor.update(executionPlan)";
     }
 
     private boolean typedQuery(MapperCompilationModel.MethodModel methodModel) {

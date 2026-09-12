@@ -13,8 +13,76 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SqlResultTest {
+
+    @Test
+    void queryFactoryRepresentsEmptySingleAndMultipleRowsAsOneQueryShape() {
+        SqlResult<Object[]> empty = SqlResult.forQuery(List.of());
+        SqlResult<Object[]> single = SqlResult.forQuery(
+            List.<Object[]>of(new Object[]{"Alice"}));
+        SqlResult<Object[]> multiple = SqlResult.forQuery(
+            List.of(new Object[]{"Alice"}, new Object[]{"Bob"}));
+
+        for (SqlResult<Object[]> result : List.of(empty, single, multiple)) {
+            assertTrue(result.isQuery());
+            assertEquals(0, result.getUpdateCount());
+            assertNull(result.getGeneratedKey());
+            assertNull(result.getBatchUpdateCounts());
+        }
+        assertEquals(0, empty.getQueryResults().size());
+        assertEquals(1, single.getQueryResults().size());
+        assertEquals(2, multiple.getQueryResults().size());
+    }
+
+    @Test
+    void updateFactoryPreservesZeroAndPositiveUpdateCounts() {
+        SqlResult<Void> noRows = SqlResult.forUpdate(0);
+        SqlResult<Void> rows = SqlResult.forUpdate(3);
+
+        for (SqlResult<Void> result : List.of(noRows, rows)) {
+            assertFalse(result.isQuery());
+            assertNull(result.getQueryResults());
+            assertNull(result.getGeneratedKey());
+            assertNull(result.getBatchUpdateCounts());
+        }
+        assertEquals(0, noRows.getUpdateCount());
+        assertEquals(3, rows.getUpdateCount());
+    }
+
+    @Test
+    void generatedKeyFactoryPreservesUpdateCountAndNullableKey() {
+        SqlResult<Void> missingKey = SqlResult.forGeneratedKey(0, null);
+        SqlResult<Void> generatedKey = SqlResult.forGeneratedKey(1, 42L);
+
+        for (SqlResult<Void> result : List.of(missingKey, generatedKey)) {
+            assertFalse(result.isQuery());
+            assertNull(result.getQueryResults());
+            assertNull(result.getBatchUpdateCounts());
+        }
+        assertEquals(0, missingKey.getUpdateCount());
+        assertNull(missingKey.getGeneratedKey());
+        assertEquals(1, generatedKey.getUpdateCount());
+        assertEquals(42L, generatedKey.getGeneratedKey());
+    }
+
+    @Test
+    void batchFactoryRepresentsEmptySingleAndMultipleDriverCounts() {
+        SqlResult<Void> empty = SqlResult.forBatch(new int[0]);
+        SqlResult<Void> single = SqlResult.forBatch(new int[]{1});
+        SqlResult<Void> multiple = SqlResult.forBatch(new int[]{1, 0, -3});
+
+        for (SqlResult<Void> result : List.of(empty, single, multiple)) {
+            assertFalse(result.isQuery());
+            assertNull(result.getQueryResults());
+            assertEquals(0, result.getUpdateCount());
+            assertNull(result.getGeneratedKey());
+        }
+        assertArrayEquals(new int[0], empty.getBatchUpdateCounts());
+        assertArrayEquals(new int[]{1}, single.getBatchUpdateCounts());
+        assertArrayEquals(new int[]{1, 0, -3}, multiple.getBatchUpdateCounts());
+    }
 
     @Test
     void queryResultsAreDeeplyImmutable() {

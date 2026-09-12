@@ -10,6 +10,26 @@ public interface SqlExecutor {
 
     SqlResult<?> execute(ExecutionPlan plan);
 
+    /** Executes a typed query through the existing execution lifecycle. */
+    default <T> QueryResult<T> query(QueryExecutionPlan<T> plan) {
+        return QueryResult.from(execute(plan), plan.getStatementId());
+    }
+
+    /** Executes an insert, update, or delete through the existing execution lifecycle. */
+    default UpdateResult update(ExecutionPlan plan) {
+        return UpdateResult.from(execute(plan), plan.getStatementId());
+    }
+
+    /** Executes an insert and returns its generated key through the existing lifecycle. */
+    default <K> GeneratedKeyResult<K> generatedKey(ExecutionPlan plan) {
+        return GeneratedKeyResult.from(execute(plan), plan.getStatementId());
+    }
+
+    /** Executes a JDBC batch through the existing execution lifecycle. */
+    default BatchResult batch(BatchExecutionPlan plan) {
+        return BatchResult.from(execute(plan), plan.getStatementId());
+    }
+
     /** Executes a typed query plan and returns its assembled Java results. */
     @SuppressWarnings("unchecked")
     default <T> SqlResult<T> execute(QueryExecutionPlan<T> plan) {

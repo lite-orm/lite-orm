@@ -33,8 +33,11 @@ class GeneratedSourceGoldenTest {
             "sql.parameter(name, null, java.lang.String.class, java.sql.JDBCType.VARCHAR);"));
         assertTrue(source.contains(".bind(sql.build())"));
         assertTrue(source.contains("QueryExecutionPlan<org.liteorm.test.User> executionPlan"));
-        assertTrue(source.contains("SqlResult<org.liteorm.test.User> executionResult"));
-        assertTrue(source.contains("List<org.liteorm.test.User> resultRows"));
+        assertTrue(source.contains("QueryResult<org.liteorm.test.User> executionResult"));
+        assertTrue(source.contains("sqlExecutor.query(executionPlan)"));
+        assertTrue(source.contains("executionResult.oneOrNull()"));
+        assertTrue(source.contains("UpdateResult executionResult"));
+        assertTrue(source.contains("sqlExecutor.update(executionPlan)"));
         assertTrue(source.contains("row -> new org.liteorm.test.User("));
         assertFalse(source.contains("List<Object[]> resultRows"));
         assertFalse(source.contains("Object[] resultRow"));

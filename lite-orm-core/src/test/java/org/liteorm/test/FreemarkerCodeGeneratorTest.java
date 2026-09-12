@@ -43,8 +43,9 @@ class FreemarkerCodeGeneratorTest {
 
         assertTrue(code.contains(
             "QueryExecutionPlan<org.liteorm.test.User> executionPlan = buildFindByIdExecutionPlan(id);"));
-        assertTrue(code.contains("SqlResult<org.liteorm.test.User> executionResult"));
-        assertTrue(code.contains("List<org.liteorm.test.User> resultRows = executionResult.getQueryResults();"));
+        assertTrue(code.contains(
+            "QueryResult<org.liteorm.test.User> executionResult = sqlExecutor.query(executionPlan);"));
+        assertTrue(code.contains("return executionResult.oneOrNull();"));
         assertTrue(code.contains(
             "private QueryExecutionPlan<org.liteorm.test.User> buildFindByIdExecutionPlan(Long id)"));
         assertTrue(code.contains(

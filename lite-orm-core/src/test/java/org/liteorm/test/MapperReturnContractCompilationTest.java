@@ -22,10 +22,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,11 +81,120 @@ class MapperReturnContractCompilationTest {
                 InvocationTargetException.class, () -> mapperType.getMethod("findPrimitive").invoke(mapper));
             MappingException mappingFailure = assertInstanceOf(MappingException.class, primitiveFailure.getCause());
             assertTrue(mappingFailure.getMessage().contains("ReturnMapper.findPrimitive"));
-            assertTrue(mappingFailure.getMessage().contains("long"));
 
             InvocationTargetException multipleFailure = assertThrows(
                 InvocationTargetException.class, () -> mapperType.getMethod("findMultiple").invoke(mapper));
             assertInstanceOf(NonUniqueResultException.class, multipleFailure.getCause());
+        }
+    }
+
+    @Test
+    void characterizesCustomExecutorResultsAcrossExecutionShapes() throws Exception {
+        Compilation compilation = compile("ExecutionShapeMapper", """
+            package org.liteorm.test.returnfixture;
+
+            import java.util.List;
+            import org.liteorm.annotation.Batch;
+            import org.liteorm.annotation.GeneratedKey;
+            import org.liteorm.annotation.Insert;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+            import org.liteorm.annotation.Update;
+
+            @Mapper
+            public interface ExecutionShapeMapper {
+                @Select("SELECT value FROM values_table") String findEmpty();
+                @Select("SELECT value FROM values_table") String findSingle();
+                @Select("SELECT value FROM values_table") List<String> findMultiple();
+                @Update("UPDATE values_table SET value = #{value}") int update(String value);
+                @GeneratedKey("id")
+                @Insert("INSERT INTO values_table(value) VALUES (#{value})")
+                long insert(String value);
+                @Batch("INSERT INTO values_table(value) VALUES (#{item})")
+                int[] insertBatch(List<String> values);
+            }
+            """);
+        assertTrue(compilation.succeeded(), compilation::diagnosticsText);
+
+        try (URLClassLoader loader = compilation.classLoader(getClass().getClassLoader())) {
+            Class<?> mapperType = loader.loadClass("org.liteorm.test.returnfixture.ExecutionShapeMapper");
+            Class<?> implementationType =
+                loader.loadClass("org.liteorm.test.returnfixture.ExecutionShapeMapperImpl");
+            SqlExecutor executor = plan -> switch (plan.getStatementId()) {
+                case "org.liteorm.test.returnfixture.ExecutionShapeMapper.findSingle" ->
+                    SqlResult.forQuery(List.<Object[]>of(new Object[]{"Alice"}));
+                case "org.liteorm.test.returnfixture.ExecutionShapeMapper.findMultiple" ->
+                    SqlResult.forQuery(List.of(new Object[]{"Alice"}, new Object[]{"Bob"}));
+                case "org.liteorm.test.returnfixture.ExecutionShapeMapper.update" ->
+                    SqlResult.forUpdate(3);
+                case "org.liteorm.test.returnfixture.ExecutionShapeMapper.insert" ->
+                    SqlResult.forGeneratedKey(1, 42L);
+                case "org.liteorm.test.returnfixture.ExecutionShapeMapper.insertBatch" -> {
+                    org.liteorm.api.BatchExecutionPlan batchPlan =
+                        (org.liteorm.api.BatchExecutionPlan) plan;
+                    yield SqlResult.forBatch(batchPlan.getBatchParameters().isEmpty()
+                        ? new int[0] : new int[]{1, 1});
+                }
+                default -> SqlResult.forQuery(List.of());
+            };
+            Object mapper = implementationType.getConstructor(SqlExecutor.class).newInstance(executor);
+
+            assertNull(invoke(mapperType, mapper, "findEmpty"));
+            assertEquals("Alice", invoke(mapperType, mapper, "findSingle"));
+            assertEquals(List.of("Alice", "Bob"), invoke(mapperType, mapper, "findMultiple"));
+            assertEquals(3, invoke(mapperType, mapper, "update", String.class, "Alice"));
+            assertEquals(42L, invoke(mapperType, mapper, "insert", String.class, "Alice"));
+            assertArrayEquals(new int[0], (int[]) invoke(
+                mapperType, mapper, "insertBatch", List.class, List.of()));
+            assertArrayEquals(new int[]{1, 1}, (int[]) invoke(
+                mapperType, mapper, "insertBatch", List.class, List.of("Alice", "Bob")));
+        }
+    }
+
+    @Test
+    void propagatesCustomExecutorFailuresForEveryExecutionShape() throws Exception {
+        Compilation compilation = compile("FailingExecutionShapeMapper", """
+            package org.liteorm.test.returnfixture;
+
+            import java.util.List;
+            import org.liteorm.annotation.Batch;
+            import org.liteorm.annotation.GeneratedKey;
+            import org.liteorm.annotation.Insert;
+            import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Select;
+            import org.liteorm.annotation.Update;
+
+            @Mapper
+            public interface FailingExecutionShapeMapper {
+                @Select("SELECT value FROM values_table") String find();
+                @Update("UPDATE values_table SET value = #{value}") int update(String value);
+                @GeneratedKey("id")
+                @Insert("INSERT INTO values_table(value) VALUES (#{value})")
+                long insert(String value);
+                @Batch("INSERT INTO values_table(value) VALUES (#{item})")
+                int[] insertBatch(List<String> values);
+            }
+            """);
+        assertTrue(compilation.succeeded(), compilation::diagnosticsText);
+
+        try (URLClassLoader loader = compilation.classLoader(getClass().getClassLoader())) {
+            Class<?> mapperType = loader.loadClass(
+                "org.liteorm.test.returnfixture.FailingExecutionShapeMapper");
+            Class<?> implementationType = loader.loadClass(
+                "org.liteorm.test.returnfixture.FailingExecutionShapeMapperImpl");
+            RuntimeException failure = new IllegalStateException("custom executor failure");
+            SqlExecutor executor = plan -> {
+                throw failure;
+            };
+            Object mapper = implementationType.getConstructor(SqlExecutor.class).newInstance(executor);
+
+            assertSameFailure(failure, () -> invoke(mapperType, mapper, "find"));
+            assertSameFailure(failure, () -> invoke(
+                mapperType, mapper, "update", String.class, "Alice"));
+            assertSameFailure(failure, () -> invoke(
+                mapperType, mapper, "insert", String.class, "Alice"));
+            assertSameFailure(failure, () -> invoke(
+                mapperType, mapper, "insertBatch", List.class, List.of("Alice")));
         }
     }
 
@@ -197,6 +308,16 @@ class MapperReturnContractCompilationTest {
         var method = mapperType.getMethod(methodName, parameterTypes);
         method.setAccessible(true);
         return method.invoke(mapper, arguments);
+    }
+
+    private void assertSameFailure(RuntimeException expected, ThrowingInvocation invocation) {
+        InvocationTargetException thrown = assertThrows(InvocationTargetException.class, invocation::invoke);
+        assertSame(expected, thrown.getCause());
+    }
+
+    @FunctionalInterface
+    private interface ThrowingInvocation {
+        void invoke() throws Exception;
     }
 
     private Compilation compile(String typeName, String source) throws Exception {

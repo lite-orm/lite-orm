@@ -23,6 +23,7 @@ public final class SqlResult<T> {
     private final Map<String, Integer> columnIndexes;
     private final int updateCount;
     private final boolean isQuery;
+    private final ResultKind resultKind;
     private final int[] batchUpdateCounts;
     private final Object generatedKey;
     private final boolean rawRows;
@@ -33,32 +34,37 @@ public final class SqlResult<T> {
     }
 
     public static SqlResult<Object[]> forQuery(List<ResultColumn> columns, List<Object[]> results) {
-        return new SqlResult<>(copyRows(results), columns, 0, true, null, null, true);
+        return new SqlResult<>(
+            copyRows(results), columns, 0, ResultKind.QUERY, null, null, true);
     }
 
     /** Creates a query result whose rows have already been assembled to their Java target type. */
     public static <T> SqlResult<T> forMappedQuery(List<ResultColumn> columns, List<T> results) {
-        return new SqlResult<>(results, columns, 0, true, null, null, false);
+        return new SqlResult<>(
+            results, columns, 0, ResultKind.QUERY, null, null, false);
     }
     
     // Creates an update result.
     public static SqlResult<Void> forUpdate(int updateCount) {
-        return new SqlResult<>(null, List.of(), updateCount, false, null, null, false);
+        return new SqlResult<>(
+            null, List.of(), updateCount, ResultKind.UPDATE, null, null, false);
     }
 
     public static SqlResult<Void> forGeneratedKey(int updateCount, Object generatedKey) {
-        return new SqlResult<>(null, List.of(), updateCount, false, null, generatedKey, false);
+        return new SqlResult<>(
+            null, List.of(), updateCount, ResultKind.GENERATED_KEY, null, generatedKey, false);
     }
 
     public static SqlResult<Void> forBatch(int[] updateCounts) {
-        return new SqlResult<>(null, List.of(), 0, false, updateCounts, null, false);
+        return new SqlResult<>(
+            null, List.of(), 0, ResultKind.BATCH, updateCounts, null, false);
     }
     
     private SqlResult(
             List<T> queryResults,
             List<ResultColumn> resultColumns,
             int updateCount,
-            boolean isQuery,
+            ResultKind resultKind,
             int[] batchUpdateCounts,
             Object generatedKey,
             boolean rawRows) {
@@ -70,7 +76,8 @@ public final class SqlResult<T> {
             validateRowWidths(copyRowsForValidation(this.queryResults), this.resultColumns);
         }
         this.updateCount = updateCount;
-        this.isQuery = isQuery;
+        this.resultKind = Objects.requireNonNull(resultKind, "resultKind");
+        this.isQuery = resultKind == ResultKind.QUERY;
         this.batchUpdateCounts = batchUpdateCounts == null ? null : batchUpdateCounts.clone();
         this.generatedKey = generatedKey;
         this.rawRows = rawRows;
@@ -103,6 +110,10 @@ public final class SqlResult<T> {
     
     public boolean isQuery() {
         return isQuery;
+    }
+
+    ResultKind resultKind() {
+        return resultKind;
     }
 
     public int[] getBatchUpdateCounts() {
@@ -151,5 +162,12 @@ public final class SqlResult<T> {
 
     private static String normalizeLabel(String label) {
         return label.trim().toLowerCase(Locale.ROOT);
+    }
+
+    enum ResultKind {
+        QUERY,
+        UPDATE,
+        GENERATED_KEY,
+        BATCH
     }
 }

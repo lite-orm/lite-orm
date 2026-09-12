@@ -35,8 +35,10 @@ Annotation and XML forms normalize into the same compiler model. They cannot bot
 
 Generated Mapper implementations carry ordinary mappings in a typed `QueryExecutionPlan<T>`. Core
 converts each JDBC value first and passes a read-only `ResultRow` to the generated
-`ResultAssembler<T>`. Mapper methods therefore consume `SqlResult<T>` and `List<T>` rather than raw
-`Object[]` rows. Application code does not implement or configure result assemblers.
+`ResultAssembler<T>`. Generated query methods consume `QueryResult<T>` and expose non-null rows,
+`oneOrNull()`, `optional()`, or `required()` according to the declared return shape. Update,
+generated-key, and JDBC batch methods consume `UpdateResult`, `GeneratedKeyResult<K>`, and
+`BatchResult` respectively. Application code does not implement or configure result assemblers.
 
 ## Standard JDBC Routing
 

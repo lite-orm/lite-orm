@@ -8,13 +8,17 @@ import org.liteorm.api.ExecutionInterceptor;
 import org.liteorm.api.ExecutionOutcome;
 import org.liteorm.api.ExecutionPhase;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.GeneratedKeyResult;
 import org.liteorm.api.JdbcExecutionState;
 import org.liteorm.api.ParameterBinder;
 import org.liteorm.api.QueryExecutionPlan;
+import org.liteorm.api.QueryResult;
 import org.liteorm.api.ResultColumn;
 import org.liteorm.api.StatementOptions;
 import org.liteorm.api.SqlExecutionException;
 import org.liteorm.api.SqlResult;
+import org.liteorm.api.UpdateResult;
+import org.liteorm.api.BatchResult;
 import org.liteorm.jdbc.JdbcSqlExecutor;
 
 import java.lang.reflect.Proxy;
@@ -173,6 +177,50 @@ class JdbcSqlExecutorTest {
 
         assertEquals(List.of(new MappedUser("7", "Alice")), result.getQueryResults());
         assertTrue(events.indexOf("rows.getString:2") < events.indexOf("rows.close"));
+    }
+
+    @Test
+    void typedEntryPointsReuseTheSingleJdbcExecutionLifecycle() {
+        List<String> queryEvents = new ArrayList<>();
+        QueryExecutionPlan<String> queryPlan = new QueryExecutionPlan<>(
+            "test.Mapper.find", "SELECT name FROM users", new Object[0],
+            ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.GENERATED,
+            null, null, resultSet -> resultSet.getString(1), null, null, null);
+        QueryResult<String> queryResult = executor(
+            queryEvents,
+            statement(queryEvents, singleColumnRows(queryEvents, List.of("Alice")), 0, null, null))
+            .query(queryPlan);
+
+        assertEquals(List.of("Alice"), queryResult.rows());
+        assertEquals(1, queryEvents.stream().filter("transaction.open"::equals).count());
+        assertEquals(1, queryEvents.stream().filter("transaction.close"::equals).count());
+
+        List<String> updateEvents = new ArrayList<>();
+        UpdateResult updateResult = executor(
+            updateEvents,
+            statement(updateEvents, null, 3, null, null))
+            .update(writePlan(ExecutionPlan.StatementType.UPDATE, false, null));
+        assertEquals(3, updateResult.count());
+        assertTrue(updateEvents.contains("executeUpdate"));
+
+        List<String> keyEvents = new ArrayList<>();
+        GeneratedKeyResult<Long> keyResult = executor(
+            keyEvents,
+            statement(keyEvents, null, 1, generatedKeys(keyEvents, 42L), null))
+            .generatedKey(writePlan(ExecutionPlan.StatementType.INSERT, true, null));
+        assertEquals(42L, keyResult.key());
+        assertTrue(keyEvents.contains("getGeneratedKeys"));
+
+        List<String> batchEvents = new ArrayList<>();
+        BatchExecutionPlan batchPlan = new BatchExecutionPlan(
+            "test.Mapper.insertAll", "INSERT INTO users(name) VALUES (?)",
+            List.<Object[]>of(new Object[]{"Alice"}), ExecutionPlan.SqlSource.GENERATED);
+        BatchResult batchResult = executor(
+            batchEvents,
+            statement(batchEvents, null, 0, null, new int[]{1}))
+            .batch(batchPlan);
+        assertArrayEquals(new int[]{1}, batchResult.counts());
+        assertTrue(batchEvents.contains("executeBatch"));
     }
 
     @Test

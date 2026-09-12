@@ -50,8 +50,11 @@ class GeneratedCodeTest {
         String generatedSource = userMapperSource();
 
         assertTrue(generatedSource.contains(
-            "SqlResult<org.liteorm.test.User> executionResult = sqlExecutor.execute(executionPlan);"));
-        assertTrue(generatedSource.contains("return (long) executionResult.getUpdateCount();"));
+            "QueryResult<org.liteorm.test.User> executionResult = sqlExecutor.query(executionPlan);"));
+        assertTrue(generatedSource.contains("return executionResult.oneOrNull();"));
+        assertTrue(generatedSource.contains("UpdateResult executionResult = sqlExecutor.update(executionPlan);"));
+        assertTrue(generatedSource.contains("return executionResult.count();"));
+        assertFalse(generatedSource.contains("SqlResult<org.liteorm.test.User> executionResult"));
         assertTrue(generatedSource.contains("Generated Mapper implementation."));
         assertFalse(generatedSource.contains("executionResult.hasError()"));
         assertFalse(generatedSource.contains("throw new RuntimeException(\"SQL execution failed"));
