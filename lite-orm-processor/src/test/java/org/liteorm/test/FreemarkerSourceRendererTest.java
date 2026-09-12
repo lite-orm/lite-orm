@@ -16,8 +16,10 @@ class FreemarkerSourceRendererTest {
             "UserMapper",
             "UserMapperImpl",
             List.of("org.liteorm.api.SqlExecutor"),
-            List.of("    private final String provider = \"provider\";"),
-            List.of("    public String find() { return provider; }")
+            List.of(new GeneratedSourceField("    private final String provider = \"provider\";")),
+            List.of(new GeneratedSourceMember(
+                GeneratedSourceMember.Kind.METHOD,
+                "    public String find() { return provider; }"))
         );
 
         String code = new FreemarkerSourceRenderer().render(sourceModel);
@@ -27,5 +29,15 @@ class FreemarkerSourceRendererTest {
         assertTrue(code.contains("private final String provider = \"provider\";"));
         assertTrue(code.contains("public String find() { return provider; }"));
         assertFalse(code.contains("generatedMethods"));
+    }
+
+    @Test
+    void preservesMemberKindsAtTheModelBoundary() {
+        GeneratedSourceMember member = new GeneratedSourceMember(
+            GeneratedSourceMember.Kind.HELPER,
+            "private static String helper() { return \"value\"; }");
+
+        assertTrue(member.kind() == GeneratedSourceMember.Kind.HELPER);
+        assertTrue(member.source().contains("helper"));
     }
 }

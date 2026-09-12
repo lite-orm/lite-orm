@@ -18,12 +18,12 @@ public class ${mapper.implementationName} implements ${mapper.interfaceName} {
 
 <#if mapper.fields?size gt 0>
 <#list mapper.fields as field>
-${field}
+${field.declaration}
 </#list>
 
 </#if>
 <#list mapper.members as member>
-${member}
+${member.source}
 
 </#list>
 

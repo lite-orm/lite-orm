@@ -70,25 +70,29 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
 
     private GeneratedMapperSourceModel buildSourceModel(MapperCompilationModel compilationModel)
             throws GenerationException {
-        List<String> fields = new ArrayList<>();
+        List<GeneratedSourceField> fields = new ArrayList<>();
         for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
             if (method.providerClassName() != null) {
-                fields.add("    private final " + method.providerClassName() + " "
+                fields.add(new GeneratedSourceField("    private final " + method.providerClassName() + " "
                     + method.providerFieldName() + " = new "
-                    + method.providerClassName() + "();");
+                    + method.providerClassName() + "();"));
             }
             for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
-                fields.add("    private final " + extensionField.typeName() + " "
+                fields.add(new GeneratedSourceField("    private final " + extensionField.typeName() + " "
                     + extensionField.fieldName() + " = new "
-                    + extensionField.typeName() + "();");
+                    + extensionField.typeName() + "();"));
             }
         }
 
-        List<String> members = new ArrayList<>();
+        List<GeneratedSourceMember> members = new ArrayList<>();
         for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
-            members.add(generateMethodImpl(method));
+            members.add(new GeneratedSourceMember(
+                GeneratedSourceMember.Kind.METHOD,
+                generateMethodImpl(method)));
             if (!method.resultMappingHelperCode().isBlank()) {
-                members.add(method.resultMappingHelperCode());
+                members.add(new GeneratedSourceMember(
+                    GeneratedSourceMember.Kind.HELPER,
+                    method.resultMappingHelperCode()));
             }
         }
 

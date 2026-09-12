@@ -6,6 +6,7 @@ import freemarker.template.TemplateException;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,8 +35,8 @@ final class FreemarkerSourceRenderer {
                     "interfaceName", sourceModel.interfaceName(),
                     "implementationName", sourceModel.implementationName(),
                     "imports", sourceModel.imports(),
-                    "fields", sourceModel.fields(),
-                    "members", sourceModel.members()
+                    "fields", sourceFields(sourceModel.fields()),
+                    "members", sourceMembers(sourceModel.members())
                 )
             );
 
@@ -45,5 +46,19 @@ final class FreemarkerSourceRenderer {
         } catch (IOException | TemplateException exception) {
             throw new CodeGenerator.GenerationException("Source generation failed", exception);
         }
+    }
+
+    private List<Map<String, Object>> sourceFields(List<GeneratedSourceField> fields) {
+        return fields.stream()
+            .map(field -> Map.<String, Object>of("declaration", field.declaration()))
+            .toList();
+    }
+
+    private List<Map<String, Object>> sourceMembers(List<GeneratedSourceMember> members) {
+        return members.stream()
+            .map(member -> Map.<String, Object>of(
+                "kind", member.kind().name(),
+                "source", member.source()))
+            .toList();
     }
 }
