@@ -1,31 +1,25 @@
 package org.liteorm.compile;
 
-import freemarker.template.Configuration;
-import freemarker.template.Template;
-import freemarker.template.TemplateException;
 import org.liteorm.api.ExecutionPlan;
 
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * FreeMarker-backed Java source generator.
+ * Generates Mapper source from compiler-owned semantic fragments.
  *
  * @author lite-orm
  * @since 2024/10/01
  */
-final class FreemarkerCodeGenerator implements CodeGenerator {
+final class JavaSourceCodeGenerator implements CodeGenerator {
 
     private static final List<String> GENERATED_IMPORTS = List.of(
         "org.liteorm.api.BatchExecutionPlan",
@@ -60,43 +54,18 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     private static final Pattern STRING_NOT_EQUALS_PATTERN =
         Pattern.compile("([a-zA-Z_][\\w().]*)\\s*!=\\s*'([^']*)'");
 
-    private final Configuration freemarkerConfig;
     private final SqlParameterParser parameterParser;
+    private final JavaSourceRenderer sourceRenderer;
 
-    public FreemarkerCodeGenerator() {
-        this.freemarkerConfig = new Configuration(Configuration.VERSION_2_3_32);
-        this.freemarkerConfig.setClassForTemplateLoading(this.getClass(), "/templates");
-        this.freemarkerConfig.setDefaultEncoding("UTF-8");
+    JavaSourceCodeGenerator() {
         this.parameterParser = new SqlParameterParser();
+        this.sourceRenderer = new JavaSourceRenderer();
     }
 
     @Override
     public String generateMapperImpl(TypeElement mapperInterface, MapperCompilationModel compilationModel,
                                      Elements elementUtils, Types typeUtils) throws GenerationException {
-        return renderMapper(buildSourceModel(compilationModel));
-    }
-
-    String renderMapper(GeneratedMapperSourceModel sourceModel) throws GenerationException {
-        try {
-            Template template = freemarkerConfig.getTemplate("mapper-impl.ftl");
-
-            Map<String, Object> dataModel = Map.of(
-                "mapper", Map.of(
-                    "packageName", sourceModel.packageName(),
-                    "interfaceName", sourceModel.interfaceName(),
-                    "implementationName", sourceModel.implementationName(),
-                    "imports", sourceModel.imports(),
-                    "fields", sourceModel.fields(),
-                    "members", sourceModel.members()
-                )
-            );
-
-            StringWriter writer = new StringWriter();
-            template.process(dataModel, writer);
-            return writer.toString();
-        } catch (IOException | TemplateException e) {
-            throw new GenerationException("Source generation failed", e);
-        }
+        return sourceRenderer.render(buildSourceModel(compilationModel));
     }
 
     private GeneratedMapperSourceModel buildSourceModel(MapperCompilationModel compilationModel)

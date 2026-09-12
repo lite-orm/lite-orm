@@ -25,7 +25,7 @@ Owns compiler-only code and dependencies:
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
-- FreeMarker templates during the current transition.
+- deterministic JDK-only source rendering.
 
 ### `lite-orm-spring-boot-starter`
 
@@ -96,7 +96,6 @@ correctness
   -> API freeze
   -> split processor
   -> external Maven/Gradle verification
-  -> replace FreeMarker
   -> public preview
   -> migration tooling
   -> optional DB generator

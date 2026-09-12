@@ -8,9 +8,9 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class FreemarkerCodeGeneratorTest {
+class JavaSourceCodeGeneratorTest {
 
-    private final FreemarkerCodeGenerator generator = new FreemarkerCodeGenerator();
+    private final JavaSourceCodeGenerator generator = new JavaSourceCodeGenerator();
 
     @Test
     void rendersStructuredMapperMetadataAsSourceLayout() throws Exception {
@@ -23,7 +23,7 @@ class FreemarkerCodeGeneratorTest {
             List.of("    public String find() { return provider; }")
         );
 
-        String code = generator.renderMapper(sourceModel);
+        String code = new JavaSourceRenderer().render(sourceModel);
 
         assertTrue(code.contains("package org.liteorm.test;"));
         assertTrue(code.contains("import org.liteorm.api.SqlExecutor;"));
