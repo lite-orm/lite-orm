@@ -1,36 +1,30 @@
-package ${packageName};
+package ${mapper.packageName};
 
-import org.liteorm.api.BatchExecutionPlan;
-import org.liteorm.api.BatchDefinition;
-import org.liteorm.api.BoundSql;
-import org.liteorm.api.BoundSqlBuilder;
-import org.liteorm.api.BatchResult;
-import org.liteorm.api.CommandDefinition;
-import org.liteorm.api.ExecutionPlan;
-import org.liteorm.api.GeneratedKeyResult;
-import org.liteorm.api.ParameterBinder;
-import org.liteorm.api.QueryDefinition;
-import org.liteorm.api.QueryExecutionPlan;
-import org.liteorm.api.QueryResult;
-import org.liteorm.api.SqlExecutor;
-import org.liteorm.api.SqlResult;
-import org.liteorm.api.StatementOptions;
-import org.liteorm.api.UpdateResult;
-import java.util.ArrayList;
-import java.util.List;
+<#list mapper.imports as importName>
+import ${importName};
+</#list>
 
 /**
  * Generated Mapper implementation.
  * Contains compile-time SQL binding and result mapping without reflection.
  */
-public class ${implClassName} implements ${interfaceName} {
+public class ${mapper.implementationName} implements ${mapper.interfaceName} {
 
     private final SqlExecutor sqlExecutor;
 
-    public ${implClassName}(SqlExecutor sqlExecutor) {
+    public ${mapper.implementationName}(SqlExecutor sqlExecutor) {
         this.sqlExecutor = java.util.Objects.requireNonNull(sqlExecutor, "sqlExecutor");
     }
 
-${generatedMethods}
+<#if mapper.fields?size gt 0>
+<#list mapper.fields as field>
+${field}
+</#list>
+
+</#if>
+<#list mapper.members as member>
+${member}
+
+</#list>
 
 }

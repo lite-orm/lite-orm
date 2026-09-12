@@ -18,7 +18,10 @@ Use MyBatis 3.5.19 deterministic built-in TypeHandlers as the compatibility base
 
 ### Public API And Artifact Boundaries
 
-Freeze the supported public API with binary compatibility checks. Replace FreeMarker with deterministic JDK-only source generation, then move annotation processing into `lite-orm-processor` so runtime consumers do not carry compiler implementation or template dependencies.
+Freeze the supported public API with binary compatibility checks. Keep annotation processing in
+`lite-orm-processor` so runtime consumers do not carry compiler implementation or template
+dependencies, then replace the processor's transitional FreeMarker renderer with deterministic
+JDK-only source generation.
 
 ### External Consumption And Spring Support
 

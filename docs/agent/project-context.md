@@ -94,9 +94,9 @@ The active delivery order is:
 correctness
   -> MyBatis deterministic JDBC type parity
   -> API freeze
-  -> replace FreeMarker
   -> split processor
   -> external Maven/Gradle verification
+  -> replace FreeMarker
   -> public preview
   -> migration tooling
   -> optional DB generator

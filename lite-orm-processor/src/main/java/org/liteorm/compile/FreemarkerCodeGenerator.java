@@ -11,7 +11,6 @@ import javax.lang.model.util.Types;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,6 +27,26 @@ import java.util.regex.Pattern;
  */
 final class FreemarkerCodeGenerator implements CodeGenerator {
 
+    private static final List<String> GENERATED_IMPORTS = List.of(
+        "org.liteorm.api.BatchExecutionPlan",
+        "org.liteorm.api.BatchDefinition",
+        "org.liteorm.api.BoundSql",
+        "org.liteorm.api.BoundSqlBuilder",
+        "org.liteorm.api.BatchResult",
+        "org.liteorm.api.CommandDefinition",
+        "org.liteorm.api.ExecutionPlan",
+        "org.liteorm.api.GeneratedKeyResult",
+        "org.liteorm.api.ParameterBinder",
+        "org.liteorm.api.QueryDefinition",
+        "org.liteorm.api.QueryExecutionPlan",
+        "org.liteorm.api.QueryResult",
+        "org.liteorm.api.SqlExecutor",
+        "org.liteorm.api.SqlResult",
+        "org.liteorm.api.StatementOptions",
+        "org.liteorm.api.UpdateResult",
+        "java.util.ArrayList",
+        "java.util.List"
+    );
     private static final Pattern HASH_PARAM_PATTERN = Pattern.compile("#\\{([^}]+)\\}");
     private static final Pattern DOLLAR_PARAM_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
     private static final Pattern EXPRESSION_TOKEN_PATTERN =
@@ -54,15 +73,23 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     @Override
     public String generateMapperImpl(TypeElement mapperInterface, MapperCompilationModel compilationModel,
                                      Elements elementUtils, Types typeUtils) throws GenerationException {
+        return renderMapper(buildSourceModel(compilationModel));
+    }
+
+    String renderMapper(GeneratedMapperSourceModel sourceModel) throws GenerationException {
         try {
             Template template = freemarkerConfig.getTemplate("mapper-impl.ftl");
 
-            Map<String, Object> dataModel = new HashMap<>();
-            dataModel.put("packageName", compilationModel.packageName());
-            dataModel.put("interfaceName", compilationModel.interfaceName());
-            dataModel.put("implClassName", compilationModel.implementationName());
-            dataModel.put("generatedMethods", generateMethods(
-                compilationModel.methods(), compilationModel.packageName()));
+            Map<String, Object> dataModel = Map.of(
+                "mapper", Map.of(
+                    "packageName", sourceModel.packageName(),
+                    "interfaceName", sourceModel.interfaceName(),
+                    "implementationName", sourceModel.implementationName(),
+                    "imports", sourceModel.imports(),
+                    "fields", sourceModel.fields(),
+                    "members", sourceModel.members()
+                )
+            );
 
             StringWriter writer = new StringWriter();
             template.process(dataModel, writer);
@@ -70,6 +97,40 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         } catch (IOException | TemplateException e) {
             throw new GenerationException("Source generation failed", e);
         }
+    }
+
+    private GeneratedMapperSourceModel buildSourceModel(MapperCompilationModel compilationModel)
+            throws GenerationException {
+        List<String> fields = new ArrayList<>();
+        for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
+            if (method.providerClassName() != null) {
+                fields.add("    private final " + method.providerClassName() + " "
+                    + method.providerFieldName() + " = new "
+                    + method.providerClassName() + "();");
+            }
+            for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
+                fields.add("    private final " + extensionField.typeName() + " "
+                    + extensionField.fieldName() + " = new "
+                    + extensionField.typeName() + "();");
+            }
+        }
+
+        List<String> members = new ArrayList<>();
+        for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
+            members.add(generateMethodImpl(method));
+            if (!method.resultMappingHelperCode().isBlank()) {
+                members.add(method.resultMappingHelperCode());
+            }
+        }
+
+        return new GeneratedMapperSourceModel(
+            compilationModel.packageName(),
+            compilationModel.interfaceName(),
+            compilationModel.implementationName(),
+            GENERATED_IMPORTS,
+            fields,
+            members
+        );
     }
 
     private String classReference(String packageName, String qualifiedClassName) {
@@ -114,34 +175,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));
         return code.toString();
-    }
-
-    private String generateMethods(
-            List<MapperCompilationModel.MethodModel> methods, String packageName) throws GenerationException {
-        StringBuilder builder = new StringBuilder();
-        for (MapperCompilationModel.MethodModel method : methods) {
-            if (method.providerClassName() != null) {
-                builder.append("    private final ").append(method.providerClassName()).append(" ")
-                    .append(method.providerFieldName()).append(" = new ")
-                    .append(method.providerClassName()).append("();\n");
-            }
-            for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
-                builder.append("    private final ").append(extensionField.typeName()).append(" ")
-                    .append(extensionField.fieldName()).append(" = new ")
-                    .append(extensionField.typeName()).append("();\n");
-            }
-        }
-        if (methods.stream().anyMatch(method -> method.providerClassName() != null
-                || !method.extensionFields().isEmpty())) {
-            builder.append("\n");
-        }
-        for (MapperCompilationModel.MethodModel method : methods) {
-            builder.append(generateMethodImpl(method)).append("\n");
-            if (!method.resultMappingHelperCode().isBlank()) {
-                builder.append(method.resultMappingHelperCode()).append("\n");
-            }
-        }
-        return builder.toString();
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {
