@@ -75,4 +75,68 @@ class GeneratedSourceGoldenTest {
         assertFalse(source.contains("TypeHandlerManager"));
         assertFalse(source.matches("(?s).*\\b(?:firstItem|matched|whereSql|whereParams|setSql|setParams|trimSql|trimParams)\\d+\\b.*"));
     }
+
+    @Test
+    void generatedAnnotationMapperKeepsEachStatementPartsInExecutionOrder() throws Exception {
+        String source = Files.readString(GENERATED_MAPPER);
+
+        assertBefore(
+            source,
+            "private static final QueryDefinition<org.liteorm.test.User> FIND_BY_ID_DEFINITION",
+            "public org.liteorm.test.User findById");
+        assertBefore(
+            source,
+            "public org.liteorm.test.User findById",
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByIdExecutionPlan");
+        assertBefore(
+            source,
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByIdExecutionPlan",
+            "private static final QueryDefinition<org.liteorm.test.User> FIND_ALL_DEFINITION");
+        assertBefore(
+            source,
+            "private static final CommandDefinition INSERT_DEFINITION",
+            "public int insert");
+        assertBefore(
+            source,
+            "public int insert",
+            "private ExecutionPlan buildInsertExecutionPlan");
+        assertBefore(
+            source,
+            "private ExecutionPlan buildInsertExecutionPlan",
+            "private static final CommandDefinition UPDATE_DEFINITION");
+    }
+
+    @Test
+    void generatedXmlMapperKeepsDynamicFactoryBeforeTheNextStatementDefinition() throws Exception {
+        String source = Files.readString(GENERATED_XML_MAPPER);
+
+        assertBefore(
+            source,
+            "private static final QueryDefinition<org.liteorm.test.User> FIND_BY_CONDITION_DEFINITION",
+            "public java.util.List<org.liteorm.test.User> findByCondition");
+        assertBefore(
+            source,
+            "public java.util.List<org.liteorm.test.User> findByCondition",
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByConditionExecutionPlan");
+        assertBefore(
+            source,
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByConditionExecutionPlan",
+            "private static final CommandDefinition INSERT_USER_DEFINITION");
+        assertBefore(
+            source,
+            "private static final CommandDefinition BATCH_INSERT_DEFINITION",
+            "public int batchInsert");
+        assertBefore(
+            source,
+            "public int batchInsert",
+            "private ExecutionPlan buildBatchInsertExecutionPlan");
+    }
+
+    private static void assertBefore(String source, String first, String second) {
+        assertTrue(
+            source.indexOf(first) >= 0 && source.indexOf(second) >= 0
+                && source.indexOf(first) < source.indexOf(second),
+            () -> "Expected '" + first + "' before '" + second + "'\n" + source
+        );
+    }
 }
