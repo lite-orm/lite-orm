@@ -41,6 +41,13 @@
                     <annotationProcessors>
                         <annotationProcessor>org.liteorm.compile.LiteOrmProcessor</annotationProcessor>
                     </annotationProcessors>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.liteorm</groupId>
+                            <artifactId>lite-orm-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>

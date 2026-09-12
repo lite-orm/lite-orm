@@ -8,8 +8,6 @@ LiteORM is a Java 21 compile-time SQL Mapper. It generates ordinary Mapper imple
 
 ### `lite-orm-core`
 
-Currently contains both runtime APIs and the annotation processor. The active roadmap splits compiler code into `lite-orm-processor` and removes FreeMarker before public preview.
-
 Runtime responsibilities:
 
 - public annotations and extension contracts;
@@ -19,12 +17,15 @@ Runtime responsibilities:
 - built-in execution interceptors;
 - fixed standard JDBC routing through `TypeHandlerManager`.
 
-Current compiler responsibilities:
+### `lite-orm-processor`
+
+Owns compiler-only code and dependencies:
 
 - `LiteOrmProcessor` and `CompilePipeline`;
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
+- FreeMarker templates during the current transition.
 
 ### `lite-orm-spring-boot-starter`
 
@@ -44,7 +45,6 @@ Provides non-published PostgreSQL and MySQL Testcontainers fixtures for database
 
 ## Planned Modules
 
-- `lite-orm-processor`: compiler and JDK-only source generation.
 - `lite-orm-migration`: MyBatis scanner and deterministic rewriter.
 - `lite-orm-generator`: DB metadata to model/Mapper skeleton generation.
 
@@ -52,7 +52,7 @@ Provides non-published PostgreSQL and MySQL Testcontainers fixtures for database
 
 ```text
 Mapper source
-  -> LiteOrmProcessor
+  -> lite-orm-processor / LiteOrmProcessor
   -> CompilePipeline
   -> generated MapperImpl
   -> SqlExecutor

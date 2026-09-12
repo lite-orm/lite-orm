@@ -14,15 +14,9 @@
     <packaging>jar</packaging>
 
     <name>LiteORM Core</name>
-    <description>LiteORM compile-time Mapper generation and JDBC runtime</description>
+    <description>LiteORM runtime contracts and JDBC execution</description>
 
     <dependencies>
-        <!-- FreeMarker for template rendering -->
-        <dependency>
-            <groupId>org.freemarker</groupId>
-            <artifactId>freemarker</artifactId>
-        </dependency>
-
         <!-- SLF4J for logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -54,41 +48,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <configuration>
-                            <!-- Required only while compiling the processor's own module: the active service file is copied before LiteOrmProcessor exists. -->
-                            <proc>none</proc>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-invoker-plugin</artifactId>
-                <configuration>
-                    <projectsDirectory>${project.parent.basedir}/lite-orm-examples</projectsDirectory>
-                    <pomIncludes>
-                        <pomInclude>external-maven-processor/pom.xml</pomInclude>
-                    </pomIncludes>
-                    <cloneProjectsTo>${project.build.directory}/invoker-projects</cloneProjectsTo>
-                    <localRepositoryPath>${project.build.directory}/invoker-repository</localRepositoryPath>
-                    <streamLogsOnFailures>true</streamLogsOnFailures>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>external-maven-processor-fixture</id>
-                        <goals>
-                            <goal>install</goal>
-                            <goal>run</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

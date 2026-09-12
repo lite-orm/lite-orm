@@ -22,7 +22,8 @@ Read the [architecture overview](docs/user/architecture.md) and [design philosop
 
 | Module | Responsibility |
 | --- | --- |
-| `lite-orm-core` | Annotations, processor, generated Mapper contracts, and standalone JDBC runtime |
+| `lite-orm-core` | Runtime annotations, generated Mapper contracts, execution plans, and standalone JDBC runtime |
+| `lite-orm-processor` | Annotation processor, SQL compilation, validation, and source generation |
 | `lite-orm-spring-boot-starter` | Mapper registration, named DataSource binding, and Spring transaction participation |
 | `lite-orm-examples/basic-mapper` | Executable annotation, XML, mapping, transaction, batch, and generated-key examples |
 | `lite-orm-benchmarks` | Reproducible Direct JDBC, LiteORM, and MyBatis JMH fixtures |
