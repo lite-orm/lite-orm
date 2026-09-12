@@ -14,7 +14,7 @@ This document owns strategic delivery order. It does not track implementation st
 
 ### MyBatis JDBC Type Parity
 
-Use MyBatis 3.5.19 deterministic built-in TypeHandlers as the compatibility baseline while preserving compile-time generation. Select one explicit JDBC type-mapping collection per Mapper package, ship independently tested PostgreSQL and MySQL collections, and allow users or third parties to provide additional collections through ordinary dependencies. Complete the missing scalar and temporal types, enum ordinal mapping, national-character and structured JDBC values, and lifecycle-safe LOB handling. Do not add runtime discovery, unknown-object fallback, or a mutable type-handler registry.
+Use MyBatis 3.5.19 deterministic built-in TypeHandlers as the compatibility baseline while preserving compile-time object construction. Keep standard JDBC routing fixed in Core and database-independent; unsupported writes use `ParameterBinder`, while unsupported reads and lifecycle-bound values use `RowMapper` or raw JDBC. Complete missing structured and lifecycle-safe JDBC behavior without package mappings, database-specific artifacts, runtime discovery, unknown-object fallback, or a mutable registry.
 
 ### Public API And Artifact Boundaries
 

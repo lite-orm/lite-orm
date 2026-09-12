@@ -14,7 +14,7 @@ LiteORM is not a feature-for-feature MyBatis clone. It focuses on explicit SQL, 
 - Generated Mappers are ordinary Java classes and depend on one `SqlExecutor`.
 - `JdbcSqlExecutor` owns one statement lifecycle across standalone and Spring use.
 - One Mapper belongs to one DataSource domain.
-- PostgreSQL and MySQL mappings are explicit compile-time artifacts, not runtime registries.
+- Standard JDBC values are routed by Core without database-specific mapping artifacts.
 
 Read the [architecture overview](docs/user/architecture.md) and [design philosophy](Design-Philosophy.md) for the complete model.
 
@@ -24,14 +24,12 @@ Read the [architecture overview](docs/user/architecture.md) and [design philosop
 | --- | --- |
 | `lite-orm-core` | Annotations, processor, generated Mapper contracts, and standalone JDBC runtime |
 | `lite-orm-spring-boot-starter` | Mapper registration, named DataSource binding, and Spring transaction participation |
-| `lite-orm-postgresql-types` | Complete official PostgreSQL JDBC type mappings |
-| `lite-orm-mysql-types` | Complete official MySQL JDBC type mappings |
 | `lite-orm-examples/basic-mapper` | Executable annotation, XML, mapping, transaction, batch, and generated-key examples |
 | `lite-orm-benchmarks` | Reproducible Direct JDBC, LiteORM, and MyBatis JMH fixtures |
 
 ## Get Started
 
-Start with the [quick start](docs/user/getting-started.md). It covers dependencies, annotation processing, package-level JDBC mapping selection, a minimal Mapper, and Spring or standalone assembly.
+Start with the [quick start](docs/user/getting-started.md). It covers dependencies, annotation processing, a minimal Mapper, and Spring or standalone assembly.
 
 ```bash
 mvn clean test
@@ -43,8 +41,6 @@ mvn clean test
 - [Mapping guide](docs/user/core/mapping.md)
 - [Standalone JDBC](docs/user/core/standalone.md)
 - [Spring Boot integration](docs/user/spring/spring-boot.md)
-- [PostgreSQL types](docs/user/database-types/postgresql.md)
-- [MySQL types](docs/user/database-types/mysql.md)
 - [Migrating from MyBatis](docs/user/migration/from-mybatis.md)
 - [Reference and project documentation](docs/README.md)
 

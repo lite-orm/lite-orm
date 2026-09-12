@@ -43,7 +43,26 @@ interface SqlContentParser {
         SqlSourceType sourceType,
         boolean isDynamic,
         List<ParameterInfo> parameters,
-        AstNode astNode
+        AstNode astNode,
+        ResultMapInfo resultMap
+    ) {}
+
+    /** Flat XML result-map metadata normalized before Mapper generation. */
+    record ResultMapInfo(
+        String id,
+        String typeName,
+        List<ResultPropertyInfo> properties,
+        String sourceLocation
+    ) {}
+
+    /** One column-to-Java-target entry from a flat XML result map. */
+    record ResultPropertyInfo(
+        String column,
+        String property,
+        String javaTypeName,
+        boolean constructorArgument,
+        int constructorIndex,
+        String sourceLocation
     ) {}
     
     /**

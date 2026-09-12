@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mapper namespace="org.liteorm.test.diagnostics.ComplexResultMapMapper">
     <resultMap id="valueResult" type="org.liteorm.test.diagnostics.ValueRow">
-        <constructor>
-            <arg column="value" javaType="java.lang.String"/>
-        </constructor>
+        <association property="value" javaType="java.lang.String"/>
     </resultMap>
 
     <select id="findValue" resultMap="valueResult">

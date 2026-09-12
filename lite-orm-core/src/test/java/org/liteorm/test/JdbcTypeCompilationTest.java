@@ -24,7 +24,7 @@ class JdbcTypeCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void generatesNullSafeDirectConversionsForCommonJdbcTypes() throws Exception {
+    void generatesDirectTargetTypeAssignmentsForCommonJdbcTypes() throws Exception {
         CompilationResult result = compile("JdbcTypeMapper", """
             package org.liteorm.test.jdbctypefixture;
 
@@ -32,7 +32,6 @@ class JdbcTypeCompilationTest {
             import java.time.Instant;
             import java.time.LocalDate;
             import java.time.LocalDateTime;
-            import org.liteorm.annotation.Column;
             import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.Select;
 
@@ -42,9 +41,9 @@ class JdbcTypeCompilationTest {
                 Long id,
                 Integer quantity,
                 BigDecimal amount,
-                @Column("business_date") LocalDate businessDate,
-                @Column("created_at") LocalDateTime createdAt,
-                @Column("occurred_at") Instant occurredAt,
+                LocalDate businessDate,
+                LocalDateTime createdAt,
+                Instant occurredAt,
                 Status status,
                 byte[] payload,
                 Boolean enabled
@@ -52,7 +51,8 @@ class JdbcTypeCompilationTest {
 
             @Mapper
             interface JdbcTypeMapper {
-                @Select("SELECT id, quantity, amount, business_date, created_at, occurred_at, status, payload, enabled FROM jdbc_types")
+                @Select("SELECT id, quantity, amount, business_date AS businessDate, "
+                    + "created_at AS createdAt, occurred_at AS occurredAt, status, payload, enabled FROM jdbc_types")
                 JdbcTypes find();
             }
             """);
@@ -60,15 +60,15 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/JdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"business_date\")"), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"created_at\")"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLong(resultRow[resultColumnIndexes[0]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(resultRow[resultColumnIndexes[2]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDate(resultRow[resultColumnIndexes[3]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalDateTime(resultRow[resultColumnIndexes[4]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toInstant(resultRow[resultColumnIndexes[5]])"), generated);
-        assertTrue(generated.contains("Status.valueOf(resultRow[resultColumnIndexes[6]].toString())"), generated);
-        assertTrue(generated.contains("(byte[])resultRow[resultColumnIndexes[7]]"), generated);
+        assertTrue(generated.contains("\"businessDate\", \"createdAt\""), generated);
+        assertTrue(generated.contains("(java.lang.Long)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.math.BigDecimal)row.get(2)"), generated);
+        assertTrue(generated.contains("(java.time.LocalDate)row.get(3)"), generated);
+        assertTrue(generated.contains("(java.time.LocalDateTime)row.get(4)"), generated);
+        assertTrue(generated.contains("(java.time.Instant)row.get(5)"), generated);
+        assertTrue(generated.contains("(org.liteorm.test.jdbctypefixture.Status)row.get(6)"), generated);
+        assertTrue(generated.contains("(byte[])row.get(7)"), generated);
+        assertFalse(generated.contains("ResultValueConverters"), generated);
     }
 
     @Test
@@ -118,12 +118,12 @@ class JdbcTypeCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/FrozenJdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toUuid(resultRow[0])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalTime(resultRow[0])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toOffsetDateTime(resultRow[0])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toUuid(row[resultColumnIndexes[0]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toLocalTime(row[resultColumnIndexes[1]])"), generated);
-        assertTrue(generated.contains("ResultValueConverters.toOffsetDateTime(row[resultColumnIndexes[2]])"), generated);
+        assertTrue(generated.contains("(java.util.UUID)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.LocalTime)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.OffsetDateTime)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.time.LocalTime)row.get(1)"), generated);
+        assertTrue(generated.contains("(java.time.OffsetDateTime)row.get(2)"), generated);
+        assertFalse(generated.contains("ResultValueConverters"), generated);
     }
 
     @Test
@@ -136,8 +136,12 @@ class JdbcTypeCompilationTest {
             import java.time.Year;
             import java.time.YearMonth;
             import java.time.chrono.JapaneseDate;
+            import org.liteorm.annotation.Insert;
             import org.liteorm.annotation.Mapper;
+            import org.liteorm.annotation.Param;
             import org.liteorm.annotation.Select;
+
+            enum Status { ACTIVE, DISABLED }
 
             record StandardJdbcTypes(
                 BigInteger integerValue,
@@ -175,72 +179,47 @@ class JdbcTypeCompilationTest {
 
                 @Select("SELECT integer_value, year_month_value FROM values_table")
                 StandardJdbcTypeBean findBean();
+
+                @Insert("INSERT INTO values_table (binary_value, enabled, initial_value, month_value, status, "
+                    + "util_date_only, util_time_only) VALUES (#{binaryValue}, #{enabled,jdbcType=BOOLEAN}, "
+                    + "#{initial,jdbcType=VARCHAR}, #{monthValue}, #{status,jdbcType=INTEGER}, "
+                    + "#{utilDateOnly,jdbcType=DATE}, #{utilTimeOnly,jdbcType=TIME})")
+                int insert(
+                    @Param("binaryValue") Byte[] binaryValue,
+                    @Param("enabled") boolean enabled,
+                    @Param("initial") char initial,
+                    @Param("monthValue") Month monthValue,
+                    @Param("status") Status status,
+                    @Param("utilDateOnly") java.util.Date utilDateOnly,
+                    @Param("utilTimeOnly") java.util.Date utilTimeOnly);
             }
             """);
 
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/jdbctypefixture/StandardJdbcTypeMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toBigInteger("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toBoxedBytes("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toUtilDate("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toSqlDate("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toSqlTime("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toSqlTimestamp("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toYear("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toMonth("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toYearMonth("), generated);
-        assertTrue(generated.contains("ResultValueConverters.toJapaneseDate("), generated);
-        assertTrue(generated.contains("mapped.setIntegerValue(ResultValueConverters.toBigInteger("), generated);
-        assertTrue(generated.contains("mapped.setYearMonthValue(ResultValueConverters.toYearMonth("), generated);
-    }
-
-    @Test
-    void generatesExplicitOrdinalEnumMappingsForRecordAndJavaBeanProperties() throws Exception {
-        CompilationResult result = compile("OrdinalEnumPropertyMapper", """
-            package org.liteorm.test.jdbctypefixture;
-
-            import java.sql.JDBCType;
-            import org.liteorm.annotation.Mapper;
-            import org.liteorm.annotation.ResultJdbcType;
-            import org.liteorm.annotation.Select;
-
-            enum Status { ACTIVE, DISABLED }
-
-            record StatusRecord(
-                Status nameValue,
-                @ResultJdbcType(JDBCType.INTEGER) Status ordinalValue
-            ) {}
-
-            class StatusBean {
-                @ResultJdbcType(JDBCType.INTEGER)
-                private Status ordinalValue;
-
-                StatusBean() {}
-
-                public void setOrdinalValue(Status ordinalValue) {
-                    this.ordinalValue = ordinalValue;
-                }
-            }
-
-            @Mapper
-            interface OrdinalEnumPropertyMapper {
-                @Select("SELECT name_value, ordinal_value FROM values_table")
-                StatusRecord findRecord();
-
-                @Select("SELECT ordinal_value FROM values_table")
-                StatusBean findBean();
-            }
-            """);
-
-        assertTrue(result.succeeded(), result::diagnosticsText);
-        String generated = Files.readString(result.generatedDirectory().resolve(
-            "org/liteorm/test/jdbctypefixture/OrdinalEnumPropertyMapperImpl.java"));
+        assertTrue(generated.contains("(java.math.BigInteger)row.get(0)"), generated);
+        assertTrue(generated.contains("(java.lang.Byte[])row.get(1)"), generated);
+        assertTrue(generated.contains("(java.util.Date)row.get(2)"), generated);
+        assertTrue(generated.contains("(java.sql.Date)row.get(3)"), generated);
+        assertTrue(generated.contains("(java.sql.Time)row.get(4)"), generated);
+        assertTrue(generated.contains("(java.sql.Timestamp)row.get(5)"), generated);
+        assertTrue(generated.contains("(java.time.Year)row.get(6)"), generated);
+        assertTrue(generated.contains("(java.time.Month)row.get(7)"), generated);
+        assertTrue(generated.contains("(java.time.YearMonth)row.get(8)"), generated);
+        assertTrue(generated.contains("(java.time.chrono.JapaneseDate)row.get(9)"), generated);
+        assertTrue(generated.contains("mapped.setIntegerValue((java.math.BigInteger)"), generated);
+        assertTrue(generated.contains("mapped.setYearMonthValue((java.time.YearMonth)"), generated);
+        assertFalse(generated.contains("ResultValueConverters"), generated);
+        assertFalse(generated.contains("TypeHandlerManager"), generated);
         assertTrue(generated.contains(
-            "ResultValueConverters.toEnumOrdinal(resultRow[resultColumnIndexes[1]], "
-                + "org.liteorm.test.jdbctypefixture.Status.class)"), generated);
+            "new Class<?>[]{java.lang.Byte[].class, boolean.class, char.class, java.time.Month.class, "
+                + "org.liteorm.test.jdbctypefixture.Status.class, java.util.Date.class, java.util.Date.class}"),
+            generated);
         assertTrue(generated.contains(
-            "mapped.setOrdinalValue(ResultValueConverters.toEnumOrdinal("), generated);
+            "new java.sql.JDBCType[]{java.sql.JDBCType.VARBINARY, java.sql.JDBCType.BOOLEAN, "
+                + "java.sql.JDBCType.VARCHAR, java.sql.JDBCType.INTEGER, java.sql.JDBCType.INTEGER, "
+                + "java.sql.JDBCType.DATE, java.sql.JDBCType.TIME}"), generated);
     }
 
     @Test
@@ -300,7 +279,7 @@ class JdbcTypeCompilationTest {
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(sourceFile)));
+                MapperCompilationTestSupport.compilationUnits(List.of(sourceFile)));
             var task = compiler.getTask(null, manager, diagnostics, List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

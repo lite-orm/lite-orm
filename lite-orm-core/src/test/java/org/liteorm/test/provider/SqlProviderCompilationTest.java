@@ -42,7 +42,7 @@ class SqlProviderCompilationTest {
             class IdProvider implements SqlProvider<Query> {
                 public IdProvider() {}
                 public BoundSql provide(Query query) {
-                    return new BoundSql("SELECT id FROM users WHERE id >= ?", List.of(BoundParameter.of(query.minimumId())));
+                    return new BoundSql("SELECT id FROM users WHERE id >= ?", List.of(BoundParameter.of(Long.class, query.minimumId())));
                 }
             }
 
@@ -58,7 +58,10 @@ class SqlProviderCompilationTest {
             .resolve("org/liteorm/test/providerfixture/ValidProviderMapperImpl.java"));
         assertTrue(generated.contains("private final org.liteorm.test.providerfixture.IdProvider findSqlProvider = new org.liteorm.test.providerfixture.IdProvider();"), generated);
         assertTrue(generated.contains("findSqlProvider.provide(query)"), generated);
-        assertTrue(generated.contains("boundSql.parameterBinders()"), generated);
+        assertTrue(generated.contains("QueryDefinition<org.liteorm.test.providerfixture.Result>"), generated);
+        assertTrue(generated.contains("return FIND_DEFINITION.bind(boundSql);"), generated);
+        assertFalse(generated.contains("boundSql.parameterBinders()"), generated);
+        assertFalse(generated.contains("return new QueryExecutionPlan<>("), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }
@@ -79,7 +82,7 @@ class SqlProviderCompilationTest {
             class ResultProvider implements SqlProvider<Query> {
                 public ResultProvider() {}
                 public BoundSql provide(Query query) {
-                    return new BoundSql("SELECT id FROM users WHERE id = ?", List.of(BoundParameter.of(query.id())));
+                    return new BoundSql("SELECT id FROM users WHERE id = ?", List.of(BoundParameter.of(Long.class, query.id())));
                 }
             }
 
@@ -105,6 +108,8 @@ class SqlProviderCompilationTest {
             .resolve("org/liteorm/test/providerfixture/ProviderRowMapperMapperImpl.java"));
         assertTrue(generated.contains("findOneRowMapper"), generated);
         assertTrue(generated.contains("findAllRowMapper"), generated);
+        assertTrue(generated.contains("QueryDefinition.rowMapped("), generated);
+        assertTrue(generated.contains("return FIND_ONE_DEFINITION.bind(boundSql);"), generated);
         assertFalse(generated.contains("Class.forName"), generated);
         assertFalse(generated.contains("Method.invoke"), generated);
     }
@@ -199,7 +204,7 @@ class SqlProviderCompilationTest {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                org.liteorm.test.MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(file)));
+                org.liteorm.test.MapperCompilationTestSupport.compilationUnits(List.of(file)));
             var task = compiler.getTask(null, manager, diagnostics, List.of("--release", "21", "-classpath",
                 System.getProperty("java.class.path"), "-d", classes.toString(), "-s", generated.toString()), null, units);
             task.setProcessors(List.of(new LiteOrmProcessor()));

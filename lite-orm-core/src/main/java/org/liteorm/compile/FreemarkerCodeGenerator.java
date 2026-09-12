@@ -61,8 +61,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             dataModel.put("packageName", compilationModel.packageName());
             dataModel.put("interfaceName", compilationModel.interfaceName());
             dataModel.put("implClassName", compilationModel.implementationName());
-            dataModel.put("jdbcTypeMappingsClassName", classReference(
-                compilationModel.packageName(), compilationModel.jdbcTypeMappingsClassName()));
             dataModel.put("generatedMethods", generateMethods(
                 compilationModel.methods(), compilationModel.packageName()));
 
@@ -85,6 +83,14 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     public String generateMethodImpl(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
 
+        if (queryDefinition(methodModel)) {
+            code.append(generateQueryDefinition(methodModel)).append("\n");
+        } else if (commandDefinition(methodModel)) {
+            code.append(generateCommandDefinition(methodModel)).append("\n");
+        } else if (batchDefinition(methodModel)) {
+            code.append(generateBatchDefinition(methodModel)).append("\n");
+        }
+
         code.append("    /**\n");
         code.append("     * Mapper method: ").append(mapperMethodLocation(methodModel)).append("\n");
         code.append("     * SQL source: ").append(methodModel.sourceType().name()).append("\n");
@@ -92,7 +98,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         code.append("    @Override\n");
         code.append("    public ").append(methodModel.returnType()).append(" ")
             .append(methodModel.methodName()).append("(").append(methodModel.parameterList()).append(") {\n");
-        code.append("        ExecutionPlan executionPlan = ").append(methodModel.executionPlanFactoryName()).append("(")
+        code.append("        ").append(executionPlanType(methodModel)).append(" executionPlan = ")
+            .append(methodModel.executionPlanFactoryName()).append("(")
             .append(callArguments(methodModel)).append(");\n");
         if (methodModel.cursorCallbackParameterName() != null) {
             code.append("        return sqlExecutor.queryCursor(executionPlan, ")
@@ -101,7 +108,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             code.append(generateExecutionPlanFactory(methodModel));
             return code.toString();
         }
-        code.append("        SqlResult executionResult = sqlExecutor.execute(executionPlan);\n");
+        code.append("        ").append(executionResultType(methodModel))
+            .append(" executionResult = ").append(executionCall(methodModel)).append(";\n");
         code.append(generateReturnCode(methodModel));
         code.append("    }\n\n");
         code.append(generateExecutionPlanFactory(methodModel));
@@ -111,61 +119,21 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     private String generateMethods(
             List<MapperCompilationModel.MethodModel> methods, String packageName) throws GenerationException {
         StringBuilder builder = new StringBuilder();
-        Map<String, MapperCompilationModel.JdbcValueAdapterField> jdbcValueAdapterFields =
-            new java.util.LinkedHashMap<>();
-        Set<String> referencedJdbcBinderFields = new LinkedHashSet<>();
-        for (MapperCompilationModel.MethodModel method : methods) {
-            for (MapperCompilationModel.JdbcValueAdapterField field : method.jdbcValueAdapterFields()) {
-                jdbcValueAdapterFields.putIfAbsent(field.fieldName(), field);
-            }
-            method.parameterBinderFields().stream()
-                .filter(java.util.Objects::nonNull)
-                .forEach(referencedJdbcBinderFields::add);
-        }
-        for (MapperCompilationModel.JdbcValueAdapterField field : jdbcValueAdapterFields.values()) {
-            builder.append("    private final ")
-                .append(classReference(packageName, field.typeName())).append(" ")
-                .append(field.fieldName()).append(" = ");
-            if (field.initializer() == null) {
-                builder.append("new ").append(classReference(packageName, field.typeName())).append("()");
-            } else {
-                builder.append(field.initializer());
-            }
-            builder.append(";\n");
-            if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
-                builder.append("    private final ParameterBinder<")
-                    .append(classReference(packageName, field.javaTypeName())).append("> ")
-                    .append(field.binderFieldName()).append(" = this::")
-                    .append(field.binderMethodName()).append(";\n");
-            }
-        }
         for (MapperCompilationModel.MethodModel method : methods) {
             if (method.providerClassName() != null) {
                 builder.append("    private final ").append(method.providerClassName()).append(" ")
                     .append(method.providerFieldName()).append(" = new ")
                     .append(method.providerClassName()).append("();\n");
             }
-            for (MapperCompilationModel.AdapterField adapterField : method.adapterFields()) {
-                builder.append("    private final ").append(adapterField.typeName()).append(" ")
-                    .append(adapterField.fieldName()).append(" = new ")
-                    .append(adapterField.typeName()).append("();\n");
+            for (MapperCompilationModel.ExtensionField extensionField : method.extensionFields()) {
+                builder.append("    private final ").append(extensionField.typeName()).append(" ")
+                    .append(extensionField.fieldName()).append(" = new ")
+                    .append(extensionField.typeName()).append("();\n");
             }
         }
-        if (!jdbcValueAdapterFields.isEmpty()
-                || methods.stream().anyMatch(method -> method.providerClassName() != null
-                    || !method.adapterFields().isEmpty())) {
+        if (methods.stream().anyMatch(method -> method.providerClassName() != null
+                || !method.extensionFields().isEmpty())) {
             builder.append("\n");
-        }
-        for (MapperCompilationModel.JdbcValueAdapterField field : jdbcValueAdapterFields.values()) {
-            if (referencedJdbcBinderFields.contains(field.binderFieldName())) {
-                builder.append(generateJdbcValueBinder(field, packageName)).append("\n");
-            }
-        }
-        for (MapperCompilationModel.MethodModel method : methods) {
-            if (method.jdbcResultReader() != null) {
-                builder.append(generateJdbcResultReader(method.jdbcResultReader(), packageName))
-                    .append("\n");
-            }
         }
         for (MapperCompilationModel.MethodModel method : methods) {
             builder.append(generateMethodImpl(method)).append("\n");
@@ -174,32 +142,6 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             }
         }
         return builder.toString();
-    }
-
-    private String generateJdbcValueBinder(
-            MapperCompilationModel.JdbcValueAdapterField field, String packageName) {
-        String javaType = classReference(packageName, field.javaTypeName());
-        return """
-                private void %s(
-                        java.sql.PreparedStatement statement, int index, %s value)
-                        throws java.sql.SQLException {
-                    if (value == null) {
-                        %s.setNull(statement, index, java.sql.JDBCType.%s);
-                        return;
-                    }
-                    %s.setNonNull(statement, index, value, java.sql.JDBCType.%s);
-                }
-            """.formatted(
-                field.binderMethodName(), javaType, field.fieldName(), field.jdbcType(),
-                field.fieldName(), field.jdbcType());
-    }
-
-    private String generateJdbcResultReader(
-            MapperCompilationModel.JdbcResultReader reader, String packageName) {
-        return "    private " + classReference(packageName, reader.javaTypeName()) + " "
-            + reader.methodName() + "(java.sql.ResultSet resultSet) throws java.sql.SQLException {\n"
-            + reader.body().indent(8)
-            + "    }\n";
     }
 
     private String callArguments(MapperCompilationModel.MethodModel methodModel) {
@@ -215,38 +157,22 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         boolean isSelect = methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.SELECT;
 
         if (methodModel.statementType() == org.liteorm.api.ExecutionPlan.StatementType.BATCH) {
-            return "        return executionResult.getBatchUpdateCounts();\n";
+            return "        return executionResult.counts();\n";
         }
 
         if (methodModel.generatedKey()) {
-            return "        return " + generatedKeyExpression(methodModel) + ";\n";
+            return "        return executionResult.key();\n";
         }
 
         if (!isSelect) {
             if ("void".equals(returnType)) {
                 return "        return;\n";
             }
-            if ("long".equals(returnType)) {
-                return "        return (long) executionResult.getUpdateCount();\n";
-            }
-            return "        return executionResult.getUpdateCount();\n";
+            return "        return executionResult.count();\n";
         }
 
         if (returnType.contains("List<")) {
-            String elementType = returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
-            return """
-                List<Object[]> resultRows = executionResult.getQueryResults();
-                if (resultRows == null || resultRows.isEmpty()) {
-                    return new ArrayList<>();
-                }
-                %s
-                List<%s> mappedResults = new ArrayList<>(resultRows.size());
-                for (Object[] resultRow : resultRows) {
-                    mappedResults.add(%s);
-                }
-                return mappedResults;
-                """.formatted(resultColumnIndexes(methodModel), elementType,
-                    resultRowExpression(methodModel.resultMappingCode())).indent(8);
+            return "        return new ArrayList<>(executionResult.rows());\n";
         }
 
         if ("void".equals(returnType)) {
@@ -255,32 +181,10 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
 
         boolean optional = returnType.startsWith("java.util.Optional<");
         boolean primitive = isPrimitive(returnType);
-        String noRows = optional
-            ? "return java.util.Optional.empty();"
-            : primitive
-                ? "throw new MappingException(" + javaString(
-                    "No row returned for " + methodModel.statementId() + " required primitive " + returnType)
-                    + ", " + javaString(methodModel.statementId()) + ", " + returnType
-                    + ".class, null, null, null);"
-                : "return null;";
-        String mappedValue = resultRowExpression(methodModel.resultMappingCode());
-        String mappedReturn = optional
-            ? "java.util.Optional.ofNullable(" + mappedValue + ")"
-            : mappedValue;
-
-        return """
-            List<Object[]> resultRows = executionResult.getQueryResults();
-            if (resultRows == null || resultRows.isEmpty()) {
-                %s
-            }
-            if (resultRows.size() > 1) {
-                throw new NonUniqueResultException(%s, resultRows.size());
-            }
-            %s
-            Object[] resultRow = resultRows.get(0);
-            return %s;
-            """.formatted(noRows, javaString(methodModel.statementId()), resultColumnIndexes(methodModel),
-                mappedReturn).indent(8);
+        if (optional) {
+            return "        return executionResult.optional();\n";
+        }
+        return "        return executionResult." + (primitive ? "required()" : "oneOrNull()") + ";\n";
     }
 
     private boolean isPrimitive(String typeName) {
@@ -290,33 +194,16 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         };
     }
 
-    private String generatedKeyExpression(MapperCompilationModel.MethodModel methodModel) {
-        String key = "executionResult.getGeneratedKey()";
-        if (methodModel.rowMapperFieldName() != null) {
-            return "(" + methodModel.returnType() + ") " + key;
-        }
+    private String generatedKeyType(MapperCompilationModel.MethodModel methodModel) {
         return switch (methodModel.returnType()) {
-            case "int", "java.lang.Integer" -> "ResultValueConverters.toInteger(" + key + ")";
-            case "long", "java.lang.Long" -> "ResultValueConverters.toLong(" + key + ")";
-            case "short", "java.lang.Short" -> "ResultValueConverters.toShort(" + key + ")";
-            case "byte", "java.lang.Byte" -> "ResultValueConverters.toByte(" + key + ")";
-            case "double", "java.lang.Double" -> "ResultValueConverters.toDouble(" + key + ")";
-            case "float", "java.lang.Float" -> "ResultValueConverters.toFloat(" + key + ")";
-            case "java.math.BigDecimal" -> "ResultValueConverters.toBigDecimal(" + key + ")";
-            case "java.math.BigInteger" -> "ResultValueConverters.toBigInteger(" + key + ")";
-            case "java.lang.String" -> "ResultValueConverters.toStringValue(" + key + ")";
-            default -> throw new IllegalStateException(
-                "Unsupported generated-key return type: " + methodModel.returnType());
+            case "int" -> "java.lang.Integer";
+            case "long" -> "java.lang.Long";
+            case "short" -> "java.lang.Short";
+            case "byte" -> "java.lang.Byte";
+            case "double" -> "java.lang.Double";
+            case "float" -> "java.lang.Float";
+            default -> methodModel.returnType();
         };
-    }
-
-    private String resultColumnIndexes(MapperCompilationModel.MethodModel methodModel) {
-        if (methodModel.resultColumnLabels().isEmpty()) {
-            return "";
-        }
-        return "int[] resultColumnIndexes = new int[]{" + methodModel.resultColumnLabels().stream()
-            .map(label -> "executionResult.requireColumnIndex(" + javaString(label) + ")")
-            .collect(java.util.stream.Collectors.joining(", ")) + "};";
     }
 
     private String mapperMethodLocation(MapperCompilationModel.MethodModel methodModel) {
@@ -328,15 +215,10 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             + methodModel.statementId().substring(methodSeparator + 1);
     }
 
-    private String resultRowExpression(String mappingCode) {
-        return mappingCode.replace("row[", "resultRow[")
-            .replace("(row,", "(resultRow,")
-            .replace("(row)", "(resultRow)");
-    }
-
     private String generateExecutionPlanFactory(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
-        code.append("    private ExecutionPlan ").append(methodModel.executionPlanFactoryName()).append("(")
+        code.append("    private ").append(executionPlanType(methodModel)).append(" ")
+            .append(methodModel.executionPlanFactoryName()).append("(")
             .append(methodModel.executionPlanParameterList()).append(") {\n");
 
         if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
@@ -355,77 +237,202 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             }
             code.append("            batchParameters.add(params);\n");
             code.append("        }\n");
-            code.append("        return new BatchExecutionPlan(")
-                .append(javaString(methodModel.statementId())).append(", ")
-                .append(javaString(methodModel.sqlTemplate())).append(", batchParameters, ")
-                .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
-                .append(parameterBinderArray(methodModel)).append(");\n");
+            code.append("        return ").append(definitionFieldName(methodModel))
+                .append(".bind(batchParameters);\n");
         } else if (methodModel.providerClassName() != null) {
             code.append("        BoundSql boundSql = BoundSql.requireValid(")
                 .append(methodModel.providerFieldName()).append(".provide(")
                 .append(methodModel.providerArgumentExpression()).append("), ")
                 .append(javaString(methodModel.statementId())).append(");\n");
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(boundSql);\n");
+            } else {
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", boundSql.sql(), ")
                 .append("boundSql.parameterValues(), ExecutionPlan.StatementType.")
                 .append(methodModel.statementType().name()).append(", ExecutionPlan.SqlSource.GENERATED, null, ")
                 .append("boundSql.parameterBinders()").append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(
+                    methodModel, "boundSql.parameterTypes()", "boundSql.parameterJdbcTypes()"))
+                .append(");\n");
+            }
         } else if (methodModel.dynamic()) {
-            code.append("        StringBuilder sql = new StringBuilder();\n");
-            code.append("        List<Object> parameters = new ArrayList<>();\n");
-            code.append("        List<ParameterBinder<?>> binders = new ArrayList<>();\n");
-            Iterator<String> parameterBinders = methodModel.parameterBinderFields().iterator();
+            code.append("        BoundSqlBuilder sql = BoundSqlBuilder.create(")
+                .append(javaString(methodModel.statementId())).append(");\n");
+            Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes =
+                methodModel.parameterRoutes().iterator();
             if (methodModel.astNode() != null) {
                 code.append(generateAstLogic(
                     methodModel.astNode(),
                     methodModel,
                     "sql",
-                    "parameters",
-                    "binders",
                     "        ",
                     new LinkedHashSet<>(),
-                    parameterBinders
+                    parameterRoutes
                 ));
             } else {
                 appendTextNode(code, methodModel.sqlTemplate(), methodModel,
-                    "sql", "parameters", "binders", "        ", Set.of(), parameterBinders);
+                    "sql", "        ", Set.of(), parameterRoutes);
             }
-            if (parameterBinders.hasNext()) {
+            if (parameterRoutes.hasNext()) {
                 throw new GenerationException(methodModel.statementId()
-                    + ": generated JDBC binder plan contains unused entries");
+                    + ": generated JDBC parameter route contains unused entries");
             }
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(sql.build());\n");
+            } else {
+                code.append("        BoundSql boundSql = sql.build();\n");
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", ")
-                .append("sql.toString().trim(), parameters.toArray(new Object[0]), ")
+                .append("boundSql.sql(), boundSql.parameterValues(), ")
                 .append("ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
-                .append("binders.toArray(new ParameterBinder<?>[0])").append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append("boundSql.parameterBinders(), ")
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(
+                    methodModel,
+                    "boundSql.parameterTypes()", "boundSql.parameterJdbcTypes()"))
+                .append(");\n");
+            }
         } else {
-            code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
-            code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
-            code.append("        return new ExecutionPlan(")
+            if (queryDefinition(methodModel) || commandDefinition(methodModel)) {
+                code.append("        return ").append(definitionFieldName(methodModel))
+                    .append(".bind(").append(staticBindingArguments(methodModel)).append(");\n");
+            } else {
+                code.append("        String sql = ").append(javaString(methodModel.sqlTemplate())).append(";\n");
+                code.append(parameterParser.generateParameterBindingCode(methodModel.parameterBindings()));
+                code.append("        return ").append(executionPlanConstructor(methodModel)).append("(")
                 .append(javaString(methodModel.statementId())).append(", ")
                 .append("sql, params, ExecutionPlan.StatementType.").append(methodModel.statementType().name()).append(", ")
                 .append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
                 .append(javaString(methodModel.generatedKeyColumn())).append(", ")
                 .append(parameterBinderArray(methodModel)).append(", ")
-                .append(rowMapperExpression(methodModel)).append(");\n");
+                .append(mappingStrategyArguments(methodModel)).append(", StatementOptions.defaults(), ")
+                .append(typeRoutingExpression(methodModel)).append(");\n");
+            }
         }
 
         code.append("    }\n");
         return code.toString();
     }
 
+    private String generateQueryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        boolean invocationSql = methodModel.dynamic() || methodModel.providerClassName() != null;
+        boolean rowMapped = methodModel.rowMapperFieldName() != null;
+        StringBuilder definition = new StringBuilder("    private ");
+        if (staticQueryDefinition(methodModel)) {
+            definition.append("static ");
+        }
+        definition.append("final QueryDefinition<").append(mappedResultType(methodModel)).append("> ")
+            .append(definitionFieldName(methodModel)).append(" = QueryDefinition.")
+            .append(rowMapped ? "rowMapped(" : "assembled(")
+            .append(javaString(methodModel.statementId())).append(", ");
+        if (!invocationSql) {
+            definition.append(javaString(methodModel.sqlTemplate())).append(", ");
+        }
+        definition.append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ")
+            .append(rowMapped ? rowMapperExpression(methodModel) : resultAssemblerExpression(methodModel))
+            .append(", ");
+        if (!invocationSql) {
+            definition.append(parameterBinderArray(methodModel)).append(", ");
+        }
+        definition.append("StatementOptions.defaults(), ")
+            .append(invocationSql
+                ? typeRoutingExpression(methodModel, "new Class<?>[0]", "null")
+                : typeRoutingExpression(methodModel))
+            .append(");\n");
+        return definition.toString();
+    }
+
+    private boolean queryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel);
+    }
+
+    private boolean commandDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() != ExecutionPlan.StatementType.SELECT
+            && methodModel.statementType() != ExecutionPlan.StatementType.BATCH;
+    }
+
+    private boolean batchDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() == ExecutionPlan.StatementType.BATCH;
+    }
+
+    private String generateCommandDefinition(MapperCompilationModel.MethodModel methodModel) {
+        boolean invocationSql = methodModel.dynamic() || methodModel.providerClassName() != null;
+        boolean rowMappedKey = methodModel.generatedKey() && methodModel.rowMapperFieldName() != null;
+        String factory = rowMappedKey ? "rowMappedGeneratedKey"
+            : methodModel.generatedKey() ? "generatedKey" : "command";
+        StringBuilder definition = new StringBuilder("    private ");
+        if (methodModel.extensionFields().isEmpty()) definition.append("static ");
+        definition.append("final CommandDefinition ").append(definitionFieldName(methodModel))
+            .append(" = CommandDefinition.").append(factory).append("(")
+            .append(javaString(methodModel.statementId())).append(", ");
+        if (!invocationSql) definition.append(javaString(methodModel.sqlTemplate())).append(", ");
+        if (!methodModel.generatedKey()) {
+            definition.append("ExecutionPlan.StatementType.")
+                .append(methodModel.statementType().name()).append(", ");
+        }
+        definition.append("ExecutionPlan.SqlSource.").append(methodModel.sourceType().name()).append(", ");
+        if (methodModel.generatedKey()) {
+            definition.append(javaString(methodModel.generatedKeyColumn())).append(", ");
+            if (rowMappedKey) definition.append(rowMapperExpression(methodModel)).append(", ");
+        }
+        if (!invocationSql) definition.append(parameterBinderArray(methodModel)).append(", ");
+        definition.append("StatementOptions.defaults(), ")
+            .append(invocationSql
+                ? typeRoutingExpression(methodModel, "new Class<?>[0]", "null")
+                : typeRoutingExpression(methodModel))
+            .append(");\n");
+        return definition.toString();
+    }
+
+    private String generateBatchDefinition(MapperCompilationModel.MethodModel methodModel) {
+        String modifier = methodModel.extensionFields().isEmpty() ? "static " : "";
+        return "    private " + modifier + "final BatchDefinition " + definitionFieldName(methodModel)
+            + " = new BatchDefinition(" + javaString(methodModel.statementId()) + ", "
+            + javaString(methodModel.sqlTemplate()) + ", ExecutionPlan.SqlSource."
+            + methodModel.sourceType().name() + ", " + parameterBinderArray(methodModel)
+            + ", StatementOptions.defaults(), " + typeRoutingExpression(methodModel) + ");\n";
+    }
+
+    private boolean staticQueryDefinition(MapperCompilationModel.MethodModel methodModel) {
+        return queryDefinition(methodModel)
+            && methodModel.rowMapperFieldName() == null
+            && (methodModel.dynamic() || methodModel.providerClassName() != null
+                || methodModel.parameterRoutes().stream()
+                .noneMatch(route -> route.binderFieldName() != null));
+    }
+
+    private String definitionFieldName(MapperCompilationModel.MethodModel methodModel) {
+        StringBuilder name = new StringBuilder();
+        for (int index = 0; index < methodModel.methodName().length(); index++) {
+            char current = methodModel.methodName().charAt(index);
+            if (Character.isUpperCase(current) && index > 0) {
+                name.append('_');
+            }
+            name.append(Character.toUpperCase(current));
+        }
+        return name.append("_DEFINITION").toString();
+    }
+
+    private String staticBindingArguments(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.parameterBindings().stream()
+            .map(SqlParameterParser.ParameterBinding::accessCode)
+            .collect(java.util.stream.Collectors.joining(", "));
+    }
+
     private String parameterBinderArray(MapperCompilationModel.MethodModel methodModel) {
-        if (methodModel.parameterBinderFields().isEmpty()
-                || methodModel.parameterBinderFields().stream().allMatch(java.util.Objects::isNull)) {
+        if (methodModel.parameterRoutes().isEmpty()
+                || methodModel.parameterRoutes().stream()
+                    .allMatch(route -> route.binderFieldName() == null)) {
             return "null";
         }
-        return "new ParameterBinder<?>[]{" + methodModel.parameterBinderFields().stream()
-            .map(field -> field == null ? "null" : field)
+        return "new ParameterBinder<?>[]{" + methodModel.parameterRoutes().stream()
+            .map(route -> route.binderFieldName() == null ? "null" : route.binderFieldName())
             .collect(java.util.stream.Collectors.joining(", ")) + "}";
     }
 
@@ -433,9 +440,126 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         return methodModel.rowMapperFieldName() == null ? "null" : methodModel.rowMapperFieldName();
     }
 
+    private String mappingStrategyArguments(MapperCompilationModel.MethodModel methodModel) {
+        String rowMapper = rowMapperExpression(methodModel);
+        return typedQuery(methodModel)
+            ? rowMapper + ", " + resultAssemblerExpression(methodModel)
+            : rowMapper;
+    }
+
+    private String resultAssemblerExpression(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.rowMapperFieldName() == null
+            ? "row -> " + methodModel.resultMappingCode()
+            : "null";
+    }
+
+    private String executionPlanType(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "BatchExecutionPlan";
+        }
+        return typedQuery(methodModel)
+            ? "QueryExecutionPlan<" + mappedResultType(methodModel) + ">"
+            : "ExecutionPlan";
+    }
+
+    private String executionPlanConstructor(MapperCompilationModel.MethodModel methodModel) {
+        return typedQuery(methodModel) ? "new QueryExecutionPlan<>" : "new ExecutionPlan";
+    }
+
+    private String executionResultType(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT && typedQuery(methodModel)) {
+            return "QueryResult<" + mappedResultType(methodModel) + ">";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT) {
+            return "SqlResult<?>";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "BatchResult";
+        }
+        if (methodModel.generatedKey()) {
+            return "GeneratedKeyResult<" + generatedKeyType(methodModel) + ">";
+        }
+        return "UpdateResult";
+    }
+
+    private String executionCall(MapperCompilationModel.MethodModel methodModel) {
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT && typedQuery(methodModel)) {
+            return "sqlExecutor.query(executionPlan)";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.SELECT) {
+            return "sqlExecutor.execute(executionPlan)";
+        }
+        if (methodModel.statementType() == ExecutionPlan.StatementType.BATCH) {
+            return "sqlExecutor.batch(executionPlan)";
+        }
+        if (methodModel.generatedKey()) {
+            return "sqlExecutor.generatedKey(executionPlan)";
+        }
+        return "sqlExecutor.update(executionPlan)";
+    }
+
+    private boolean typedQuery(MapperCompilationModel.MethodModel methodModel) {
+        return methodModel.statementType() == ExecutionPlan.StatementType.SELECT
+            && methodModel.cursorCallbackParameterName() == null
+            && !"void".equals(methodModel.returnType());
+    }
+
+    private String mappedResultType(MapperCompilationModel.MethodModel methodModel) {
+        String returnType = methodModel.returnType();
+        if (returnType.contains("List<")) {
+            return returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
+        }
+        if (returnType.startsWith("java.util.Optional<")) {
+            return returnType.substring(returnType.indexOf('<') + 1, returnType.lastIndexOf('>')).trim();
+        }
+        return switch (returnType) {
+            case "boolean" -> "java.lang.Boolean";
+            case "byte" -> "java.lang.Byte";
+            case "short" -> "java.lang.Short";
+            case "int" -> "java.lang.Integer";
+            case "long" -> "java.lang.Long";
+            case "char" -> "java.lang.Character";
+            case "float" -> "java.lang.Float";
+            case "double" -> "java.lang.Double";
+            default -> returnType;
+        };
+    }
+
+    private String typeRoutingExpression(MapperCompilationModel.MethodModel methodModel) {
+        String parameterTypes = methodModel.parameterRoutes().isEmpty()
+            ? "new Class<?>[0]"
+            : "new Class<?>[]{" + methodModel.parameterRoutes().stream()
+                .map(MapperCompilationModel.ParameterRoute::javaTypeExpression)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        String parameterJdbcTypes = methodModel.parameterRoutes().isEmpty()
+            ? "null"
+            : "new java.sql.JDBCType[]{" + methodModel.parameterRoutes().stream()
+                .map(MapperCompilationModel.ParameterRoute::jdbcTypeExpression)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        return typeRoutingExpression(methodModel, parameterTypes, parameterJdbcTypes);
+    }
+
+    private String typeRoutingExpression(
+            MapperCompilationModel.MethodModel methodModel,
+            String parameterTypes,
+            String parameterJdbcTypes) {
+        String resultTypes = methodModel.resultTypeNames().isEmpty()
+            ? "new Class<?>[0]"
+            : "new Class<?>[]{" + String.join(", ", methodModel.resultTypeNames()) + "}";
+        String labels = methodModel.resultColumnLabels().isEmpty()
+            ? "null"
+            : "new String[]{" + methodModel.resultColumnLabels().stream()
+                .map(this::javaString)
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        return "new ExecutionPlan.TypeRouting("
+            + parameterTypes + ", " + parameterJdbcTypes + ", "
+            + resultTypes + ", " + labels + ")";
+    }
+
     private String generateAstLogic(AstNode astNode, MapperCompilationModel.MethodModel methodModel,
-                                    String sqlVar, String paramsVar, String bindersVar, String indent,
-                                    Set<String> localRoots, Iterator<String> parameterBinders)
+                                    String sqlVar, String indent,
+                                    Set<String> localRoots,
+                                    Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes)
         throws GenerationException {
         StringBuilder code = new StringBuilder();
         switch (astNode.getNodeType()) {
@@ -443,20 +567,20 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 Set<String> scope = new LinkedHashSet<>(localRoots);
                 for (AstNode child : astNode.getChildren()) {
                     code.append(generateAstLogic(
-                        child, methodModel, sqlVar, paramsVar, bindersVar, indent, scope, parameterBinders));
+                        child, methodModel, sqlVar, indent, scope, parameterRoutes));
                     if (child instanceof AstNode.BindNode bindNode) {
                         scope.add(bindNode.name());
                     }
                 }
             }
             case TEXT -> appendTextNode(code, ((AstNode.TextNode) astNode).text(), methodModel,
-                sqlVar, paramsVar, bindersVar, indent, localRoots, parameterBinders);
+                sqlVar, indent, localRoots, parameterRoutes);
             case IF -> {
                 AstNode.IfNode ifNode = (AstNode.IfNode) astNode;
                 code.append(indent).append("if (").append(translateCondition(ifNode.test(), methodModel, localRoots)).append(") {\n");
                 for (AstNode child : ifNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar,
-                        indent + "    ", localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, sqlVar,
+                        indent + "    ", localRoots, parameterRoutes));
                 }
                 code.append(indent).append("}\n");
             }
@@ -477,8 +601,8 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 Set<String> foreachScope = new LinkedHashSet<>(localRoots);
                 foreachScope.add(foreachNode.item());
                 for (AstNode child : foreachNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, sqlVar, paramsVar, bindersVar,
-                        scopedIndent + "    ", foreachScope, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, sqlVar,
+                        scopedIndent + "    ", foreachScope, parameterRoutes));
                 }
                 code.append(scopedIndent).append("}\n");
                 code.append(scopedIndent).append(sqlVar).append(".append(").append(javaString(foreachNode.close())).append(");\n");
@@ -496,15 +620,15 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                             .append(translateCondition(whenNode.test(), methodModel, localRoots)).append(") {\n");
                         code.append(scopedIndent).append("    ").append(matchedVar).append(" = true;\n");
                         for (AstNode whenChild : whenNode.children()) {
-                            code.append(generateAstLogic(whenChild, methodModel, sqlVar, paramsVar, bindersVar,
-                                scopedIndent + "    ", localRoots, parameterBinders));
+                            code.append(generateAstLogic(whenChild, methodModel, sqlVar,
+                                scopedIndent + "    ", localRoots, parameterRoutes));
                         }
                         code.append(scopedIndent).append("}\n");
                     } else if (child instanceof AstNode.OtherwiseNode otherwiseNode) {
                         code.append(scopedIndent).append("if (!").append(matchedVar).append(") {\n");
                         for (AstNode otherwiseChild : otherwiseNode.children()) {
-                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar, paramsVar, bindersVar,
-                                scopedIndent + "    ", localRoots, parameterBinders));
+                            code.append(generateAstLogic(otherwiseChild, methodModel, sqlVar,
+                                scopedIndent + "    ", localRoots, parameterRoutes));
                         }
                         code.append(scopedIndent).append("}\n");
                     }
@@ -514,77 +638,48 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
             case WHERE -> {
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
-                String innerSql = "whereClauseSql";
-                String innerParams = "whereClauseParameters";
-                String innerBinders = "whereClauseBinders";
-                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                String innerSql = "whereClause";
+                code.append(scopedIndent).append("BoundSqlBuilder ").append(innerSql)
+                    .append(" = ").append(sqlVar).append(".fragment();\n");
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
-                code.append(scopedIndent).append("String normalizedWhereClause")
-                    .append(" = normalizeWhereClause(").append(innerSql).append(".toString());\n");
-                code.append(scopedIndent).append("if (!normalizedWhereClause.isBlank()) {\n");
-                code.append(scopedIndent).append("    ").append(sqlVar).append(".append(\" WHERE \").append(normalizedWhereClause);\n");
-                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
-                code.append(scopedIndent).append("}\n");
+                code.append(scopedIndent).append(sqlVar).append(".where(")
+                    .append(innerSql).append(");\n");
                 code.append(indent).append("}\n");
             }
             case SET -> {
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
-                String innerSql = "setClauseSql";
-                String innerParams = "setClauseParameters";
-                String innerBinders = "setClauseBinders";
-                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                String innerSql = "setClause";
+                code.append(scopedIndent).append("BoundSqlBuilder ").append(innerSql)
+                    .append(" = ").append(sqlVar).append(".fragment();\n");
                 for (AstNode child : astNode.getChildren()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
-                code.append(scopedIndent).append("String normalizedSetClause")
-                    .append(" = normalizeSetClause(").append(innerSql).append(".toString());\n");
-                code.append(scopedIndent).append("if (normalizedSetClause.isBlank()) {\n");
-                code.append(scopedIndent).append("    throw new IllegalStateException(")
-                    .append(javaString("Dynamic <set> produced no assignments [statementId="
-                        + methodModel.statementId() + "]"))
-                    .append(");\n");
-                code.append(scopedIndent).append("}\n");
-                code.append(scopedIndent).append(sqlVar).append(".append(\" SET \").append(normalizedSetClause);\n");
-                code.append(scopedIndent).append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
+                code.append(scopedIndent).append(sqlVar).append(".set(")
+                    .append(innerSql).append(");\n");
                 code.append(indent).append("}\n");
             }
             case TRIM -> {
                 AstNode.TrimNode trimNode = (AstNode.TrimNode) astNode;
                 code.append(indent).append("{\n");
                 String scopedIndent = indent + "    ";
-                String innerSql = "trimmedClauseSql";
-                String innerParams = "trimmedClauseParameters";
-                String innerBinders = "trimmedClauseBinders";
-                code.append(scopedIndent).append("StringBuilder ").append(innerSql).append(" = new StringBuilder();\n");
-                code.append(scopedIndent).append("List<Object> ").append(innerParams).append(" = new ArrayList<>();\n");
-                code.append(scopedIndent).append("List<ParameterBinder<?>> ").append(innerBinders).append(" = new ArrayList<>();\n");
+                String innerSql = "trimmedClause";
+                code.append(scopedIndent).append("BoundSqlBuilder ").append(innerSql)
+                    .append(" = ").append(sqlVar).append(".fragment();\n");
                 for (AstNode child : trimNode.children()) {
-                    code.append(generateAstLogic(child, methodModel, innerSql, innerParams, innerBinders,
-                        scopedIndent, localRoots, parameterBinders));
+                    code.append(generateAstLogic(child, methodModel, innerSql,
+                        scopedIndent, localRoots, parameterRoutes));
                 }
-                code.append(scopedIndent).append("String normalizedTrimmedClause = applyTrim(")
-                    .append(innerSql).append(".toString(), ")
+                code.append(scopedIndent).append(sqlVar).append(".trim(")
+                    .append(innerSql).append(", ")
                     .append(javaString(trimNode.prefix())).append(", ")
                     .append(javaString(trimNode.suffix())).append(", ")
                     .append(javaString(trimNode.prefixOverrides())).append(", ")
                     .append(javaString(trimNode.suffixOverrides())).append(");\n");
-                code.append(scopedIndent).append("if (!normalizedTrimmedClause.isBlank()) {\n");
-                code.append(scopedIndent).append("    appendSqlFragment(").append(sqlVar)
-                    .append(", normalizedTrimmedClause);\n");
-                code.append(scopedIndent).append("    ").append(paramsVar).append(".addAll(").append(innerParams).append(");\n");
-                code.append(scopedIndent).append("    ").append(bindersVar).append(".addAll(").append(innerBinders).append(");\n");
-                code.append(scopedIndent).append("}\n");
                 code.append(indent).append("}\n");
             }
             case BIND -> {
@@ -601,8 +696,9 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
     }
 
     private void appendTextNode(StringBuilder code, String text, MapperCompilationModel.MethodModel methodModel,
-                                String sqlVar, String paramsVar, String bindersVar, String indent,
-                                Set<String> localRoots, Iterator<String> parameterBinders)
+                                String sqlVar, String indent,
+                                Set<String> localRoots,
+                                Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes)
             throws GenerationException {
         int cursor = 0;
         Matcher hashMatcher = HASH_PARAM_PATTERN.matcher(text);
@@ -611,27 +707,29 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
                 SqlParameterParser.parseParameterExpression(hashMatcher.group(1));
             String literal = text.substring(cursor, hashMatcher.start());
             appendLiteral(code, literal, sqlVar, indent);
-            code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", \"?\");\n");
-            code.append(indent).append(paramsVar).append(".add(")
+            MapperCompilationModel.ParameterRoute parameterRoute =
+                parameterRoute(methodModel, parameterRoutes);
+            code.append(indent).append(sqlVar).append(".parameter(")
                 .append(toJavaAccess(parameterExpression.expression(), methodModel, false, localRoots))
-                .append(");\n");
-            code.append(indent).append(bindersVar).append(".add(")
-                .append(binderExpression(methodModel, parameterBinders)).append(");\n");
+                .append(", ")
+                .append(parameterRoute.binderFieldName() == null
+                    ? "null" : parameterRoute.binderFieldName()).append(", ")
+                .append(parameterRoute.javaTypeExpression()).append(", ")
+                .append(parameterRoute.jdbcTypeExpression()).append(");\n");
             cursor = hashMatcher.end();
         }
         String remainder = text.substring(cursor);
         appendLiteral(code, remainder, sqlVar, indent);
     }
 
-    private String binderExpression(
+    private MapperCompilationModel.ParameterRoute parameterRoute(
             MapperCompilationModel.MethodModel methodModel,
-            Iterator<String> parameterBinders) throws GenerationException {
-        if (!parameterBinders.hasNext()) {
+            Iterator<MapperCompilationModel.ParameterRoute> parameterRoutes) throws GenerationException {
+        if (!parameterRoutes.hasNext()) {
             throw new GenerationException(methodModel.statementId()
-                + ": generated JDBC binder plan is missing an entry");
+                + ": generated JDBC parameter route is missing an entry");
         }
-        String binderField = parameterBinders.next();
-        return binderField == null ? "null" : binderField;
+        return parameterRoutes.next();
     }
 
     private void appendLiteral(StringBuilder code, String text, String sqlVar, String indent) {
@@ -640,7 +738,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         while (dollarMatcher.find()) {
             String literal = text.substring(cursor, dollarMatcher.start());
             if (!literal.isEmpty()) {
-                code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", ")
+                code.append(indent).append(sqlVar).append(".append(")
                     .append(javaString(literal)).append(");\n");
             }
             code.append(indent).append(sqlVar).append(".append(String.valueOf(")
@@ -649,7 +747,7 @@ final class FreemarkerCodeGenerator implements CodeGenerator {
         }
         String tail = text.substring(cursor);
         if (!tail.isEmpty()) {
-            code.append(indent).append("appendSqlFragment(").append(sqlVar).append(", ")
+            code.append(indent).append(sqlVar).append(".append(")
                 .append(javaString(tail)).append(");\n");
         }
     }

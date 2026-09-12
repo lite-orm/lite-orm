@@ -495,7 +495,7 @@ class UnsupportedMapperSignatureCompilationTest {
             "ComplexResultMapMapper",
             "ValueRow findValue();",
             "findValue",
-            "Unsupported XML resultMap 'valueResult'; use resultType, @UseRowMapper, or raw JDBC"
+            "Unsupported XML <association> in resultMap 'valueResult'"
         );
     }
 
@@ -692,7 +692,7 @@ class UnsupportedMapperSignatureCompilationTest {
             diagnostics, null, StandardCharsets.UTF_8)) {
             Iterable<? extends JavaFileObject> compilationUnits =
                 fileManager.getJavaFileObjectsFromPaths(
-                    MapperCompilationTestSupport.withJdbcTypeMappingsSelection(mapperSources));
+                    MapperCompilationTestSupport.compilationUnits(mapperSources));
             List<String> options = List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

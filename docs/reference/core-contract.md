@@ -1,6 +1,6 @@
 # LiteORM Core GA Contract
 
-Date: 2026-08-31
+Date: 2026-09-08
 
 This document defines the supported contract of `lite-orm-core` for the first GA release. It is intentionally narrower than MyBatis and narrower than the Spring Boot integration. Anything not listed here is unsupported unless another public contract explicitly says otherwise.
 
@@ -41,6 +41,8 @@ Effective Mapper SQL methods cannot be overloaded. LiteORM reports all conflicti
 
 Supported dynamic SQL elements are `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`. Supported expressions are compiled to Java. Arbitrary OGNL, static method access, and unsupported method calls fail compilation. Unsafe `${...}` substitution is rejected; values use `#{...}` and exceptional SQL structure uses a typed provider.
 
+Generated dynamic methods use one invocation-scoped `BoundSqlBuilder`. The builder owns SQL-fragment spacing, `where`, `set`, and `trim` normalization, and atomic placeholder registration with its value, optional binder, Java type, and JDBC type. Child fragments retain their parameters only when the enclosing clause is emitted. `build()` produces immutable `BoundSql` with statement-aware failures for blank SQL or incompatible fragment composition. This generated-code seam is not an application query DSL and does not interpret XML or expressions at runtime.
+
 Mapper XML and annotation `<script>` content use one fail-closed parser configuration. `DOCTYPE`, external entities, external DTD loading, XInclude, and external schema access are disabled; failure to enforce the required parser controls rejects compilation. LiteORM does not resolve referenced external XML resources from the filesystem or network during SQL parsing.
 
 ### 2.2 Parameters
@@ -53,8 +55,8 @@ Additional parameter rules:
 - unresolved generic parameter types are rejected;
 - a provider method accepts zero or one Mapper argument; multiple inputs should be wrapped in a record or another value object;
 - a batch method requires exactly one `List<T>` argument and binds each item under `item`;
-- null values bind JDBC `NULL`; a custom `ParameterBinder` is called only for non-null values;
-- provider parameters preserve explicit order through `BoundSql` and `BoundParameter`.
+- null values bind JDBC `NULL`; an explicit `ParameterBinder` owns null handling for its parameter;
+- provider parameters preserve explicit order through `BoundSql` and `BoundParameter`; routed values use `BoundParameter.of(javaType, value[, jdbcType])` so runtime routing retains the declared type even for nulls, interfaces, and supertypes.
 
 ### 2.3 Return Shapes
 
@@ -79,136 +81,75 @@ Built-in mapping is generated for:
 - JavaBeans through a usable no-argument constructor and supported setters;
 - lists and optionals of supported element types.
 
-Column labels are matched case-insensitively. `@Column` or XML result metadata may define explicit labels. Missing required columns, duplicate labels, unsupported conversions, invalid row widths, and construction failures are mapping errors rather than silent fallback.
+For a non-cursor SELECT method, generated code creates a typed `QueryExecutionPlan<T>` carrying a
+`ResultAssembler<T>`. `JdbcSqlExecutor` first reads and converts column values through standard Core
+type routing, then invokes the assembler before closing the result set. The resulting
+`QueryResult<T>` contains a non-null immutable `List<T>` and provides `oneOrNull()`, `optional()`,
+and `required()` for single-row contracts, so generated Mapper return handling does not expose or
+remap `Object[]` rows. Updates use `UpdateResult`, generated-key inserts use
+`GeneratedKeyResult<K>`, and JDBC batches use `BatchResult`. `SqlResult` remains the compatibility
+union returned by the low-level `execute(ExecutionPlan)` entry point; typed `SqlExecutor` methods
+adapt it without creating a second JDBC lifecycle. Direct low-level `ExecutionPlan` queries
+continue to return immutable raw row arrays.
+
+Generated Mappers separate stable statement definitions from invocation bindings. Fixed SQL methods
+retain their statement identity, SQL text, source, options, extension references, type routing, and
+result assembly in immutable `QueryDefinition`, `CommandDefinition`, or `BatchDefinition` fields.
+Their execution-plan factories bind only ordered invocation values. Dynamic and provider queries bind
+validated `BoundSql` to a query definition so their variable SQL and parameter routes remain
+invocation-scoped while result routing and assembly remain fixed. Definitions never retain Mapper
+argument values.
+
+Column labels are matched case-insensitively. SQL aliases, method-level `@Results` / `@Result`, or XML `resultMap` metadata may define explicit labels. Result mappings are flat: each entry maps one column to one record component or JavaBean property, while a scalar mapping declares one column without a property. XML records use `<constructor>` with `<arg>` / `<idArg>` entries; JavaBeans use `<id>` / `<result>`. XML and annotation mappings normalize into the same compiler model and cannot both configure one method or be combined with `@UseRowMapper`. Missing required columns, duplicate labels, unsupported conversions, invalid row widths, and construction failures are mapping errors rather than silent fallback.
 
 Custom `RowMapper<T>` and `ParameterBinder<T>` implementations are selected at compilation, instantiated once per generated Mapper instance, and invoked directly without reflection dispatch. They must be stateless, thread-safe, or externally synchronized.
 
-### 2.5 Mapper-Package JDBC Type Mappings
+### 2.5 Standard JDBC Type Routing
 
-Every package that directly contains a Mapper must declare exactly one `@UseJdbcTypeMappings` selection in that package's `package-info.java`. Selection is exact-package only: parent-package inheritance, child-package inheritance, Mapper-interface selection, compiler profiles, classpath auto-detection, registries, reflection lookup, and `ServiceLoader` discovery are not supported.
+`JdbcSqlExecutor` owns one fixed `TypeHandlerManager` with the Core route set. Generated Mappers carry only aligned Java/JDBC routing metadata and explicit extension references; they do not import, create, configure, or invoke the manager. No package annotation, handler registration, database-specific artifact, runtime registry, or discovery step is required.
 
-The selected public final base `JdbcTypeMappings` collection and every declared `JdbcValueAdapter<T>` are resolved and validated during compilation, whether supplied as current sources or ordinary dependencies. The compiler does not append Core mappings implicitly. `@UseJdbcTypeMappings.overrides` may select zero or one application collection. The compiler validates the base and override independently, loads the base first, and then replaces an exact Java-type and `JDBCType` key with the override declaration or appends a new key. Duplicate keys inside either collection fail compilation. A generated Mapper:
+Generated code supplies declared Java parameter types and optional placeholder `jdbcType` values. Without an explicit value, the compiler emits the canonical JDBC type, including a stable type for null parameters. Unsupported parameter types fail compilation with guidance to use `@UseParameterBinder`.
 
-- still exposes only its public `SqlExecutor` constructor;
-- exposes the stable selected collection class through `JdbcTypeMappingsMetadata`;
-- creates at most one instance of each selected adapter it uses and reuses that instance;
-- calls the adapter's default null binding with the resolved `JDBCType`; an adapter may override null binding only for a documented driver incompatibility;
-- calls `setNonNull` directly for non-null selected parameters;
-- calls `getNullable` directly for supported selected scalar results.
+For query results, generated code supplies each Java target type, result label, and result assembler. `JdbcSqlExecutor` reads each result column's JDBC type once, combines it with the generated target type, resolves one typed result handler per column, and reuses that handler for every row. The handler owns the JDBC getter and conversion to its target Java type. The generated assembler then casts or unboxes those converted values for direct scalar return, record construction, or JavaBean setter calls. Unsupported runtime result pairs fail in the mapping phase with the result column, Java target type, JDBC type, and guidance to use `@UseRowMapper`.
 
-Adapters reused by generated Mapper instances must be stateless, thread-safe, or externally synchronized. Declared `jdbcType` placeholder metadata selects an exact Java-type and `JDBCType` pair. Without metadata, the base collection determines the inferred representation: a Java type with one base declaration keeps that declaration's `JDBCType` after overrides are merged, so an appended alternative cannot silently change the default. When the base declares several representations, the unique canonical `JDBCType` wins; otherwise compilation rejects the ambiguity and requires an explicit declaration. An exact-key override replaces the selected adapter without changing that key. Unknown, malformed, duplicate, and unsupported placeholder attributes are compiler errors.
+The manager has no database-product branches, vendor-type registry, schema access, classpath scanning, reflection-based object construction, or `ServiceLoader`. Exceptional scalar representations are deliberately query- or parameter-scoped through `RowMapper` and `ParameterBinder`.
 
-The package selection contract is verified by:
+### 2.6 Built-In JDBC Types
+
+Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum names and ordinals, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, `java.util.Date`, the three `java.sql` date/time types, `Year`, `Month`, `YearMonth`, and `JapaneseDate`.
+
+Canonical parameter routes are:
+
+| Java type | Canonical JDBC representation |
+| --- | --- |
+| Numeric primitives/wrappers, `BigDecimal`, `BigInteger` | Matching numeric JDBC type |
+| `Boolean` / `boolean` | `BOOLEAN` |
+| `Character` / `char`, `String`, `YearMonth` | Character JDBC type |
+| `byte[]`, `Byte[]` | `VARBINARY` |
+| `LocalDate`, `java.sql.Date`, `JapaneseDate` | `DATE` |
+| `LocalTime`, `java.sql.Time` | `TIME` |
+| `LocalDateTime`, `Instant`, `java.util.Date`, `java.sql.Timestamp` | `TIMESTAMP` |
+| `OffsetDateTime` | `TIMESTAMP_WITH_TIMEZONE` |
+| `Year`, `Month` | `INTEGER` |
+| `UUID` | `OTHER` |
+| Enum | `VARCHAR` name |
+
+A placeholder may select another compatible JDBC representation, such as an enum ordinal with `jdbcType=INTEGER`, a character UUID, national-character string types, or the legacy `java.util.Date` date-only and time-only routes with `jdbcType=DATE` or `jdbcType=TIME`. Result routes use the JDBC type reported by the active driver. Enum character values use names and numeric values use zero-based ordinals. Null reference values remain null.
+
+Lifecycle-bound values such as `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, JDBC `ARRAY`, streams, and readers are not standard scalar routes because executor cleanup owns their JDBC resources. Use `ParameterBinder`, `RowMapper`, or raw JDBC.
+
+The executable contract is verified by:
 
 ```bash
-mvn -pl lite-orm-core -am -Dtest=JdbcTypeMappingsSelectionCompilationTest \
+mvn -pl lite-orm-core -am \
+  -Dtest=JdbcTypeCompilationTest,TypeHandlerManagerRoutingTest,ResultValueConvertersTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl lite-orm-core -am \
+  -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-### 2.6 Official PostgreSQL Type Mappings
-
-`lite-orm-postgresql-types` is the official PostgreSQL mapping artifact. Applications add it alongside Core, provide their chosen PostgreSQL JDBC driver, and explicitly select `PostgreSqlJdbcTypeMappings` from every package that directly contains PostgreSQL Mappers. Adding the artifact to the classpath alone has no effect.
-
-The complete collection declares every database-independent mapping in section 2.8 plus these PostgreSQL-specific mappings:
-
-| Java type | JDBC type | PostgreSQL representation | Guaranteed semantics |
-| --- | --- | --- | --- |
-| `UUID` | `OTHER` | Native `uuid` | The UUID value and null are preserved. |
-| `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
-| `OffsetDateTime` | `TIMESTAMP_WITH_TIMEZONE` | `timestamp(p) with time zone` | The represented instant and column precision are preserved. The original offset is not preserved. |
-| `OffsetTime` | `TIME_WITH_TIMEZONE` | `time(p) with time zone` | The local time, offset, null, and column precision are preserved. pgjdbc requires untyped JDBC 4.2 `setObject` for non-null values. |
-| `String` | `NCHAR` | Unicode character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NCHAR` in `setNull`. |
-| `String` | `NVARCHAR` | Unicode varying-character column | Non-null values use `setString`/`getString`; null uses JDBC `VARCHAR` because pgjdbc rejects `NVARCHAR` in `setNull`. |
-
-The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
-
-The artifact contract is verified by:
-
-```bash
-mvn -pl lite-orm-postgresql-types -am test
-mvn -pl lite-orm-examples/basic-mapper -am \
-  -Dtest=PostgreSqlTypesArtifactConsumptionTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-scripts/verify-postgresql-types-dependencies.sh
-```
-
-### 2.7 Official MySQL Type Mappings
-
-`lite-orm-mysql-types` is the official MySQL mapping artifact. Applications add it alongside Core, provide their chosen MySQL JDBC driver, and explicitly select `MySqlJdbcTypeMappings` from every package that directly contains MySQL Mappers. Adding the artifact to the classpath alone has no effect.
-
-The complete collection declares every database-independent mapping in section 2.8 plus these MySQL-specific mappings:
-
-| Java type | JDBC type | MySQL representation | Guaranteed semantics |
-| --- | --- | --- | --- |
-| `UUID` | `CHAR` | `CHAR(36)` | The canonical UUID value and null are preserved. `BINARY(16)` remains an explicit custom mapping. |
-| `LocalTime` | `TIME` | `time(p)` | The value is preserved to the precision declared by the column. |
-| `OffsetDateTime` | `TIMESTAMP` | `timestamp(p)` | The represented instant and column precision are preserved. The original offset is not preserved; normal MySQL connection and session time-zone conversion applies. |
-| `String` | `NCHAR` | National character column | The value and null are preserved through the JDBC national-string methods. |
-| `String` | `NVARCHAR` | National varying-character column | The value and null are preserved through the JDBC national-string methods. |
-
-The collection and adapters are ordinary compile-time dependencies. Its database-independent declarations reuse Core adapter implementations, but the compiler does not merge another collection implicitly. Generated Mappers instantiate used adapters directly; no driver discovery, database metadata lookup, runtime registry, reflection, or `ServiceLoader` participates in selection or execution. Lifecycle-bound values such as LOBs, SQLXML, JDBC arrays, streams, and readers remain a separate contract.
-
-MySQL `TIME` has no offset component, so `OffsetTime` is custom-mapping-only and requires an application-chosen representation such as text or multiple columns. `ZonedDateTime` is custom-mapping-only for both PostgreSQL and MySQL because their timestamp types do not preserve a Java `ZoneId`; an explicit adapter must define whether to store text, normalize to an offset or instant, or use additional columns.
-
-The artifact contract is verified by:
-
-```bash
-mvn -pl lite-orm-mysql-types -am test
-mvn -pl lite-orm-examples/basic-mapper -am \
-  -Dtest=MySqlTypesArtifactConsumptionTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-scripts/verify-mysql-types-dependencies.sh
-```
-
-### 2.8 Built-In JDBC Types
-
-Generated scalar, record, and JavaBean mappings support numeric primitives and wrappers, `String`, `Character`, `Boolean`, enum names, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, `java.util.Date`, the three `java.sql` date/time types, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. Null database values remain null for reference types. Primitive SELECT results remain unsupported because zero rows and SQL `NULL` cannot be represented safely.
-
-The database-independent standard mappings currently use these canonical JDBC types:
-
-| Java type | Canonical JDBC type | Representation |
-| --- | --- | --- |
-| `BigInteger` | `DECIMAL` | Arbitrary-precision integral `BigDecimal` value |
-| `Byte[]` | `VARBINARY` | Boxed form of the JDBC byte array |
-| `java.util.Date` | `TIMESTAMP` | Canonical timestamp with the same epoch milliseconds |
-| `java.util.Date` | `DATE` | Explicit date-only representation selected with `jdbcType=DATE` or `@ResultJdbcType(JDBCType.DATE)` |
-| `java.util.Date` | `TIME` | Explicit time-only representation selected with `jdbcType=TIME` or `@ResultJdbcType(JDBCType.TIME)` |
-| `java.sql.Date` | `DATE` | JDBC date |
-| `java.sql.Time` | `TIME` | JDBC time |
-| `java.sql.Timestamp` | `TIMESTAMP` | JDBC timestamp |
-| `Year` | `INTEGER` | ISO year number |
-| `Month` | `INTEGER` | ISO month number from 1 through 12 |
-| `YearMonth` | `VARCHAR` | ISO `uuuu-MM` text |
-| `JapaneseDate` | `DATE` | Equivalent ISO date |
-
-Enums use their declared name with canonical `VARCHAR` mapping. A parameter placeholder may opt into zero-based ordinal binding with `jdbcType=INTEGER`. An enum scalar, list element, optional element, record component, or JavaBean field may opt into ordinal reading with `@ResultJdbcType(JDBCType.INTEGER)`. Other enum JDBC types require an explicit custom mapping.
-
-The frozen cross-database representations are:
-
-| Java type | PostgreSQL | MySQL | Guaranteed semantics |
-| --- | --- | --- | --- |
-| `UUID` | Native UUID column | `CHAR(36)` | Canonical UUID value and null are preserved. MySQL uses the 36-character representation. `BINARY(16)` requires an explicit `ParameterBinder` and `RowMapper`. |
-| `LocalTime` | `TIME(p)` | `TIME(p)` | The value is preserved to the precision declared by the column. JDBC `TIME` columns are read through the JDBC 4.2 `LocalTime` contract so fractional seconds are not lost through `java.sql.Time`. |
-| `OffsetDateTime` | Time-zone-aware timestamp | `TIMESTAMP(p)` | The represented instant and column precision are preserved. The original offset is not preserved. MySQL connection and session time-zone configuration participates in its normal `TIMESTAMP` conversion. |
-| `OffsetTime` | `TIME(p) WITH TIME ZONE` | Custom mapping only | PostgreSQL preserves local time and offset. MySQL `TIME` cannot preserve the offset. |
-| `String` with `NCHAR` or `NVARCHAR` | `setString`/`getString`; null as `VARCHAR` | JDBC national-string methods | National-character values and null are preserved with the driver-compatible API. |
-
-Standard and database-family adapters are selected at compilation and called directly by generated Mappers. UUID binding uses the native driver value for PostgreSQL and the canonical string representation for MySQL. The compiler rejects a bound expression whose final value type is outside the built-in matrix unless the whole Mapper parameter has an explicit `@UseParameterBinder`. SQL providers remain responsible for their typed `BoundParameter` values. Other database representations or unsupported result shapes use the typed `ParameterBinder` and `RowMapper` extension points rather than runtime type-handler lookup or string-based temporal guessing.
-
-The executable type contract is verified by:
-
-```bash
-mvn -pl lite-orm-core -am -Dtest=JdbcTypeCompilationTest,ResultValueConvertersTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-mvn -pl lite-orm-core -am -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-mvn -pl lite-orm-postgresql-types,lite-orm-mysql-types -am \
-  -Dtest=PostgreSqlStandardScalarMappingTest,MySqlStandardScalarMappingTest,\
-PostgreSqlTemporalExclusionEvidenceTest,MySqlTemporalExclusionEvidenceTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-```
-
-### 2.8 Generated Keys
+### 2.7 Generated Keys
 
 Generated keys require all of the following:
 
@@ -220,7 +161,7 @@ Generated keys require all of the following:
 
 Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. LiteORM prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
 
-### 2.9 Statement Options And Pagination
+### 2.8 Statement Options And Pagination
 
 `StatementOptions` supports JDBC query timeout, fetch size, and max rows on an `ExecutionPlan` or `BatchExecutionPlan`:
 
@@ -232,7 +173,7 @@ Generated Mapper methods currently emit default statement options; there is no M
 
 `maxRows` is a JDBC safety ceiling, not pagination. Real pagination must place dynamic limit/offset or equivalent dialect SQL in the final SQL text so the database performs bounded work.
 
-### 2.10 Compile-Time Rejection
+### 2.9 Compile-Time Rejection
 
 Unsupported Mapper behavior fails compilation instead of falling back to runtime interpretation or plain-text SQL. Diagnostics are attached to the Mapper method when javac can represent the location and include stable Mapper, resolved-method, source, and resource context known without guessing. One Mapper stops after its first deterministic rejection, while independent Mapper interfaces continue processing in the same javac invocation.
 
@@ -323,7 +264,7 @@ The GA compatibility gate runs one shared contract against:
 
 | Database | Pinned test image | Covered behavior |
 | --- | --- | --- |
-| PostgreSQL | `postgres:16.4-alpine` | scalar/record/JavaBean mapping, dynamic SQL, local transactions, rollback-only, generated keys, batch, timeout, temporal values, identifier strings, binary values, cursor scope |
+| PostgreSQL | `postgres:16.4-alpine` | standard scalar routing, record/JavaBean mapping, dynamic SQL, local transactions, rollback-only, generated keys, batch, timeout, temporal values, identifier strings, binary values, cursor scope |
 | MySQL | `mysql:8.4.0` | the same shared contract, with vendor-specific fixture DDL and timeout SQL only |
 
 Database-backed Core compatibility, multi-DataSource, concurrency, and transaction contracts execute on both pinned engines. H2 is reserved for the separate JMH benchmark baseline and is not a functional compatibility fixture.

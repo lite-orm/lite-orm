@@ -38,7 +38,7 @@ Compile-time work includes:
 - Mapper method validation;
 - SQL source selection;
 - dynamic SQL expression compilation;
-- parameter and adapter planning;
+- parameter and type-handler planning;
 - return-shape and result-mapping validation;
 - readable Java source generation.
 
@@ -62,7 +62,7 @@ Compile-time processing must remain deterministic. The processor must not depend
 
 ### Keep Runtime Explicit
 
-Generated Mapper implementations are ordinary Java classes. They receive a `SqlExecutor`, build immutable execution plans, execute them, and adapt the result to the declared return type.
+Generated Mapper implementations are ordinary Java classes. They receive a `SqlExecutor`, retain immutable compile-time statement definitions, bind invocation values into execution plans, and adapt typed execution results to the declared return shape. Standard query definitions carry generated result assemblers so object construction remains compile-time-defined while the executor owns result mapping and JDBC cleanup.
 
 LiteORM does not expose a session abstraction and does not use runtime Mapper proxies. The runtime path should remain visible in generated source and debuggable with normal Java tools.
 
@@ -124,7 +124,7 @@ Spring may provide IoC, transaction managers, physical DataSources, and ordered 
 
 LiteORM supports common SQL Mapper work directly, converts some MyBatis patterns into static LiteORM forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
 
-Deterministic MyBatis JDBC type handlers are a compatibility target. LiteORM implements equivalent value semantics through generated code and package-selected JDBC type mappings rather than a runtime type-handler registry. Mapping collections may be supplied by LiteORM, users, or third-party artifacts, but every concrete value adapter remains compile-time selected and directly referenced. Unknown-object fallback and resource values that cannot survive the fixed JDBC cleanup boundary require an explicit, documented alternative instead of runtime guessing.
+Deterministic MyBatis JDBC value behavior is a compatibility target. LiteORM generates Java type information and uses a fixed Core `TypeHandlerManager` to combine it with optional parameter `jdbcType` declarations or live result metadata. Generated result assemblers still construct records and JavaBeans directly inside the executor lifecycle. Unsupported scalar representations use an explicit `ParameterBinder` or `RowMapper`; package mappings, database-specific routing, unknown-object fallback, reflection-based construction, global registries, and resource values that cannot survive the fixed JDBC cleanup boundary remain outside the contract.
 
 Direct support focuses on:
 

@@ -40,22 +40,27 @@ _Avoid_: Parser stack trace, inferred XML declaration
 XML resolution that permits only LiteORM-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
-**JDBC type declaration**:
-Compile-time Mapper metadata that explicitly selects the JDBC type used for a parameter or result value without inspecting a live database schema.
-_Avoid_: Schema discovery, runtime type guessing
+**Type handler manager**:
+The Core runtime component that routes supported values from generated Java type information and live JDBC metadata. For results it resolves one typed handler per column before row iteration; that handler reads and converts every row value to its generated Java target type. Its standard routes are fixed and it does not construct result objects or discover user handlers.
+_Avoid_: JDBC value adapter, row mapper, global type-handler registry
 
-**JDBC value adapter**:
-A compile-time-selected typed mapping for one JDBC column value and one statement parameter. It does not map an entire result row and is never discovered through a runtime registry.
-_Avoid_: Row mapper, runtime type handler
+**Result mapping**:
+A query-level declaration that maps result columns to one scalar, record constructor, or JavaBean property structure. Annotation and XML forms normalize into the same compilation model.
+_Avoid_: Type handler, entity column mapping, row mapper
 
-**JDBC type mappings**:
-An explicitly selected compile-time collection of Java-to-JDBC value mappings. A collection may define database-independent standard mappings or one database family's complete effective mapping set. It is selected for a Mapper package and does not define SQL dialect, schema, transactions, routing, pagination, or generated-key policy.
-_Avoid_: Database dialect, JDBC plugin, type-handler registry
+**Result assembler**:
+A compile-time-generated strategy carried by a typed query execution plan. It constructs one scalar, record, or JavaBean from a read-only row whose values have already passed through standard Core JDBC type routing.
+_Avoid_: Type handler, row mapper, result-set interceptor
 
 **Parameter binder**:
-A Mapper-parameter-specific strategy for writing one parameter value. It is an explicit exception for one parameter, not a package-wide value mapping and not a result-reading strategy.
-_Avoid_: JDBC value adapter, row mapper, global type handler
+A Mapper-parameter-specific strategy for writing a value outside Core standard routing. It is not a result-reading strategy.
+_Avoid_: Type handler, row mapper, global type handler
+
+**Bound SQL builder**:
+An invocation-scoped generated-code module that constructs dynamic SQL and atomically aligns every emitted placeholder with its value and JDBC routing metadata. It owns SQL spacing and dynamic clause normalization but does not interpret Mapper syntax or provide an application query DSL.
+_Avoid_: Query DSL, runtime SQL interpreter, parameter list accumulator
 
 **Row mapper**:
 A Mapper-method-specific strategy for constructing one result object from the current result row. It may combine several columns and does not bind statement parameters.
-_Avoid_: JDBC value adapter, parameter binder, result-set interceptor
+Unlike a generated result assembler, it reads the live `ResultSet` directly for an explicitly configured exceptional mapping.
+_Avoid_: Type handler, parameter binder, result assembler, result-set interceptor

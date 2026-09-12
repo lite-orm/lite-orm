@@ -1,5 +1,7 @@
 package org.liteorm.api;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -14,58 +16,79 @@ import java.util.Objects;
  * @author lite-orm
  * @since 2024/09/29
  */
-public final class SqlResult {
+public final class SqlResult<T> {
     
-    private final List<Object[]> queryResults;
+    private final List<T> queryResults;
     private final List<ResultColumn> resultColumns;
     private final Map<String, Integer> columnIndexes;
     private final int updateCount;
     private final boolean isQuery;
+    private final ResultKind resultKind;
     private final int[] batchUpdateCounts;
     private final Object generatedKey;
+    private final boolean rawRows;
     
     // Creates a query result.
-    public static SqlResult forQuery(List<Object[]> results) {
+    public static SqlResult<Object[]> forQuery(List<Object[]> results) {
         return forQuery(List.of(), results);
     }
 
-    public static SqlResult forQuery(List<ResultColumn> columns, List<Object[]> results) {
-        return new SqlResult(results, columns, 0, true, null, null);
+    public static SqlResult<Object[]> forQuery(List<ResultColumn> columns, List<Object[]> results) {
+        return new SqlResult<>(
+            copyRows(results), columns, 0, ResultKind.QUERY, null, null, true);
+    }
+
+    /** Creates a query result whose rows have already been assembled to their Java target type. */
+    public static <T> SqlResult<T> forMappedQuery(List<ResultColumn> columns, List<T> results) {
+        return new SqlResult<>(
+            results, columns, 0, ResultKind.QUERY, null, null, false);
     }
     
     // Creates an update result.
-    public static SqlResult forUpdate(int updateCount) {
-        return new SqlResult(null, List.of(), updateCount, false, null, null);
+    public static SqlResult<Void> forUpdate(int updateCount) {
+        return new SqlResult<>(
+            null, List.of(), updateCount, ResultKind.UPDATE, null, null, false);
     }
 
-    public static SqlResult forGeneratedKey(int updateCount, Object generatedKey) {
-        return new SqlResult(null, List.of(), updateCount, false, null, generatedKey);
+    public static SqlResult<Void> forGeneratedKey(int updateCount, Object generatedKey) {
+        return new SqlResult<>(
+            null, List.of(), updateCount, ResultKind.GENERATED_KEY, null, generatedKey, false);
     }
 
-    public static SqlResult forBatch(int[] updateCounts) {
-        return new SqlResult(null, List.of(), 0, false, updateCounts, null);
+    public static SqlResult<Void> forBatch(int[] updateCounts) {
+        return new SqlResult<>(
+            null, List.of(), 0, ResultKind.BATCH, updateCounts, null, false);
     }
     
     private SqlResult(
-            List<Object[]> queryResults,
+            List<T> queryResults,
             List<ResultColumn> resultColumns,
             int updateCount,
-            boolean isQuery,
+            ResultKind resultKind,
             int[] batchUpdateCounts,
-            Object generatedKey) {
-        this.queryResults = copyRows(queryResults);
+            Object generatedKey,
+            boolean rawRows) {
+        this.queryResults = queryResults == null
+            ? null : Collections.unmodifiableList(new ArrayList<>(queryResults));
         this.resultColumns = List.copyOf(Objects.requireNonNull(resultColumns, "resultColumns"));
         this.columnIndexes = indexColumns(this.resultColumns);
-        validateRowWidths(this.queryResults, this.resultColumns);
+        if (rawRows) {
+            validateRowWidths(copyRowsForValidation(this.queryResults), this.resultColumns);
+        }
         this.updateCount = updateCount;
-        this.isQuery = isQuery;
+        this.resultKind = Objects.requireNonNull(resultKind, "resultKind");
+        this.isQuery = resultKind == ResultKind.QUERY;
         this.batchUpdateCounts = batchUpdateCounts == null ? null : batchUpdateCounts.clone();
         this.generatedKey = generatedKey;
+        this.rawRows = rawRows;
     }
     
     // Getters
-    public List<Object[]> getQueryResults() {
-        return copyRows(queryResults);
+    @SuppressWarnings("unchecked")
+    public List<T> getQueryResults() {
+        return rawRows && queryResults != null
+            ? (List<T>) copyRows((List<Object[]>) queryResults)
+            : queryResults;
     }
 
     public List<ResultColumn> getResultColumns() {
@@ -89,6 +112,10 @@ public final class SqlResult {
         return isQuery;
     }
 
+    ResultKind resultKind() {
+        return resultKind;
+    }
+
     public int[] getBatchUpdateCounts() {
         return batchUpdateCounts == null ? null : batchUpdateCounts.clone();
     }
@@ -104,6 +131,11 @@ public final class SqlResult {
         return rows.stream()
             .map(row -> Objects.requireNonNull(row, "query row").clone())
             .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<Object[]> copyRowsForValidation(List<T> rows) {
+        return (List<Object[]>) rows;
     }
 
     private static Map<String, Integer> indexColumns(List<ResultColumn> columns) {
@@ -130,5 +162,12 @@ public final class SqlResult {
 
     private static String normalizeLabel(String label) {
         return label.trim().toLowerCase(Locale.ROOT);
+    }
+
+    enum ResultKind {
+        QUERY,
+        UPDATE,
+        GENERATED_KEY,
+        BATCH
     }
 }

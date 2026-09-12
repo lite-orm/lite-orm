@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="org.liteorm.test.xmlresult.CollectionResultMapper">
+    <resultMap id="valueResult" type="org.liteorm.test.xmlresult.CollectionResultMapper.Value">
+        <collection property="values" ofType="java.lang.String"/>
+    </resultMap>
+    <select id="find" resultMap="valueResult">SELECT 'value' AS value</select>
+</mapper>

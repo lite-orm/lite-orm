@@ -50,6 +50,7 @@ LiteORM is a lightweight compile-time SQL Mapper for Java. It moves Mapper valid
 - Agent plugins and developer-global configuration must never become build or CI dependencies.
 - Use the Matt Pocock engineering skills as the primary workflow for specification, ticketing, implementation, TDD, diagnosis, and review.
 - Keep durable facts in repository documentation and transient delivery state in the configured issue tracker.
+- After each implementation phase reaches its completion criteria, update the owning GitHub Issue with the delivered scope, verification evidence, and remaining work. Keep the Issue open while the phase is in progress.
 
 ## Working Rules
 

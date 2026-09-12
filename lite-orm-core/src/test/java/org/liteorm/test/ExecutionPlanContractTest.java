@@ -2,9 +2,14 @@ package org.liteorm.test;
 
 import org.junit.jupiter.api.Test;
 import org.liteorm.api.BatchExecutionPlan;
+import org.liteorm.api.BatchDefinition;
+import org.liteorm.api.CommandDefinition;
 import org.liteorm.api.ExecutionPlan;
+import org.liteorm.api.QueryDefinition;
+import org.liteorm.api.QueryExecutionPlan;
 import org.liteorm.api.StatementOptions;
 
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -95,5 +100,103 @@ class ExecutionPlanContractTest {
             " ",
             null,
             null));
+    }
+
+    @Test
+    void typedQueryPlansRequireExactlyOneMappingStrategy() {
+        assertThrows(IllegalArgumentException.class, () -> new QueryExecutionPlan<>(
+            "org.liteorm.test.UserMapper.find", "SELECT id FROM users", new Object[0],
+            ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.ANNOTATION,
+            null, null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new QueryExecutionPlan<>(
+            "org.liteorm.test.UserMapper.find", "SELECT id FROM users", new Object[0],
+            ExecutionPlan.StatementType.SELECT, ExecutionPlan.SqlSource.ANNOTATION,
+            null, null, resultSet -> 1L, row -> 1L, null, null));
+    }
+
+    @Test
+    void queryDefinitionBindsInvocationValuesWithoutRetainingThem() {
+        ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
+            new Class<?>[]{Long.class}, new JDBCType[]{JDBCType.BIGINT},
+            new Class<?>[]{Long.class}, null);
+        QueryDefinition<Long> definition = QueryDefinition.assembled(
+            "org.liteorm.test.UserMapper.findById",
+            "SELECT id FROM users WHERE id = ?",
+            ExecutionPlan.SqlSource.ANNOTATION,
+            row -> (Long) row.get(0),
+            null,
+            StatementOptions.defaults(),
+            routing);
+
+        Object[] parameters = {1L};
+        QueryExecutionPlan<Long> first = definition.bind(parameters);
+        parameters[0] = 2L;
+        QueryExecutionPlan<Long> second = definition.bind(3L);
+
+        assertArrayEquals(new Object[]{1L}, first.getParameters());
+        assertArrayEquals(new Object[]{3L}, second.getParameters());
+        assertEquals("SELECT id FROM users WHERE id = ?", first.getSql());
+        assertEquals(routing, first.getTypeRouting());
+        assertThrows(IllegalStateException.class, () -> definition.bind(
+            new org.liteorm.api.BoundSql("SELECT 2", List.of())));
+        assertEquals(1L, first.getResultAssembler().assemble(
+            new org.liteorm.api.ResultRow(new Object[]{1L}, new int[]{0})));
+    }
+
+    @Test
+    void commandAndBatchDefinitionsBindOnlyInvocationValues() {
+        ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
+            new Class<?>[]{Long.class}, new JDBCType[]{JDBCType.BIGINT},
+            new Class<?>[0], null);
+        CommandDefinition command = CommandDefinition.command(
+            "org.liteorm.test.UserMapper.deleteById",
+            "DELETE FROM users WHERE id = ?",
+            ExecutionPlan.StatementType.DELETE,
+            ExecutionPlan.SqlSource.ANNOTATION,
+            null,
+            StatementOptions.defaults(),
+            routing);
+        BatchDefinition batch = new BatchDefinition(
+            "org.liteorm.test.UserMapper.deleteBatch",
+            "DELETE FROM users WHERE id = ?",
+            ExecutionPlan.SqlSource.ANNOTATION,
+            null,
+            StatementOptions.defaults(),
+            routing);
+
+        ExecutionPlan commandPlan = command.bind(1L);
+        BatchExecutionPlan batchPlan = batch.bind(List.<Object[]>of(new Object[]{2L}));
+
+        assertArrayEquals(new Object[]{1L}, commandPlan.getParameters());
+        assertEquals(ExecutionPlan.StatementType.DELETE, commandPlan.getStatementType());
+        assertThrows(IllegalStateException.class, () -> command.bind(
+            new org.liteorm.api.BoundSql("DELETE FROM users", List.of())));
+        assertArrayEquals(new Object[]{2L}, batchPlan.getBatchParameters().getFirst());
+    }
+
+    @Test
+    void typeRoutingDefensivelyCopiesGeneratedTypeInformation() {
+        Class<?>[] parameterTypes = {String.class};
+        JDBCType[] jdbcTypes = {JDBCType.VARCHAR};
+        Class<?>[] resultTypes = {Long.class};
+        String[] labels = {"id"};
+        ExecutionPlan.TypeRouting routing = new ExecutionPlan.TypeRouting(
+            parameterTypes, jdbcTypes, resultTypes, labels);
+
+        parameterTypes[0] = Object.class;
+        jdbcTypes[0] = JDBCType.OTHER;
+        resultTypes[0] = Object.class;
+        labels[0] = "other";
+
+        assertArrayEquals(new Class<?>[]{String.class}, routing.parameterTypes());
+        assertArrayEquals(new JDBCType[]{JDBCType.VARCHAR}, routing.parameterJdbcTypes());
+        assertArrayEquals(new Class<?>[]{Long.class}, routing.resultTypes());
+        assertArrayEquals(new String[]{"id"}, routing.resultColumnLabels());
+    }
+
+    @Test
+    void typeRoutingRequiresLabelsForCompositeResults() {
+        assertThrows(IllegalArgumentException.class, () -> new ExecutionPlan.TypeRouting(
+            new Class<?>[0], null, new Class<?>[]{Long.class, String.class}, null));
     }
 }

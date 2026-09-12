@@ -37,15 +37,16 @@ class ColumnLabelMappingTest {
 
         String generated = Files.readString(compilation.generatedDirectory().resolve(
             "org/liteorm/test/columnfixture/LabelMapperImpl.java"));
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"id\")"), generated);
-        assertTrue(generated.contains("executionResult.requireColumnIndex(\"user_name\")"), generated);
+        assertTrue(generated.contains("new String[]{\"id\", \"name\"}"), generated);
+        assertTrue(generated.contains("row -> new org.liteorm.test.columnfixture.LabelMapper.UserRecord("),
+            generated);
 
         try (URLClassLoader loader = new URLClassLoader(
                 new java.net.URL[]{compilation.classesDirectory().toUri().toURL()}, getClass().getClassLoader())) {
             Class<?> mapperType = loader.loadClass("org.liteorm.test.columnfixture.LabelMapper");
             Class<?> implementationType = loader.loadClass("org.liteorm.test.columnfixture.LabelMapperImpl");
             SqlExecutor executor = plan -> SqlResult.forQuery(
-                List.of(new ResultColumn("user_name", 0), new ResultColumn("id", 1)),
+                List.of(new ResultColumn("name", 0), new ResultColumn("id", 1)),
                 List.<Object[]>of(new Object[]{"Alice", 7L}));
             Object mapper = implementationType.getConstructor(SqlExecutor.class).newInstance(executor);
 
@@ -69,7 +70,7 @@ class ColumnLabelMappingTest {
             Class<?> mapperType = loader.loadClass("org.liteorm.test.columnfixture.LabelMapper");
             Class<?> implementationType = loader.loadClass("org.liteorm.test.columnfixture.LabelMapperImpl");
             SqlExecutor executor = plan -> SqlResult.forQuery(
-                List.of(new ResultColumn("user_name", 0)),
+                List.of(new ResultColumn("name", 0)),
                 List.<Object[]>of(new Object[]{"Alice"}));
             Object mapper = implementationType.getConstructor(SqlExecutor.class).newInstance(executor);
 
@@ -108,26 +109,25 @@ class ColumnLabelMappingTest {
         Files.writeString(sourceFile, """
             package org.liteorm.test.columnfixture;
 
-            import org.liteorm.annotation.Column;
             import org.liteorm.annotation.Mapper;
             import org.liteorm.annotation.Select;
 
             @Mapper
             public interface LabelMapper {
-                @Select("SELECT name AS user_name, id FROM users")
+                @Select("SELECT display_name AS name, id FROM users")
                 UserRecord findRecord();
 
-                @Select("SELECT name AS user_name, id FROM users")
+                @Select("SELECT display_name AS name, id FROM users")
                 java.util.List<UserRecord> findRecords();
 
-                @Select("SELECT name AS user_name, id FROM users")
+                @Select("SELECT display_name AS name, id FROM users")
                 UserBean findBean();
 
-                record UserRecord(Long id, @Column("user_name") String name) {}
+                record UserRecord(Long id, String name) {}
 
                 class UserBean {
                     private Long id;
-                    @Column("user_name") private String name;
+                    private String name;
 
                     public UserBean() {}
                     public Long getId() { return id; }
@@ -144,7 +144,7 @@ class ColumnLabelMappingTest {
         try (StandardJavaFileManager manager = compiler.getStandardFileManager(
                 diagnostics, null, StandardCharsets.UTF_8)) {
             var units = manager.getJavaFileObjectsFromPaths(
-                org.liteorm.test.MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(sourceFile)));
+                org.liteorm.test.MapperCompilationTestSupport.compilationUnits(List.of(sourceFile)));
             var task = compiler.getTask(null, manager, diagnostics, List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),

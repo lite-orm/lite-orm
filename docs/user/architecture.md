@@ -8,11 +8,11 @@ The editable source is stored beside the published image as [`liteorm-architectu
 
 ## Compilation
 
-The annotation processor validates Mapper methods, selects SQL sources, compiles supported dynamic SQL, plans parameters and result mapping, and generates ordinary Java implementations. Invalid signatures, unsupported expressions, ambiguous mappings, and malformed XML fail during compilation whenever javac can identify the location.
+The annotation processor validates Mapper methods, selects SQL sources, compiles supported dynamic SQL, plans parameters and result mapping, and generates ordinary Java implementations. Generated dynamic methods keep native Java branches and loops visible while using one `BoundSqlBuilder` to own SQL spacing, clause normalization, and aligned placeholder routing. The builder is a generated-code/runtime seam rather than an application query DSL. Invalid signatures, unsupported expressions, ambiguous mappings, and malformed XML fail during compilation whenever javac can identify the location.
 
 ## Runtime
 
-Generated Mappers build immutable execution plans and call `SqlExecutor`. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover JDBC adapters.
+Generated Mappers retain immutable statement definitions and bind only each invocation's SQL parameter values into execution plans before calling `SqlExecutor`. Fixed SQL, statement identity, options, JDBC routing, and result assembly live in generated `QueryDefinition`, `CommandDefinition`, or `BatchDefinition` fields instead of being rebuilt on every call. Standard SELECT methods use a typed `QueryExecutionPlan<T>` whose generated result assembler performs direct object construction and setter calls after Core JDBC value conversion. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading and assembly, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover handlers.
 
 ## Host Integrations
 

@@ -34,8 +34,6 @@ class FreemarkerCodeGeneratorTest {
             List.of(),
             List.of(),
             null,
-            List.of(),
-            null,
             List.of(new SqlParameterParser.MethodParameter("id", "id", "java.lang.Long", List.of("id", "param1", "arg0"))),
             List.of(new SqlParameterParser.ParameterBinding(1, "id", "id", "java.lang.Long")),
             null
@@ -43,9 +41,19 @@ class FreemarkerCodeGeneratorTest {
 
         String code = generator.generateMethodImpl(method);
 
-        assertTrue(code.contains("ExecutionPlan executionPlan = buildFindByIdExecutionPlan(id);"));
-        assertTrue(code.contains("private ExecutionPlan buildFindByIdExecutionPlan(Long id)"));
-        assertTrue(code.contains("return new ExecutionPlan(\"org.liteorm.test.UserMapper.findById\", sql, params"));
+        assertTrue(code.contains(
+            "QueryExecutionPlan<org.liteorm.test.User> executionPlan = buildFindByIdExecutionPlan(id);"));
+        assertTrue(code.contains(
+            "QueryResult<org.liteorm.test.User> executionResult = sqlExecutor.query(executionPlan);"));
+        assertTrue(code.contains("return executionResult.oneOrNull();"));
+        assertTrue(code.contains(
+            "private QueryExecutionPlan<org.liteorm.test.User> buildFindByIdExecutionPlan(Long id)"));
+        assertTrue(code.contains(
+            "private static final QueryDefinition<org.liteorm.test.User> FIND_BY_ID_DEFINITION"));
+        assertTrue(code.contains("return FIND_BY_ID_DEFINITION.bind(id);"));
+        assertFalse(code.contains("Object[] params"));
+        assertFalse(code.contains(
+            "return new QueryExecutionPlan<>(\"org.liteorm.test.UserMapper.findById\", sql, params"));
     }
 
     @Test
@@ -68,9 +76,8 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            List.of(),
-            null,
-            java.util.Collections.singletonList(null),
+            List.of(new MapperCompilationModel.ParameterRoute(
+                "NAME_BINDER", "java.lang.String.class", "java.sql.JDBCType.VARCHAR")),
             null,
             List.of(new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0"))),
             List.of(),
@@ -85,8 +92,11 @@ class FreemarkerCodeGeneratorTest {
         String code = generator.generateMethodImpl(method);
 
         assertTrue(code.contains("if (name != null && !name.isEmpty())"));
-        assertTrue(code.contains("parameters.add(name);"));
-        assertTrue(code.contains("appendSqlFragment(sql, \"?\");"));
+        assertTrue(code.contains("BoundSqlBuilder sql = BoundSqlBuilder.create("));
+        assertTrue(code.contains(
+            "sql.parameter(name, NAME_BINDER, java.lang.String.class, java.sql.JDBCType.VARCHAR);"));
+        assertFalse(code.contains("List<Object> parameters"));
+        assertFalse(code.contains("List<Class<?>> parameterTypes"));
     }
 
     @Test
@@ -109,9 +119,11 @@ class FreemarkerCodeGeneratorTest {
             null,
             null,
             List.of(),
-            List.of(),
-            null,
-            java.util.Arrays.asList(null, null, null),
+            List.of(
+                new MapperCompilationModel.ParameterRoute(null, "null", "null"),
+                new MapperCompilationModel.ParameterRoute(null, "java.util.List.class", "null"),
+                new MapperCompilationModel.ParameterRoute(null, "long[].class", "null")
+            ),
             null,
             List.of(
                 new SqlParameterParser.MethodParameter("name", "name", "java.lang.String", List.of("name", "param1", "arg0")),

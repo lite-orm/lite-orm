@@ -18,7 +18,3 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress test
       - name: Reject missing or skipped database contracts
         run: scripts/verify-database-test-matrix.sh
-      - name: Verify PostgreSQL types artifact boundaries
-        run: scripts/verify-postgresql-types-dependencies.sh
-      - name: Verify MySQL types artifact boundaries
-        run: scripts/verify-mysql-types-dependencies.sh

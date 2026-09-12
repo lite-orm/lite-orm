@@ -25,15 +25,26 @@ class GeneratedSourceGoldenTest {
         assertFalse(source.contains("import org.liteorm.api.*;"));
         assertFalse(source.contains("import org.liteorm.runtime.*;"));
         assertTrue(source.contains("Mapper method: org.liteorm.test.UserMapper#findById"));
+        assertTrue(source.contains("Mapper method: org.liteorm.test.UserMapper#findByCondition"));
         assertTrue(source.contains("SQL source: ANNOTATION"));
-        assertTrue(source.contains("ExecutionPlan executionPlan"));
-        assertTrue(source.contains("SqlResult executionResult"));
-        assertTrue(source.contains("List<Object[]> resultRows"));
-        assertTrue(source.contains("List<org.liteorm.test.User> mappedResults"));
-        assertTrue(source.contains("Object[] resultRow"));
+        assertTrue(source.contains("BoundSqlBuilder sql = BoundSqlBuilder.create("));
+        assertTrue(source.contains("if (name != null)"));
+        assertTrue(source.contains(
+            "sql.parameter(name, null, java.lang.String.class, java.sql.JDBCType.VARCHAR);"));
+        assertTrue(source.contains(".bind(sql.build())"));
+        assertTrue(source.contains("QueryExecutionPlan<org.liteorm.test.User> executionPlan"));
+        assertTrue(source.contains("QueryResult<org.liteorm.test.User> executionResult"));
+        assertTrue(source.contains("sqlExecutor.query(executionPlan)"));
+        assertTrue(source.contains("executionResult.oneOrNull()"));
+        assertTrue(source.contains("UpdateResult executionResult"));
+        assertTrue(source.contains("sqlExecutor.update(executionPlan)"));
+        assertTrue(source.contains("row -> new org.liteorm.test.User("));
+        assertFalse(source.contains("List<Object[]> resultRows"));
+        assertFalse(source.contains("Object[] resultRow"));
         assertFalse(source.matches("(?s).*\\b(?:trimSql|trimParams|setSql|setParams|firstItem)\\d+\\b.*"));
         assertFalse(source.contains("java.lang.reflect"));
         assertFalse(source.contains("Map<String, Object>"));
+        assertFalse(source.contains("TypeHandlerManager"));
     }
 
     @Test
@@ -42,11 +53,26 @@ class GeneratedSourceGoldenTest {
 
         assertTrue(source.contains("Mapper method: org.liteorm.test.UserMapperXml#findByCondition"));
         assertTrue(source.contains("SQL source: XML"));
-        assertTrue(source.contains("StringBuilder whereClauseSql"));
         assertTrue(source.contains("boolean chooseBranchMatched"));
-        assertTrue(source.contains("StringBuilder trimmedClauseSql"));
-        assertTrue(source.contains("StringBuilder setClauseSql"));
         assertTrue(source.contains("boolean foreachFirstItem"));
+        assertTrue(source.contains("BoundSqlBuilder sql = BoundSqlBuilder.create("));
+        assertTrue(source.contains("BoundSqlBuilder whereClause = sql.fragment();"));
+        assertTrue(source.contains("whereClause.parameter("));
+        assertTrue(source.contains("sql.where(whereClause);"));
+        assertTrue(source.contains("sql.set(setClause);"));
+        assertTrue(source.contains("sql.trim(trimmedClause,"));
+        assertTrue(source.contains("for (java.lang.String status : statusList)"));
+        assertTrue(source.contains(".bind(sql.build())"));
+        assertFalse(source.contains("List<Object> parameters = new ArrayList<>();"));
+        assertFalse(source.contains("List<ParameterBinder<?>> binders = new ArrayList<>();"));
+        assertFalse(source.contains("List<Class<?>> parameterTypes = new ArrayList<>();"));
+        assertFalse(source.contains("List<java.sql.JDBCType> parameterJdbcTypes = new ArrayList<>();"));
+        assertFalse(source.contains("appendSqlFragment("));
+        assertFalse(source.contains("normalizeWhereClause("));
+        assertFalse(source.contains("normalizeSetClause("));
+        assertFalse(source.contains("applyTrim("));
+        assertFalse(source.contains("return new QueryExecutionPlan<>("));
+        assertFalse(source.contains("TypeHandlerManager"));
         assertFalse(source.matches("(?s).*\\b(?:firstItem|matched|whereSql|whereParams|setSql|setParams|trimSql|trimParams)\\d+\\b.*"));
     }
 }

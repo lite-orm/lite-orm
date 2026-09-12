@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -11,6 +12,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class PublicApiSurfaceTest {
 
@@ -18,24 +20,26 @@ class PublicApiSurfaceTest {
         "org.liteorm.JdbcAssembly",
         "org.liteorm.LiteOrm",
         "org.liteorm.annotation.Batch",
-        "org.liteorm.annotation.Column",
         "org.liteorm.annotation.Delete",
         "org.liteorm.annotation.GeneratedKey",
         "org.liteorm.annotation.Insert",
-        "org.liteorm.annotation.JdbcTypeMapping",
         "org.liteorm.annotation.Mapper",
         "org.liteorm.annotation.Param",
-        "org.liteorm.annotation.ResultJdbcType",
+        "org.liteorm.annotation.Result",
+        "org.liteorm.annotation.Results",
         "org.liteorm.annotation.Select",
         "org.liteorm.annotation.Update",
         "org.liteorm.annotation.UseParameterBinder",
-        "org.liteorm.annotation.UseJdbcTypeMappings",
         "org.liteorm.annotation.UseRowMapper",
         "org.liteorm.annotation.UseSqlProvider",
         "org.liteorm.api.BatchExecutionPlan",
+        "org.liteorm.api.BatchDefinition",
         "org.liteorm.api.BoundParameter",
         "org.liteorm.api.BoundSql",
+        "org.liteorm.api.BoundSqlBuilder",
+        "org.liteorm.api.BatchResult",
         "org.liteorm.api.ConfigurationException",
+        "org.liteorm.api.CommandDefinition",
         "org.liteorm.api.ConnectionHandle",
         "org.liteorm.api.ConnectionHandleFactory",
         "org.liteorm.api.CursorCallback",
@@ -43,15 +47,18 @@ class PublicApiSurfaceTest {
         "org.liteorm.api.ExecutionOutcome",
         "org.liteorm.api.ExecutionPhase",
         "org.liteorm.api.ExecutionPlan",
+        "org.liteorm.api.GeneratedKeyResult",
         "org.liteorm.api.JdbcExecutionState",
-        "org.liteorm.api.JdbcTypeMappings",
-        "org.liteorm.api.JdbcTypeMappingsMetadata",
-        "org.liteorm.api.JdbcValueAdapter",
         "org.liteorm.api.LiteOrmException",
         "org.liteorm.api.MappingException",
         "org.liteorm.api.NonUniqueResultException",
         "org.liteorm.api.ParameterBinder",
+        "org.liteorm.api.QueryDefinition",
+        "org.liteorm.api.QueryExecutionPlan",
+        "org.liteorm.api.QueryResult",
+        "org.liteorm.api.ResultAssembler",
         "org.liteorm.api.ResultColumn",
+        "org.liteorm.api.ResultRow",
         "org.liteorm.api.RowCursor",
         "org.liteorm.api.RowMapper",
         "org.liteorm.api.SqlExecutionException",
@@ -64,44 +71,40 @@ class PublicApiSurfaceTest {
         "org.liteorm.api.TransactionDomainGuard",
         "org.liteorm.api.TransactionException",
         "org.liteorm.api.TransactionalExecutor",
+        "org.liteorm.api.UpdateResult",
         "org.liteorm.compile.LiteOrmProcessor",
         "org.liteorm.interceptor.AuditExecutionInterceptor",
         "org.liteorm.interceptor.LoggingExecutionInterceptor",
         "org.liteorm.interceptor.SlowQueryExecutionInterceptor",
         "org.liteorm.jdbc.JdbcSqlExecutor",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings",
+        "org.liteorm.jdbc.TypeHandlerManager",
         "org.liteorm.runtime.ResultValueConverters",
         "org.liteorm.transaction.SimpleConnectionHandleFactory",
         "org.liteorm.transaction.SimpleTransactionDomainGuard",
         "org.liteorm.transaction.SimpleTransactionalExecutor"
     );
-    private static final Set<String> SUPPORTED_STANDARD_MAPPING_ADAPTERS = Set.of(
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$BigIntegerJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$BoxedByteArrayJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumNameJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$EnumOrdinalJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$JapaneseDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$MonthJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimeJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$SqlTimestampJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilDateOnlyJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$UtilTimeOnlyJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearJdbcValueAdapter",
-        "org.liteorm.jdbc.StandardJdbcTypeMappings$YearMonthJdbcValueAdapter"
-    );
-
     @Test
     void exposesOnlySupportedTopLevelTypes() throws Exception {
         assertEquals(new TreeSet<>(SUPPORTED_PUBLIC_TYPES), discoverPublicTopLevelTypes());
     }
 
     @Test
-    void protectsGeneratedCodeVisibleStandardMappingAdapters() throws Exception {
-        assertEquals(
-            new TreeSet<>(SUPPORTED_STANDARD_MAPPING_ADAPTERS),
-            discoverPublicNestedTypes("org.liteorm.jdbc.StandardJdbcTypeMappings"));
+    void keepsTypeHandlerManagerResultRoutingInternal() throws Exception {
+        Class<?> resultHandler = Class.forName("org.liteorm.jdbc.TypeHandlerManager$ResultHandler");
+
+        assertFalse(Modifier.isPublic(resultHandler.getModifiers()));
+    }
+
+    @Test
+    void keepsApiClassesIndependentFromJdbcImplementations() throws Exception {
+        Path apiClasses = Path.of("target", "classes", "org", "liteorm", "api");
+        try (var classFiles = Files.walk(apiClasses)) {
+            for (Path classFile : classFiles.filter(path -> path.toString().endsWith(".class")).toList()) {
+                String constantPool = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
+                assertFalse(constantPool.contains("org/liteorm/jdbc"),
+                    () -> classFile + " references org.liteorm.jdbc");
+            }
+        }
     }
 
     private Set<String> discoverPublicTopLevelTypes() throws IOException {
@@ -127,10 +130,4 @@ class PublicApiSurfaceTest {
         }
     }
 
-    private Set<String> discoverPublicNestedTypes(String ownerClassName) throws ClassNotFoundException {
-        return java.util.Arrays.stream(Class.forName(ownerClassName).getDeclaredClasses())
-            .filter(type -> Modifier.isPublic(type.getModifiers()))
-            .map(Class::getName)
-            .collect(Collectors.toCollection(TreeSet::new));
-    }
 }

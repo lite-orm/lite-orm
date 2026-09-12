@@ -21,7 +21,7 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
 
     @Override
     protected String uuidDefinition() {
-        return "UUID";
+        return "VARCHAR(36)";
     }
 
     @Override
@@ -32,6 +32,16 @@ class PostgresCompatibilityTest extends AbstractDatabaseCompatibilityTest {
     @Override
     protected String offsetDateTimeDefinition() {
         return "TIMESTAMP(6) WITH TIME ZONE";
+    }
+
+    @Override
+    protected String nationalCharDefinition() {
+        return "VARCHAR(16)";
+    }
+
+    @Override
+    protected String nationalVarcharDefinition() {
+        return "VARCHAR(64)";
     }
 
     @Override

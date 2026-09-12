@@ -24,7 +24,7 @@ class GeneratedKeyCompilationTest {
     Path temporaryDirectory;
 
     @Test
-    void generatesExplicitScalarConversionsForOptedInInsert() throws Exception {
+    void generatesDirectTargetTypeAssignmentsForOptedInInsert() throws Exception {
         CompilationResult result = compile("GeneratedKeyMapper", """
             package org.liteorm.test.generatedkeyfixture;
 
@@ -53,16 +53,22 @@ class GeneratedKeyCompilationTest {
         assertTrue(result.succeeded(), result::diagnosticsText);
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedKeyMapperImpl.java"));
-        assertTrue(generated.contains("ResultValueConverters.toInteger(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toLong(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toShort(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toByte(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toDouble(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toFloat(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toBigDecimal(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toBigInteger(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("ResultValueConverters.toStringValue(executionResult.getGeneratedKey())"));
-        assertTrue(generated.contains("\"id\", null, null"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Integer> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Long> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Short> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Byte> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Double> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.Float> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.math.BigDecimal> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.math.BigInteger> executionResult"));
+        assertTrue(generated.contains("GeneratedKeyResult<java.lang.String> executionResult"));
+        assertTrue(generated.contains("sqlExecutor.generatedKey(executionPlan)"));
+        assertTrue(generated.contains("return executionResult.key();"));
+        assertFalse(generated.contains("ResultValueConverters"), generated);
+        assertTrue(generated.contains("new ExecutionPlan.TypeRouting("));
+        assertTrue(generated.contains("CommandDefinition.generatedKey("));
+        assertTrue(generated.contains("return INSERT_INT_DEFINITION.bind(name);"));
+        assertFalse(generated.contains("TypeHandlerManager"), generated);
     }
 
     @Test
@@ -95,8 +101,10 @@ class GeneratedKeyCompilationTest {
         String generated = Files.readString(result.generatedDirectory().resolve(
             "org/liteorm/test/generatedkeyfixture/GeneratedUuidKeyMapperImpl.java"));
         assertTrue(generated.contains("UuidKeyRowMapper insertRowMapper"));
-        assertTrue(generated.contains("return (java.util.UUID) executionResult.getGeneratedKey();"));
-        assertTrue(generated.contains("\"id\", null, insertRowMapper"));
+        assertTrue(generated.contains("CommandDefinition.rowMappedGeneratedKey("));
+        assertTrue(generated.contains("GeneratedKeyResult<java.util.UUID> executionResult"));
+        assertTrue(generated.contains("return executionResult.key();"));
+        assertTrue(generated.contains("insertRowMapper, null, StatementOptions.defaults()"));
     }
 
     @Test
@@ -165,7 +173,7 @@ class GeneratedKeyCompilationTest {
             class InsertProvider implements SqlProvider<String> {
                 public InsertProvider() {}
                 public BoundSql provide(String name) {
-                    return new BoundSql("INSERT INTO users (name) VALUES (?)", List.of(BoundParameter.of(name)));
+                    return new BoundSql("INSERT INTO users (name) VALUES (?)", List.of(BoundParameter.of(String.class, name)));
                 }
             }
             @Mapper interface GeneratedKeyProviderMapper {
@@ -202,7 +210,7 @@ class GeneratedKeyCompilationTest {
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(
             diagnostics, null, StandardCharsets.UTF_8)) {
             Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromPaths(
-                MapperCompilationTestSupport.withJdbcTypeMappingsSelection(List.of(sourceFile)));
+                MapperCompilationTestSupport.compilationUnits(List.of(sourceFile)));
             List<String> options = List.of(
                 "--release", "21",
                 "-classpath", System.getProperty("java.class.path"),
