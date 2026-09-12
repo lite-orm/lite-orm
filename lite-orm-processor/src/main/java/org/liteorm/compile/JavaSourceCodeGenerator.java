@@ -86,9 +86,17 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
 
         List<GeneratedSourceMember> members = new ArrayList<>();
         for (MapperCompilationModel.MethodModel method : compilationModel.methods()) {
+            if (queryDefinition(method) || commandDefinition(method) || batchDefinition(method)) {
+                members.add(new GeneratedSourceMember(
+                    GeneratedSourceMember.Kind.DEFINITION,
+                    generateDefinition(method)));
+            }
             members.add(new GeneratedSourceMember(
                 GeneratedSourceMember.Kind.METHOD,
-                generateMethodImpl(method)));
+                generateMapperMethod(method)));
+            members.add(new GeneratedSourceMember(
+                GeneratedSourceMember.Kind.METHOD,
+                generateExecutionPlanFactory(method)));
             if (!method.resultMappingHelperCode().isBlank()) {
                 members.add(new GeneratedSourceMember(
                     GeneratedSourceMember.Kind.HELPER,
@@ -117,14 +125,31 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
     public String generateMethodImpl(MapperCompilationModel.MethodModel methodModel) throws GenerationException {
         StringBuilder code = new StringBuilder();
 
-        if (queryDefinition(methodModel)) {
-            code.append(generateQueryDefinition(methodModel)).append("\n");
-        } else if (commandDefinition(methodModel)) {
-            code.append(generateCommandDefinition(methodModel)).append("\n");
-        } else if (batchDefinition(methodModel)) {
-            code.append(generateBatchDefinition(methodModel)).append("\n");
+        String definition = generateDefinition(methodModel);
+        if (!definition.isBlank()) {
+            code.append(definition).append("\n");
         }
 
+        code.append(generateMapperMethod(methodModel)).append("\n\n");
+        code.append(generateExecutionPlanFactory(methodModel));
+        return code.toString();
+    }
+
+    private String generateDefinition(MapperCompilationModel.MethodModel methodModel) {
+        if (queryDefinition(methodModel)) {
+            return generateQueryDefinition(methodModel);
+        }
+        if (commandDefinition(methodModel)) {
+            return generateCommandDefinition(methodModel);
+        }
+        if (batchDefinition(methodModel)) {
+            return generateBatchDefinition(methodModel);
+        }
+        return "";
+    }
+
+    private String generateMapperMethod(MapperCompilationModel.MethodModel methodModel) {
+        StringBuilder code = new StringBuilder();
         code.append("    /**\n");
         code.append("     * Mapper method: ").append(mapperMethodLocation(methodModel)).append("\n");
         code.append("     * SQL source: ").append(methodModel.sourceType().name()).append("\n");
@@ -138,15 +163,13 @@ final class JavaSourceCodeGenerator implements CodeGenerator {
         if (methodModel.cursorCallbackParameterName() != null) {
             code.append("        return sqlExecutor.queryCursor(executionPlan, ")
                 .append(methodModel.cursorCallbackParameterName()).append(");\n");
-            code.append("    }\n\n");
-            code.append(generateExecutionPlanFactory(methodModel));
+            code.append("    }\n");
             return code.toString();
         }
         code.append("        ").append(executionResultType(methodModel))
             .append(" executionResult = ").append(executionCall(methodModel)).append(";\n");
         code.append(generateReturnCode(methodModel));
-        code.append("    }\n\n");
-        code.append(generateExecutionPlanFactory(methodModel));
+        code.append("    }\n");
         return code.toString();
     }
 

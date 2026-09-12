@@ -10,6 +10,7 @@ package org.liteorm.compile;
 record GeneratedSourceMember(Kind kind, String source) {
 
     enum Kind {
+        DEFINITION,
         METHOD,
         HELPER
     }
