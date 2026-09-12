@@ -25,7 +25,7 @@ Owns compiler-only code and dependencies:
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
-- FreeMarker templates during the current transition.
+- deterministic JDK-only source rendering.
 
 ### `lite-orm-spring-boot-starter`
 
@@ -94,7 +94,6 @@ The active delivery order is:
 correctness
   -> MyBatis deterministic JDBC type parity
   -> API freeze
-  -> replace FreeMarker
   -> split processor
   -> external Maven/Gradle verification
   -> public preview

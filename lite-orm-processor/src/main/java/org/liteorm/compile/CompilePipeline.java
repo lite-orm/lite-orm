@@ -68,7 +68,7 @@ final class CompilePipeline {
             new AnnotationBasedSqlParser()
         );
 
-        this.codeGenerator = new FreemarkerCodeGenerator();
+        this.codeGenerator = new JavaSourceCodeGenerator();
         this.parameterParser = new SqlParameterParser();
     }
     
