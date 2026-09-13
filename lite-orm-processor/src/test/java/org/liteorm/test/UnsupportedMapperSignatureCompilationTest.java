@@ -230,6 +230,166 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void mapperXmlNamespaceMustMatchMapperType() throws Exception {
+        assertUnsupportedXml(
+            "NamespaceMismatchMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.OtherMapper">
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "XML namespace 'org.liteorm.test.diagnostics.OtherMapper' does not match Mapper "
+                + "'org.liteorm.test.diagnostics.NamespaceMismatchMapper'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsDuplicateStatementIdsAcrossStatementTypes() throws Exception {
+        assertUnsupportedXml(
+            "DuplicateStatementIdMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.DuplicateStatementIdMapper">
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                    <update id="findValue">UPDATE values_table SET value = 'value'</update>
+                </mapper>
+                """,
+            "duplicate XML statement id 'findValue'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsBlankStatementIds() throws Exception {
+        assertUnsupportedXml(
+            "BlankStatementIdMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.BlankStatementIdMapper">
+                    <select id="" resultType="java.lang.String">SELECT 'blank'</select>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "XML <select> requires non-blank attribute 'id'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsBlankSqlFragmentIds() throws Exception {
+        assertUnsupportedXml(
+            "BlankSqlFragmentMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.BlankSqlFragmentMapper">
+                    <sql id="">SELECT 'blank'</sql>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "<sql> requires non-blank attribute 'id'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsDuplicateSqlFragmentIds() throws Exception {
+        assertUnsupportedXml(
+            "DuplicateSqlFragmentMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.DuplicateSqlFragmentMapper">
+                    <sql id="selectedValue">SELECT 'first'</sql>
+                    <sql id="selectedValue">SELECT 'second'</sql>
+                    <select id="findValue" resultType="java.lang.String">
+                        <include refid="selectedValue"/>
+                    </select>
+                </mapper>
+                """,
+            "duplicate XML <sql> id 'selectedValue'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsUnsupportedTopLevelElements() throws Exception {
+        assertUnsupportedXml(
+            "UnsupportedTopLevelMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnsupportedTopLevelMapper">
+                    <cache/>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "Unsupported XML top-level tag <cache>"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsMissingIncludeReferencesEvenWhenFragmentIsUnused() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingIncludeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingIncludeMapper">
+                    <sql id="selectedValue">
+                        SELECT <include refid="missingFragment"/>
+                    </sql>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "Unknown XML <include> refid 'missingFragment'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsMissingResultMapReferencesEvenWhenStatementIsUnused() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingResultMapMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingResultMapMapper">
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                    <select id="otherValue" resultMap="missingResult">SELECT 'other'</select>
+                </mapper>
+                """,
+            "Unknown XML resultMap 'missingResult'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsUnsupportedAttributesOnUnusedResultMaps() throws Exception {
+        assertUnsupportedXml(
+            "UnusedInvalidResultMapAttributeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedInvalidResultMapAttributeMapper">
+                    <resultMap id="unusedValue" type="org.liteorm.test.diagnostics.ValueRow"
+                               fetchType="lazy">
+                        <result column="value" property="value"/>
+                    </resultMap>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "Unsupported XML attribute 'fetchType' on <resultMap>"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsMissingTypeOnUnusedResultMaps() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingResultMapTypeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingResultMapTypeMapper">
+                    <resultMap id="unusedValue">
+                        <result column="value" property="value"/>
+                    </resultMap>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "XML <resultMap> requires non-blank attribute 'type'"
+        );
+    }
+
+    @Test
     void malformedMapperXmlFailsWithMapperMethodAndResourcePath() throws Exception {
         assertUnsupportedMethod(
             "MalformedXmlMapper",
@@ -621,7 +781,50 @@ class UnsupportedMapperSignatureCompilationTest {
         long methodLine = Files.readAllLines(mapperSource).stream()
             .takeWhile(line -> !line.contains(methodName + "("))
             .count() + 1;
-        assertEquals(methodLine, diagnostic.getLineNumber(), diagnostics.getDiagnostics().toString());
+            assertEquals(methodLine, diagnostic.getLineNumber(), diagnostics.getDiagnostics().toString());
+    }
+
+    private void assertUnsupportedXml(
+            String mapperName,
+            String methodSource,
+            String xml,
+            String expectedMessage) throws Exception {
+        Path sourceDirectory = temporaryDirectory.resolve("xml-" + mapperName + "/sources");
+        Path resourceDirectory = temporaryDirectory.resolve("xml-" + mapperName + "/resources");
+        Path classesDirectory = temporaryDirectory.resolve("xml-" + mapperName + "/classes");
+        Path generatedDirectory = temporaryDirectory.resolve("xml-" + mapperName + "/generated");
+        Path mapperSource = sourceDirectory.resolve("org/liteorm/test/diagnostics/" + mapperName + ".java");
+        Path mapperXml = resourceDirectory.resolve("org/liteorm/test/diagnostics/" + mapperName + ".xml");
+
+        Files.createDirectories(mapperSource.getParent());
+        Files.createDirectories(mapperXml.getParent());
+        Files.createDirectories(classesDirectory);
+        Files.createDirectories(generatedDirectory);
+        Files.writeString(mapperSource, """
+            package org.liteorm.test.diagnostics;
+
+            import org.liteorm.annotation.Mapper;
+
+            record ValueRow(String value) {
+            }
+
+            @Mapper
+            public interface %s {
+            %s
+            }
+            """.formatted(mapperName, methodSource.indent(4)), StandardCharsets.UTF_8);
+        Files.writeString(mapperXml, xml, StandardCharsets.UTF_8);
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        boolean compilationSucceeded = compile(
+            mapperSource, resourceDirectory, classesDirectory, generatedDirectory, diagnostics);
+
+        assertFalse(compilationSucceeded, () -> diagnostics.getDiagnostics().toString());
+        assertTrue(diagnostics.getDiagnostics().stream()
+            .anyMatch(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR
+                && diagnostic.getMessage(null).contains(mapperName + "#findValue")
+                && diagnostic.getMessage(null).contains(expectedMessage)),
+            () -> diagnostics.getDiagnostics().toString());
     }
 
     private void assertUnsupportedSource(
@@ -679,11 +882,29 @@ class UnsupportedMapperSignatureCompilationTest {
             Path classesDirectory,
             Path generatedDirectory,
             DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
-        return compile(List.of(mapperSource), classesDirectory, generatedDirectory, diagnostics);
+        return compile(mapperSource, null, classesDirectory, generatedDirectory, diagnostics);
     }
 
     private boolean compile(
             List<Path> mapperSources,
+            Path classesDirectory,
+            Path generatedDirectory,
+            DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
+        return compile(mapperSources, null, classesDirectory, generatedDirectory, diagnostics);
+    }
+
+    private boolean compile(
+            Path mapperSource,
+            Path resourceDirectory,
+            Path classesDirectory,
+            Path generatedDirectory,
+            DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
+        return compile(List.of(mapperSource), resourceDirectory, classesDirectory, generatedDirectory, diagnostics);
+    }
+
+    private boolean compile(
+            List<Path> mapperSources,
+            Path resourceDirectory,
             Path classesDirectory,
             Path generatedDirectory,
             DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
@@ -695,7 +916,8 @@ class UnsupportedMapperSignatureCompilationTest {
                     MapperCompilationTestSupport.compilationUnits(mapperSources));
             List<String> options = List.of(
                 "--release", "21",
-                "-classpath", System.getProperty("java.class.path"),
+                "-classpath", System.getProperty("java.class.path")
+                    + (resourceDirectory == null ? "" : java.io.File.pathSeparator + resourceDirectory),
                 "-d", classesDirectory.toString(),
                 "-s", generatedDirectory.toString()
             );
