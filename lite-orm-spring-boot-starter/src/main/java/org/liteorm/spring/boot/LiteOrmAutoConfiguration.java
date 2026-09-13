@@ -15,7 +15,10 @@ import javax.sql.DataSource;
  * @author lite-orm
  * @since 2024/11/15
  */
-@AutoConfiguration
+@AutoConfiguration(afterName = {
+    "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+    "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"
+})
 @ConditionalOnClass({SqlExecutor.class, DataSource.class})
 @ConditionalOnProperty(prefix = "lite-orm", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(LiteOrmProperties.class)
