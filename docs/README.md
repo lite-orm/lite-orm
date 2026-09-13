@@ -43,6 +43,11 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
 
+The documentation site surfaces a compact MySQL benchmark snapshot directly
+below its “Why teams choose LiteORM” capability overview; the benchmark report
+above remains the canonical source for the full table, environment metadata,
+and reproduction protocol.
+
 ## Project
 
 - [`project/roadmap.md`](project/roadmap.md): strategic delivery order. GitHub Issues own specifications and implementation status.
