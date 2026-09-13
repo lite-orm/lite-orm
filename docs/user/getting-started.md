@@ -4,15 +4,7 @@ LiteORM requires Java 21. It generates ordinary Java Mapper implementations duri
 
 ## 0. Install the LiteORM Skill (recommended)
 
-LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. The commands below install the complete skill without downloading the LiteORM source tree; each is a single copy-paste line.
-
-Recommended (any supported agent):
-
-```bash
-npx @lite-orm/skill install codex
-```
-
-Replace `codex` with `claude` or `cursor` for the other targets. Pin a release with `--version v1.0.0` when reproducibility matters.
+LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. The recommended commands download the small GitHub Release artifact rather than the full LiteORM source tree; each is a single copy-paste line. Pin a versioned Release URL when reproducibility matters.
 
 Codex:
 
