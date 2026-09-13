@@ -1,0 +1,13 @@
+{
+  "name": "@lite-orm/skill",
+  "version": "0.1.0",
+  "description": "Install the LiteORM Agent Skill for Codex, Claude Code, and Cursor.",
+  "type": "module",
+  "bin": {"liteorm-skill": "bin/liteorm-skill.mjs"},
+  "engines": {"node": ">=18"},
+  "files": ["bin", "README.md"],
+  "scripts": {"test": "node bin/liteorm-skill.mjs --help"},
+  "license": "Apache-2.0",
+  "repository": {"type": "git", "url": "https://github.com/lite-orm/lite-orm.git", "directory": "packages/liteorm-skill"},
+  "publishConfig": {"access": "public"}
+}

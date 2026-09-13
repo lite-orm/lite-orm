@@ -4,30 +4,38 @@ LiteORM requires Java 21. It generates ordinary Java Mapper implementations duri
 
 ## 0. Install the LiteORM Skill (recommended)
 
-LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. The commands below download the complete skill from the public repository; each is a single copy-paste line.
+LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. The commands below install the complete skill without downloading the LiteORM source tree; each is a single copy-paste line.
+
+Recommended (any supported agent):
+
+```bash
+npx @lite-orm/skill install codex
+```
+
+Replace `codex` with `claude` or `cursor` for the other targets. Pin a release with `--version v1.0.0` when reproducibility matters.
 
 Codex:
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/releases/latest/download/liteorm-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/liteorm-skill" "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
 ```
 
 Claude Code:
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p "$HOME/.claude/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "$HOME/.claude/skills/liteorm"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/releases/latest/download/liteorm-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "$HOME/.claude/skills" && cp -R "$tmp/liteorm-skill" "$HOME/.claude/skills/liteorm"
 ```
 
 Cursor (project-local):
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p .cursor/skills && cp -R "$tmp"/lite-orm-main/skills/liteorm .cursor/skills/liteorm
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/releases/latest/download/liteorm-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p .cursor/skills && cp -R "$tmp/liteorm-skill" .cursor/skills/liteorm
 ```
 
 If `curl` is unavailable, use this `wget` one-liner for Codex:
 
 ```bash
-tmp=$(mktemp -d) && wget -qO "$tmp/lite-orm.tar.gz" https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz && tar -xzf "$tmp/lite-orm.tar.gz" -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
+tmp=$(mktemp -d) && wget -qO "$tmp/liteorm-skill.tar.gz" https://github.com/lite-orm/lite-orm/releases/latest/download/liteorm-skill.tar.gz && tar -xzf "$tmp/liteorm-skill.tar.gz" -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/liteorm-skill" "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
 ```
 
 From a local checkout, the equivalent one-liner is:
