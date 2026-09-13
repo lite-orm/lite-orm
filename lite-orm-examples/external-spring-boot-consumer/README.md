@@ -12,6 +12,11 @@ mvn -f lite-orm-examples/external-spring-boot-consumer/pom.xml \
   -Dspring-boot.version=3.1.5 clean verify
 ```
 
+The CI matrix uses anchors `3.1.5`, `3.5.16`, and `4.1.1`. Runtime support is
+verified separately by the Starter's PostgreSQL/MySQL Testcontainers suite; an
+external consumer compile alone does not establish support for an unlisted
+Spring Boot line.
+
 The fixture is compile-only. It does not start an application or connect to a
 database; runtime DataSource binding and transaction behavior remain covered by
 the Starter's PostgreSQL/MySQL Testcontainers suite.

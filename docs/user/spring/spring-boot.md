@@ -45,9 +45,9 @@ The `PlatformTransactionManager` must manage the same DataSource named by the Ma
 ## Version and Consumer Verification
 
 Java 21 is the current baseline. The repository build uses Spring Boot 3.1.5;
-external consumer probes also compile against Spring Boot 3.5.16 and 4.1.1.
-These probes do not by themselves declare a release line supported: each line
-must pass its runtime Starter tests before being listed as supported. The
+the external consumer and runtime Starter suite are verified against Boot 3.1.5,
+3.5.16, and 4.1.1. These anchors do not automatically cover every minor or
+patch release; an unlisted line remains unverified until it passes both gates. The
 independent consumer fixture is documented in
 [`external-spring-boot-consumer`](../../../lite-orm-examples/external-spring-boot-consumer/README.md).
 

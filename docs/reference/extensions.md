@@ -18,6 +18,22 @@ Generated Mapper implementations and `JdbcSqlExecutor` are designed for concurre
 
 Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. `JdbcSqlExecutor` also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. LiteORM does not clone extension instances per call and provides no stateful-extension factory contract.
 
+## Spring Boot Version Policy
+
+The Starter targets Java 21 and verifies each supported Spring Boot line with
+both an external consumer and the runtime Starter suite. The repository's
+dependency-management baseline is Spring Boot 3.1.5.
+
+| Spring Boot line | Verified anchor | Evidence | Claim boundary |
+| --- | --- | --- | --- |
+| 3.1.x | 3.1.5 | Starter runtime suite and external consumer | Other 3.1 patches are expected to remain compatible but are not individually tested here |
+| 3.5.x | 3.5.16 | Starter runtime suite and external consumer | Other 3.5 patches are unverified |
+| 4.1.x | 4.1.1 | Starter runtime suite and external consumer | Other 4.1 patches are unverified |
+
+An unlisted Spring Boot minor line is unverified until it passes the same
+consumer and runtime gates. The Starter does not claim compatibility with every
+3.x or 4.x release merely because the API compiles.
+
 ## Spring Package-to-DataSource Binding
 
 Spring registration uses explicit package bindings rather than type-only selection:

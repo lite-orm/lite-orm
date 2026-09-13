@@ -48,3 +48,22 @@ jobs:
           mvn --batch-mode --no-transfer-progress
           -f lite-orm-examples/external-spring-boot-consumer/pom.xml
           -Dspring-boot.version=${{ matrix.spring-boot-version }} clean verify
+
+  spring-boot-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        spring-boot-version: ["3.1.5", "3.5.16", "4.1.1"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Verify Spring Boot Starter runtime
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -pl lite-orm-spring-boot-starter -am
+          -Dspring-boot.version=${{ matrix.spring-boot-version }} test
