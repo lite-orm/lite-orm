@@ -1,0 +1,44 @@
+name: Release verification
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Verify release metadata
+        run: scripts/verify-release-metadata.sh
+      - name: Run reactor tests
+        run: mvn --batch-mode --no-transfer-progress test
+      - name: Reject missing or skipped database contracts
+        run: scripts/verify-database-test-matrix.sh
+      - name: Verify external Maven and Gradle consumers
+        run: |
+          mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-processor -am install
+          mvn --batch-mode --no-transfer-progress \
+            -f lite-orm-examples/external-spring-boot-consumer/pom.xml \
+            -Dspring-boot.version=3.5.16 clean verify
+          mvn --batch-mode --no-transfer-progress \
+            -f lite-orm-examples/multi-datasource-spring-boot/pom.xml \
+            -Dspring-boot.version=3.5.16 clean verify
+          gradle -p lite-orm-examples/external-gradle-processor --no-daemon clean build
+      - name: Package release artifacts
+        run: mvn --batch-mode --no-transfer-progress -DskipTests package
