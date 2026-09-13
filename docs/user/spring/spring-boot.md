@@ -42,6 +42,44 @@ Inside `@Transactional`, `SpringConnectionHandleFactory` obtains and releases th
 
 The `PlatformTransactionManager` must manage the same DataSource named by the Mapper package binding. A mismatch fails explicitly.
 
+## Read/Write Routing
+
+For read/write separation, bind the Mapper package to one Spring
+`AbstractRoutingDataSource`. Spring owns the route context and maps keys to the
+read and write pools; LiteORM sees only the routing DataSource:
+
+```java
+@Bean
+DataSource readWriteDataSource(
+        @Qualifier("writerDataSource") DataSource writer,
+        @Qualifier("readerDataSource") DataSource reader) {
+    AbstractRoutingDataSource routing = new AbstractRoutingDataSource() {
+        @Override
+        protected Object determineCurrentLookupKey() {
+            return ReadWriteContext.current();
+        }
+    };
+    routing.setDefaultTargetDataSource(writer);
+    routing.setTargetDataSources(Map.of("read", reader, "write", writer));
+    return routing;
+}
+```
+
+Bind the package to `readWriteDataSource`:
+
+```yaml
+lite-orm:
+  mapper-bindings:
+    - package-name: com.example.mapper
+      data-source: readWriteDataSource
+```
+
+Application code sets `ReadWriteContext` before invoking a Mapper and clears it
+in a `finally` block. The route is selected when Spring obtains the connection;
+do not change the key during one transaction. Configure a transaction manager
+for the same routing DataSource so Spring and LiteORM share one transaction
+domain. This policy is exercised by the Starter's routing integration tests.
+
 ## Version and Consumer Verification
 
 Java 21 is the current baseline. The repository build uses Spring Boot 3.1.5;
