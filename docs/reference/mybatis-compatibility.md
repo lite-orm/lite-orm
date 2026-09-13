@@ -1,78 +1,108 @@
 # MyBatis Compatibility
 
-LiteORM targets the common Mapper subset that can be validated and emitted as static Java during compilation. It is not a drop-in replacement for every MyBatis runtime feature.
+This document is the single compatibility classification for LiteORM. It compares LiteORM with
+the deterministic Mapper behavior documented by MyBatis 3.5.19; it does not promise MyBatis API,
+runtime, configuration, or plugin compatibility.
 
-## JDBC Type Compatibility Baseline
+## Classification
 
-MyBatis 3.5.19 built-in TypeHandlers are the comparison baseline for deterministic JDBC value behavior. LiteORM does not copy the MyBatis registry architecture: Core owns one fixed `TypeHandlerManager`, generated code supplies Java types, and runtime result routing uses live JDBC metadata.
+Every row uses one of these statuses:
 
-The built-in matrix supports numeric primitives and wrappers, `String`, `Character`, `Boolean`, enums, `BigDecimal`, `BigInteger`, `LocalDate`, `LocalDateTime`, `Instant`, `UUID`, `LocalTime`, `OffsetDateTime`, `byte[]`, boxed `Byte[]`, legacy date values, `Year`, `Month`, `YearMonth`, and `JapaneseDate`. PostgreSQL and MySQL execute the shared Core compatibility contract with zero skipped database jobs in CI.
+| Status | Meaning |
+| --- | --- |
+| Direct support | LiteORM has a documented contract and generated/runtime evidence for the behavior. |
+| Deterministic conversion | A supported MyBatis shape can be rewritten into LiteORM declarations without runtime interpretation. |
+| Skill-assisted migration | The behavior requires project inspection, ambiguity reporting, or a reviewable change produced by the migration skill in #10. |
+| Explicit rejection | LiteORM rejects the behavior or deliberately does not provide its MyBatis runtime equivalent. |
 
-Parameter placeholders may choose a compatible `jdbcType`, such as `INTEGER` for enum ordinals, a character representation for UUID, or `DATE` / `TIME` for the matching legacy `java.util.Date` representation. Results need no JDBC-type annotation: character enum values use names and numeric values use ordinals.
+The migration skill may assist with a row classified as `skill-assisted migration`, but it must not
+invent a new compatibility rule. Compiler diagnostics and this document remain authoritative.
 
-LiteORM has no `TypeHandlerRegistry`, package mapping selection, vendor-type registration, database-specific type artifact, or `UnknownTypeHandler` fallback. Unsupported writes use a parameter-level `ParameterBinder`; unsupported reads or row shapes use a method-level `RowMapper`.
+## Evidence And Baseline
 
-Lifecycle-bound values such as SQLXML, JDBC arrays, Blob, Clob, streams, and readers are not ordinary scalar results because LiteORM closes JDBC resources before Mapper results escape. Consume them through `RowMapper` or raw JDBC.
+MyBatis references:
 
-## Supported Annotation Patterns
+- [MyBatis 3.5.19 source tree](https://github.com/mybatis/mybatis-3/tree/mybatis-3.5.19)
+- [MyBatis getting started](https://mybatis.org/mybatis-3/getting-started.html)
+- [MyBatis Java API](https://mybatis.org/mybatis-3/java-api.html)
+- [MyBatis XML mapping](https://mybatis.org/mybatis-3/sqlmap-xml.html)
+- [MyBatis dynamic SQL](https://mybatis.org/mybatis-3/dynamic-sql.html)
+- [MyBatis Spring](https://mybatis.org/spring/)
+- [Pinned compatibility evidence](../research/mybatis-3.5.19-compatibility-sources.md)
 
-All Mapper annotations are LiteORM-owned APIs in `org.liteorm.annotation`. LiteORM does not define compatibility classes under `org.apache.ibatis.annotations`.
+LiteORM evidence:
 
-| Pattern | Status | Notes |
-| --- | --- | --- |
-| `org.liteorm.annotation.Mapper` interfaces | Supported | Generates a concrete `*MapperImpl`. |
-| `@Select`, `@Insert`, `@Update`, `@Delete` | Supported | Static SQL and supported `<script>` dynamic SQL compile to Java. |
-| `@Param` | Supported | Prefer explicit names for multi-parameter methods. |
-| `@Results`, `@Result` | Supported for flat mappings | Maps result columns to scalar results, record components, or JavaBean properties. Nested associations and collections are not supported. |
-| Result-side JDBC type annotation | Not needed | The executor selects result handlers from JDBC metadata and the generated Java target type. |
-| `param1`, `arg0`, `list`, `collection`, `array` aliases | Supported | Resolved during compilation. |
-| Scalar results | Supported | Includes scalar `List<T>`. |
-| Java records | Supported | Constructor mapping is generated from record components. |
-| JavaBeans | Supported | Requires a usable no-arg constructor and supported setters. |
-| SQL provider | Explicit extension | Use `@UseSqlProvider` for runtime SQL structure. |
-| Custom JDBC conversion | Explicit extension | Use one-parameter `@UseParameterBinder` for writes or method-level `@UseRowMapper` for reads. |
+- [Core contract](core-contract.md)
+- [Extension contracts](extensions.md)
+- [Manual migration guide](../user/migration/from-mybatis.md)
+- [JDBC compatibility fixtures](../../lite-orm-processor/src/test/java/org/liteorm/test/database)
+- [XML compiler diagnostics](../../lite-orm-processor/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java)
+- [Generated-source tests](../../lite-orm-processor/src/test/java/org/liteorm/test/generated)
+- [External Maven consumer fixture](../../lite-orm-examples/external-maven-processor)
+- [External Gradle consumer fixture](../../lite-orm-examples/external-gradle-processor)
 
-When XML and a SQL annotation define the same Mapper method, XML wins because it can express richer SQL structure. The annotation processor emits a method-scoped warning.
+The JDBC value-type comparison is owned by the Core contract and its PostgreSQL/MySQL tests. This
+document classifies product behavior and links to that evidence; it does not duplicate the
+handler-by-handler JDBC table.
 
-## Supported XML Patterns
+## Compatibility Matrix
 
-- Statements: `select`, `insert`, `update`, `delete`.
-- Dynamic tags: `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, `include`.
-- Real JDBC batch: LiteORM `@Batch` or XML `<batch>` with one `List<T>` argument and an `int[]` return value.
-- Results declared with `resultType` when the Java return type can be mapped as a scalar, record, JavaBean, or list of one of those types.
-- Flat `resultMap` declarations for scalar values, JavaBean `<id>` / `<result>` properties, and record `<constructor>` arguments. Constructor arguments may use `name` or record-component order.
-- A controlled OGNL-like subset in `test` and `bind`: null, boolean, string and number comparisons; `and` and `or`; simple property paths; array `length`; collection `size()`; and string concatenation in `bind`.
+### Mapper API And SQL Sources
 
-The supported expression subset is translated directly into native Java. LiteORM does not embed OGNL, MVEL, SpEL, or another expression engine in annotation processing or Mapper execution. Unsupported expressions fail compilation.
+| MyBatis capability | Status | LiteORM boundary and migration action | Evidence |
+| --- | --- | --- | --- |
+| Mapper interfaces and CRUD methods | Deterministic conversion | Replace MyBatis annotation imports with `org.liteorm.annotation` declarations. Generated implementations are ordinary classes constructed with `SqlExecutor`. | [Core contract](core-contract.md), [migration guide](../user/migration/from-mybatis.md) |
+| `@Select`, `@Insert`, `@Update`, `@Delete` | Direct support | Use the LiteORM equivalents. Static SQL and the controlled script subset compile into Java. | [Core contract](core-contract.md#21-sql-sources) |
+| `@Param` and common parameter aliases | Direct support | Prefer explicit names for multi-parameter methods. Names and property paths are resolved at compile time. | [Core contract](core-contract.md#22-parameters) |
+| `@Options` and arbitrary statement options | Explicit rejection | LiteORM currently emits default options from generated Mappers. Custom plan construction may set the documented JDBC options; no Mapper `@Options` contract exists. | [Core contract](core-contract.md#28-statement-options-and-pagination) |
+| SQL providers | Deterministic conversion | Rewrite provider declarations to `@UseSqlProvider` for runtime SQL structure, with compile-time validation of provider shape and typed `BoundSql`. | [Extension contracts](extensions.md), [migration guide](../user/migration/from-mybatis.md#5-replace-exceptional-sql-and-mapping) |
+| Custom parameter and result handlers | Deterministic conversion | Replace a parameter handler with `ParameterBinder` and a row/result handler with `RowMapper`; there is no global runtime handler registry. | [Extension contracts](extensions.md), [Core contract](core-contract.md#24-result-mapping) |
 
-## Unsupported Features And Migration Paths
+### XML And Dynamic SQL
 
-| MyBatis feature | LiteORM behavior | Suggested migration |
-| --- | --- | --- |
-| `${}` SQL substitution | Compilation error | Use `@UseSqlProvider` with validated identifiers or write raw JDBC. |
-| Arbitrary OGNL or static/method calls | Compilation error | Rewrite with the supported expression subset or move structure to a provider. |
-| Complex `resultMap` graphs | Compilation error | Use a flat `resultMap`, `@UseRowMapper`, split the query, or use raw JDBC. |
-| Associations, collections, nested aggregation | Not supported | Use explicit follow-up queries, a custom row mapper for one-row shapes, or raw JDBC. |
-| Lazy loading and nested selects | Not supported | Make loading explicit in application/service code. |
-| MyBatis plugins | Not supported | Use `ExecutionInterceptor` for the narrow execution lifecycle. |
-| Runtime Mapper proxies | Intentionally absent | Instantiate or inject the generated Mapper implementation. |
-| Runtime XML reload or interpretation | Intentionally absent | Recompile after changing Mapper XML. |
-| Second-level cache | Not supported | Use an application cache outside LiteORM. |
-| Same Mapper bound to several DataSources | Intentionally absent | Split Mapper packages/interfaces by DataSource domain or bind one routing DataSource. |
-| Core distributed transactions | Not supported | Use an external transaction system; LiteORM assemblies remain independent. |
+| MyBatis capability | Status | LiteORM boundary and migration action | Evidence |
+| --- | --- | --- | --- |
+| Static Mapper XML statements | Direct support | Keep XML at the Mapper resource path. Supported declarations compile at annotation-processing time. | [Core contract](core-contract.md#21-sql-sources) |
+| `select`, `insert`, `update`, `delete`, and `batch` declarations | Direct support | Use the controlled top-level subset. IDs must be non-blank and unique within the resource. | [Core contract](core-contract.md#21-sql-sources), [XML diagnostics](../../lite-orm-processor/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java) |
+| `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind` | Deterministic conversion | Use the supported expression subset. Java control flow and SQL assembly are generated; no OGNL engine runs at runtime. | [Core contract](core-contract.md#21-sql-sources), [migration guide](../user/migration/from-mybatis.md#4-replace-runtime-ognl-assumptions) |
+| `sql` and `include` fragments | Direct support | Fragment IDs and references are validated across the complete resource. Missing and cyclic references fail compilation. | [Core contract](core-contract.md#21-sql-sources), [XML diagnostics](../../lite-orm-processor/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java) |
+| XML namespaces and declaration integrity | Deterministic conversion | `<mapper namespace>` must equal the fully qualified Mapper name. Unsupported top-level tags, attributes, malformed declarations, and invalid unused declarations fail compilation. | [Core contract](core-contract.md#21-sql-sources), [XML diagnostics](../../lite-orm-processor/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java) |
+| `${}` substitution | Explicit rejection | Use bound `#{}` values or a provider for validated SQL structure. LiteORM never treats unsafe substitution as plain text. | [Core contract](core-contract.md#21-sql-sources), [migration guide](../user/migration/from-mybatis.md#4-replace-runtime-ognl-assumptions) |
+| Arbitrary OGNL, static calls, and unsupported method calls | Explicit rejection | Rewrite into the supported expression subset or move SQL structure to a typed provider. | [Core contract](core-contract.md#29-compile-time-rejection) |
+| Runtime XML reload or interpretation | Explicit rejection | Recompile after changing XML. XML is not loaded by the runtime executor. | [Design philosophy](../../Design-Philosophy.md#explicit-non-goals) |
 
-## Executable Compatibility Fixtures
+### Result Mapping And Execution
 
-- Annotation CRUD, scalar, record, and JavaBean mapping: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserMapper.java`.
-- XML dynamic query, `foreach`, and selective `set`: `lite-orm-examples/basic-mapper/src/main/resources/org/liteorm/example/UserXmlMapper.xml`.
-- SQL provider: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserSearchProvider.java`.
-- Custom binder and row mapper: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/UserMetadataMapper.java`.
-- Execution interceptor: `lite-orm-examples/basic-mapper/src/main/java/org/liteorm/example/MigrationAuditInterceptor.java`.
-- Standalone PostgreSQL/MySQL execution and rollback: `lite-orm-examples/basic-mapper/src/test/java/org/liteorm/example/StandaloneJdbcUsageTest.java` with its two engine subclasses.
-- Unsupported complex `resultMap`: `lite-orm-core/src/test/resources/org/liteorm/test/diagnostics/ComplexResultMapMapper.xml`.
+| MyBatis capability | Status | LiteORM boundary and migration action | Evidence |
+| --- | --- | --- | --- |
+| Scalar, record, JavaBean, list, and optional results | Direct support | Use generated flat result mapping. Query cardinality is explicit through typed results and generated return adaptation. | [Core contract](core-contract.md#23-return-shapes), [Core contract](core-contract.md#24-result-mapping) |
+| Flat `resultMap` declarations | Deterministic conversion | Use scalar mappings, JavaBean `<id>` / `<result>`, or record `<constructor>` arguments. All declarations and references are validated at compile time. | [Core contract](core-contract.md#24-result-mapping), [XML diagnostics](../../lite-orm-processor/src/test/java/org/liteorm/test/UnsupportedMapperSignatureCompilationTest.java) |
+| Nested `association`, `collection`, and graph aggregation | Explicit rejection | Flatten the query, use explicit follow-up queries, use a one-row `RowMapper`, or use raw JDBC. | [Core contract](core-contract.md#24-result-mapping), [migration guide](../user/migration/from-mybatis.md#5-replace-exceptional-sql-and-mapping) |
+| Lazy loading and nested selects | Explicit rejection | Make loading explicit in application/service code. | [Design philosophy](../../Design-Philosophy.md#explicit-non-goals) |
+| Generated keys | Direct support with constraints | Use one static insert with an explicit non-blank key column and one supported returned key value. Batch, dynamic, and provider generated keys are outside the contract. | [Core contract](core-contract.md#27-generated-keys) |
+| JDBC batch execution | Direct support | Use LiteORM `@Batch` or XML `<batch>` with one `List<T>` argument and the driver-provided counts. | [Core contract](core-contract.md#23-return-shapes) |
+| Cursor/streaming results | Deterministic conversion | Adapt cursor consumers to `RowCursor` callbacks. Cursors and streams cannot escape executor cleanup. | [Core contract](core-contract.md#23-return-shapes), [Extension contracts](extensions.md) |
+| MyBatis built-in JDBC value handlers | Deterministic conversion | Use LiteORM's fixed Core routes. The supported Java/JDBC matrix and database evidence live in the Core contract. | [Core contract](core-contract.md#25-standard-jdbc-type-routing), [Core contract](core-contract.md#26-built-in-jdbc-types) |
+| Unsupported or lifecycle-bound JDBC values | Explicit extension | Materialize through a `RowMapper`/`ParameterBinder` or use raw JDBC. JDBC resources do not escape cleanup. | [Core contract](core-contract.md#26-built-in-jdbc-types), [Extension contracts](extensions.md) |
 
-Run all migration fixtures from the repository root:
+### Sessions, Transactions, Spring, Plugins, And Caches
 
-```bash
-mvn -pl lite-orm-core,lite-orm-examples/basic-mapper -am test
-```
+| MyBatis capability | Status | LiteORM boundary and migration action | Evidence |
+| --- | --- | --- | --- |
+| `SqlSession` and session-scoped runtime state | Explicit rejection | Inject or construct generated Mapper implementations with one `SqlExecutor`; transaction ownership is explicit. | [Design philosophy](../../Design-Philosophy.md#explicit-non-goals), [Core contract](core-contract.md#1-responsibility-boundary) |
+| Local transactions | Direct support | Use one `JdbcAssembly` and its callback transaction executor. Nested failures preserve rollback-only semantics. | [Core contract](core-contract.md#5-standalone-transaction-contract) |
+| Spring transaction participation | Deterministic conversion | Use the Spring starter for DataSource binding and transaction participation. Spring owns transaction policy; Core still owns JDBC execution. | [Extension contracts](extensions.md), [Spring guide](../user/spring/spring-boot.md) |
+| Advanced propagation, savepoints, distributed transactions, and recovery | Explicit rejection | Delegate host transaction policy to Spring or another transaction system. LiteORM does not coordinate distributed commits. | [Core contract](core-contract.md#5-standalone-transaction-contract) |
+| First/second-level cache | Explicit rejection | Use an application cache outside LiteORM. | [Design philosophy](../../Design-Philosophy.md#explicit-non-goals) |
+| MyBatis plugin/interceptor chain | Explicit rejection | Use the narrow `ExecutionInterceptor` observation contract for logging, metrics, tracing, audit, and authorization. It cannot rewrite SQL or own JDBC execution. | [Extension contracts](extensions.md), [Core contract](core-contract.md#3-jdbc-execution-contract) |
+| Runtime Mapper proxies | Explicit rejection | Use generated implementation classes directly or register them through the Spring starter. | [Core contract](core-contract.md#1-responsibility-boundary) |
+
+## Migration Decision Rules
+
+1. Keep a method in annotations or XML when its SQL, parameters, dynamic branches, and flat result shape fit a `direct support` or `deterministic conversion` row.
+2. Use a typed provider, binder, row mapper, interceptor, or Spring adapter only when the corresponding LiteORM contract owns the behavior.
+3. Send ambiguous or project-wide transformations to the migration skill. It must produce a reviewable diff and intervention report rather than guess.
+4. Stop and report the construct for `explicit rejection`; do not add runtime reflection, OGNL, a global registry, a session abstraction, or a SQL-rewrite plugin to bypass the boundary.
+
+The manual workflow is documented in [Migrating From MyBatis](../user/migration/from-mybatis.md). The
+automated, reviewable workflow is owned by issue #10 and must consume this matrix rather than copy it.
