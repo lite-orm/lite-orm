@@ -68,8 +68,8 @@ Mapper source
 - Extensions and Spring boundaries: `docs/reference/extensions.md`
 - Migration boundary: `docs/reference/mybatis-compatibility.md` and `docs/user/migration/from-mybatis.md`
 - Strategic direction: `docs/project/roadmap.md`
-- Active specifications and task sequence: GitHub Issues, configured by `docs/agents/issue-tracker.md`
-- Documentation ownership: `docs/agent/documentation-policy.md`
+- Active specifications and task sequence: GitHub Issues, configured by `docs/contributor/issue-tracker.md`
+- Documentation ownership: `docs/contributor/documentation-policy.md`
 
 ## Common Commands
 

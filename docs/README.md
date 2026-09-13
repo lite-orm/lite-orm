@@ -55,13 +55,13 @@ and reproduction protocol.
 
 ## Contributor and Agent Documentation
 
-- [`agent/project-context.md`](agent/project-context.md): repository context and module responsibilities.
-- [`agent/engineering-guide.md`](agent/engineering-guide.md): engineering, testing, documentation, and commit conventions.
-- [`agent/documentation-policy.md`](agent/documentation-policy.md): document types, ownership, and verification.
-- [`agent/tooling.md`](agent/tooling.md): cross-agent workflow and rule discovery.
-- [`agents/issue-tracker.md`](agents/issue-tracker.md): GitHub Issues conventions.
-- [`agents/triage-labels.md`](agents/triage-labels.md): triage roles and labels.
-- [`agents/domain.md`](agents/domain.md): domain-document workflow.
+- [`contributor/project-context.md`](contributor/project-context.md): repository context and module responsibilities.
+- [`contributor/engineering-guide.md`](contributor/engineering-guide.md): engineering, testing, documentation, and commit conventions.
+- [`contributor/documentation-policy.md`](contributor/documentation-policy.md): document types, ownership, and verification.
+- [`contributor/tooling.md`](contributor/tooling.md): cross-agent workflow and rule discovery.
+- [`contributor/issue-tracker.md`](contributor/issue-tracker.md): GitHub Issues conventions.
+- [`contributor/triage-labels.md`](contributor/triage-labels.md): triage roles and labels.
+- [`contributor/domain.md`](contributor/domain.md): domain-document workflow.
 
 ## Documentation Rules
 

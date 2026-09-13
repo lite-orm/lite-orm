@@ -63,7 +63,7 @@ docs/reference/              normative contracts and compatibility
 docs/adr/                    durable architecture decisions
 docs/benchmarks/             reproducible evidence
 docs/project/                roadmap and project-level material
-docs/agent/ and docs/agents/ contributor and agent workflow
+docs/contributor/        contributor and agent workflow
 ```
 
 Only `README_cn.md` is localized for now. All files under `docs/` remain English unless a dedicated localization structure is introduced later.

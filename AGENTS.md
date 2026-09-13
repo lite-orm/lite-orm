@@ -9,9 +9,9 @@ Read these files before making non-trivial changes:
 1. `AGENTS.md`
 2. `Design-Philosophy.md`
 3. `docs/README.md`
-4. `docs/agent/project-context.md`
-5. `docs/agent/engineering-guide.md`
-6. `docs/agent/tooling.md`
+4. `docs/contributor/project-context.md`
+5. `docs/contributor/engineering-guide.md`
+6. `docs/contributor/tooling.md`
 
 For contract or roadmap work, also read the relevant source of truth listed in `docs/README.md`.
 
@@ -19,15 +19,15 @@ For contract or roadmap work, also read the relevant source of truth listed in `
 
 ### Issue tracker
 
-Specifications and implementation tickets are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+Specifications and implementation tickets are tracked in GitHub Issues. See `docs/contributor/issue-tracker.md`.
 
 ### Triage labels
 
-Issue triage uses the standard Matt Pocock skill roles. See `docs/agents/triage-labels.md`.
+Issue triage uses the standard Matt Pocock skill roles. See `docs/contributor/triage-labels.md`.
 
 ### Domain docs
 
-LiteORM uses one root domain context with repository-wide ADRs. See `docs/agents/domain.md`.
+LiteORM uses one root domain context with repository-wide ADRs. See `docs/contributor/domain.md`.
 
 ## Project Mission
 
