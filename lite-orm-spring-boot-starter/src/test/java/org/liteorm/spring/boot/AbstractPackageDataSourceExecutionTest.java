@@ -20,6 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -100,6 +103,28 @@ abstract class AbstractPackageDataSourceExecutionTest {
             });
     }
 
+    @Test
+    void routesReadAndWriteOperationsThroughOneConfiguredDataSource() {
+        contextRunner().withPropertyValues(bindings(
+            "org.liteorm.spring.boot.fixture", "readWriteDataSource"))
+            .run(context -> {
+                SpringUserMapper mapper = context.getBean("springUserMapper", SpringUserMapper.class);
+                RecordingRoutingDataSource routingDataSource =
+                    context.getBean("readWriteDataSource", RecordingRoutingDataSource.class);
+
+                RouteContext.set("write");
+                try {
+                    mapper.insert(4L, "routed-write");
+                    RouteContext.set("read");
+                    assertEquals("routed-write", mapper.findById(4L).name());
+                } finally {
+                    RouteContext.clear();
+                }
+
+                assertEquals(List.of("write", "read"), routingDataSource.routes());
+            });
+    }
+
     private ApplicationContextRunner contextRunner() {
         return new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(LiteOrmAutoConfiguration.class))
@@ -145,6 +170,17 @@ abstract class AbstractPackageDataSourceExecutionTest {
         }
 
         @Bean
+        RecordingRoutingDataSource readWriteDataSource(
+                @Qualifier("usersDataSource") DataSource usersDataSource) {
+            RecordingRoutingDataSource routingDataSource = new RecordingRoutingDataSource();
+            routingDataSource.setDefaultTargetDataSource(usersDataSource);
+            routingDataSource.setTargetDataSources(java.util.Map.of(
+                "read", usersDataSource,
+                "write", usersDataSource));
+            return routingDataSource;
+        }
+
+        @Bean
         PlatformTransactionManager usersTransactionManager(
                 @Qualifier("usersDataSource") DataSource usersDataSource) {
             return new DataSourceTransactionManager(usersDataSource);
@@ -156,6 +192,12 @@ abstract class AbstractPackageDataSourceExecutionTest {
             return new DataSourceTransactionManager(ordersDataSource);
         }
 
+        @Bean
+        PlatformTransactionManager readWriteTransactionManager(
+                @Qualifier("readWriteDataSource") DataSource readWriteDataSource) {
+            return new DataSourceTransactionManager(readWriteDataSource);
+        }
+
         private DataSource dataSource(Environment environment) throws SQLException {
             DatabaseEngine engine = DatabaseEngine.valueOf(
                 environment.getRequiredProperty("liteorm.test-database-engine"));
@@ -164,6 +206,42 @@ abstract class AbstractPackageDataSourceExecutionTest {
             database.execute(dataSource,
                 "CREATE TABLE spring_users (id BIGINT PRIMARY KEY, name VARCHAR(100))");
             return dataSource;
+        }
+    }
+
+    private static final class RouteContext {
+
+        private static final ThreadLocal<String> CURRENT = new ThreadLocal<>();
+
+        private RouteContext() {
+        }
+
+        static void set(String route) {
+            CURRENT.set(route);
+        }
+
+        static String current() {
+            return CURRENT.get();
+        }
+
+        static void clear() {
+            CURRENT.remove();
+        }
+    }
+
+    static final class RecordingRoutingDataSource extends AbstractRoutingDataSource {
+
+        private final List<String> selectedRoutes = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        protected Object determineCurrentLookupKey() {
+            String route = RouteContext.current();
+            selectedRoutes.add(route);
+            return route;
+        }
+
+        List<String> routes() {
+            return List.copyOf(selectedRoutes);
         }
     }
 }
