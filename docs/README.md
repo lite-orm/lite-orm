@@ -47,6 +47,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 ## Project
 
 - [`project/roadmap.md`](project/roadmap.md): strategic delivery order. GitHub Issues own specifications and implementation status.
+- [`project/release.md`](project/release.md): reproducible release gates, signing, rollback, and governance.
 
 ## Contributor and Agent Documentation
 

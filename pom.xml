@@ -11,6 +11,15 @@
 
     <name>LiteORM Parent</name>
     <description>High-performance compile-time ORM for Java - Parent POM</description>
+    <url>https://github.com/lite-orm/lite-orm</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <modules>
         <module>lite-orm-test-support</module>
