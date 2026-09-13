@@ -1,7 +1,7 @@
 # MyBatis Migration Skill Validation
 
 This record captures the first validation slice for
-`skills/liteorm-mybatis-migration/`. It is evidence for the skill workflow, not
+`skills/liteorm/`. It is evidence for the skill workflow, not
 a claim of broad MyBatis compatibility. The reproducible fixture now lives in
 [`lite-orm-examples/mybatis-migration-fixture`](../../lite-orm-examples/mybatis-migration-fixture/README.md);
 the `/tmp` checkout is only the read-only upstream source used to prepare it.
@@ -26,7 +26,7 @@ The upstream source was cloned into `/tmp` with the repository's configured
 proxy, then inventoried without modifying the checkout:
 
 ```bash
-python3 skills/liteorm-mybatis-migration/scripts/scan_mybatis.py \
+python3 skills/liteorm/scripts/scan_mybatis.py \
   --project /tmp/liteorm-mybatis-spring-3.0.6 \
   --output /tmp/liteorm-mybatis-spring-inventory.md
 ```
@@ -68,7 +68,7 @@ licensed checkout remained clean according to `git status --short`.
 | Check | Result |
 | --- | --- |
 | Skill structure validator | Passed: `quick_validate.py` reported `Skill is valid!` (exit `0`, validator supplied by local skill tooling) |
-| Python syntax | Passed: `python3 -m py_compile skills/liteorm-mybatis-migration/scripts/scan_mybatis.py` (exit `0`) |
+| Python syntax | Passed: `python3 -m py_compile skills/liteorm/scripts/scan_mybatis.py` (exit `0`) |
 | Offline inventory on the real checkout | Passed, exit status `0` |
 | Repository fixture before/after diff | Passed, reviewable diff preserved |
 | Licensed checkout mutation check | Passed, clean worktree |

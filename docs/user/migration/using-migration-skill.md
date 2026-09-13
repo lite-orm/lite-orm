@@ -1,18 +1,19 @@
-# Using The Migration Skill
+# Using The LiteORM Skill
 
-The LiteORM MyBatis migration capability is distributed as an agent skill. It
-is separate from `lite-orm-core`, the annotation processor, and application
-Maven or Gradle dependencies.
+LiteORM's agent workflow is distributed as one skill. It covers greenfield
+adoption, integration, verification, and MyBatis migration. It is separate
+from `lite-orm-core`, the annotation processor, and application Maven or
+Gradle dependencies.
 
 ## Install
 
 Copy the directory
-`skills/liteorm-mybatis-migration/` into the skill directory supported by the
+`skills/liteorm/` into the skill directory supported by the
 agent client. For Codex, a user-local installation is typically:
 
 ```bash
-cp -R skills/liteorm-mybatis-migration \
-  "${CODEX_HOME:-$HOME/.codex}/skills/liteorm-mybatis-migration"
+cp -R skills/liteorm \
+  "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
 ```
 
 The skill has no LiteORM runtime dependency. Keep the source checkout available
@@ -21,7 +22,7 @@ runtime contracts.
 
 ## Invoke
 
-Ask the agent to use `$liteorm-mybatis-migration` and provide:
+Ask the agent to use `$liteorm` and provide:
 
 - the MyBatis project path or an already authorized checkout;
 - the target revision and MyBatis version;
@@ -32,7 +33,7 @@ Ask the agent to use `$liteorm-mybatis-migration` and provide:
 Example:
 
 ```text
-Use $liteorm-mybatis-migration on /path/to/mybatis-app.
+Use $liteorm on /path/to/mybatis-app.
 Inspect only first; use LiteORM at /path/to/lite-orm, target MyBatis 3.5.19,
 and write the inventory and intervention report to /tmp/liteorm-report.
 ```
@@ -50,7 +51,7 @@ worklist and interaction decisions remain part of the report.
 The bundled inventory helper can be run independently:
 
 ```bash
-python3 skills/liteorm-mybatis-migration/scripts/scan_mybatis.py \
+python3 skills/liteorm/scripts/scan_mybatis.py \
   --project /path/to/mybatis-app \
   --output /tmp/liteorm-report/mybatis-inventory.md
 ```
