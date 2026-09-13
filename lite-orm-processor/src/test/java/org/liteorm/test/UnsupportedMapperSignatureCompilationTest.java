@@ -323,6 +323,38 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void mapperXmlRejectsMissingIncludeReferencesEvenWhenFragmentIsUnused() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingIncludeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingIncludeMapper">
+                    <sql id="selectedValue">
+                        SELECT <include refid="missingFragment"/>
+                    </sql>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "Unknown XML <include> refid 'missingFragment'"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsMissingResultMapReferencesEvenWhenStatementIsUnused() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingResultMapMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingResultMapMapper">
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                    <select id="otherValue" resultMap="missingResult">SELECT 'other'</select>
+                </mapper>
+                """,
+            "Unknown XML resultMap 'missingResult'"
+        );
+    }
+
+    @Test
     void malformedMapperXmlFailsWithMapperMethodAndResourcePath() throws Exception {
         assertUnsupportedMethod(
             "MalformedXmlMapper",

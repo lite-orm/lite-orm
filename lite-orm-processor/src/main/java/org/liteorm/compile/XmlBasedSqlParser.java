@@ -48,23 +48,26 @@ final class XmlBasedSqlParser implements SqlContentParser {
             return null;
         }
 
-        XmlResource xmlResource = getXmlResource(xmlPath);
-        if (xmlResource == null) {
-            return null;
-        }
-
         String methodName = method.getSimpleName().toString();
-        validateMapperNamespace(xmlResource.document(), method);
-        Element sqlElement = findSqlElement(xmlResource.document(), methodName);
-        if (sqlElement == null) {
-            return null;
-        }
-
-        ParseContext context = new ParseContext(xmlResource.fragments(), new ArrayDeque<>());
+        XmlResource xmlResource = null;
         try {
+            xmlResource = getXmlResource(xmlPath);
+            if (xmlResource == null) {
+                return null;
+            }
+
+            validateMapperNamespace(xmlResource.document(), method);
+            Element sqlElement = findSqlElement(xmlResource.document(), methodName);
+            if (sqlElement == null) {
+                return null;
+            }
+
+            ParseContext context = new ParseContext(xmlResource.fragments(), new ArrayDeque<>());
             return parseSqlElement(sqlElement, method, context, xmlResource, xmlPath);
         } catch (RuntimeException exception) {
-            String namespace = xmlResource.document().getDocumentElement().getAttribute("namespace");
+            String namespace = xmlResource == null
+                ? null
+                : xmlResource.document().getDocumentElement().getAttribute("namespace");
             String parsedContext = namespace == null || namespace.isBlank()
                 ? " [statementId=" + methodName + "]"
                 : " [namespace=" + namespace + ", statementId=" + methodName + "]";
@@ -133,8 +136,11 @@ final class XmlBasedSqlParser implements SqlContentParser {
                 
                 Document document = SecureXml.parse(is, "XML resource " + path);
                 validateMapperDocument(document);
+                Map<String, Element> fragments = collectSqlFragments(document);
+                Map<String, Element> resultMaps = collectResultMaps(document, path);
+                validateReferences(document, fragments, resultMaps);
                 return new XmlResource(
-                    document, collectSqlFragments(document), collectResultMaps(document, path));
+                    document, fragments, resultMaps);
             } catch (IOException e) {
                 throw new IllegalArgumentException(
                     "failed to parse XML resource " + path + ": " + e.getMessage(), e);
@@ -237,6 +243,63 @@ final class XmlBasedSqlParser implements SqlContentParser {
                 }
                 default -> throw new IllegalArgumentException(
                     "Unsupported XML top-level tag <" + element.getTagName() + ">");
+            }
+        }
+    }
+
+    private void validateReferences(
+            Document document, Map<String, Element> fragments, Map<String, Element> resultMaps) {
+        NodeList children = document.getDocumentElement().getChildNodes();
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element element = (Element) child;
+            if ("select".equals(element.getTagName())) {
+                String resultMapId = element.getAttribute("resultMap").trim();
+                if (!resultMapId.isEmpty() && !resultMaps.containsKey(resultMapId)) {
+                    throw new IllegalArgumentException("Unknown XML resultMap '" + resultMapId + "'");
+                }
+            }
+            if ("sql".equals(element.getTagName())
+                    || Set.of("select", "insert", "update", "delete", "batch")
+                        .contains(element.getTagName())) {
+                Deque<String> includePath = new ArrayDeque<>();
+                if ("sql".equals(element.getTagName())) {
+                    includePath.addLast(element.getAttribute("id").trim());
+                }
+                validateIncludeReferences(element, fragments, includePath);
+                includePath.clear();
+            }
+        }
+    }
+
+    private void validateIncludeReferences(
+            Element element, Map<String, Element> fragments, Deque<String> includePath) {
+        NodeList children = element.getChildNodes();
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element childElement = (Element) child;
+            if ("include".equals(childElement.getTagName())) {
+                String refId = childElement.getAttribute("refid").trim();
+                if (!fragments.containsKey(refId)) {
+                    throw new IllegalArgumentException("Unknown XML <include> refid '" + refId + "'");
+                }
+                if (includePath.contains(refId)) {
+                    List<String> cycle = new ArrayList<>(includePath);
+                    cycle.add(refId);
+                    throw new IllegalArgumentException(
+                        "Cyclic XML <include> reference: " + String.join(" -> ", cycle));
+                }
+                includePath.addLast(refId);
+                validateIncludeReferences(fragments.get(refId), fragments, includePath);
+                includePath.removeLast();
+            } else {
+                validateIncludeReferences(childElement, fragments, includePath);
             }
         }
     }
