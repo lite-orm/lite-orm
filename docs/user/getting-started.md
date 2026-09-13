@@ -4,27 +4,36 @@ LiteORM requires Java 21. It generates ordinary Java Mapper implementations duri
 
 ## 0. Install the LiteORM Skill (recommended)
 
-LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. Run these commands from a LiteORM checkout:
+LiteORM is designed for agent-led development. Install the unified `liteorm` skill before starting so your agent can scan the project, create a bounded TODO list, configure LiteORM incrementally, and switch into migration mode when it finds an existing MyBatis project. The commands below download the complete skill from the public repository; each is a single copy-paste line.
 
 Codex:
 
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-cp -R skills/liteorm "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
 ```
 
 Claude Code:
 
 ```bash
-mkdir -p "$HOME/.claude/skills"
-cp -R skills/liteorm "$HOME/.claude/skills/liteorm"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p "$HOME/.claude/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "$HOME/.claude/skills/liteorm"
 ```
 
 Cursor (project-local):
 
 ```bash
-mkdir -p .cursor/skills
-cp -R skills/liteorm .cursor/skills/liteorm
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp" && mkdir -p .cursor/skills && cp -R "$tmp"/lite-orm-main/skills/liteorm .cursor/skills/liteorm
+```
+
+If `curl` is unavailable, use this `wget` one-liner for Codex:
+
+```bash
+tmp=$(mktemp -d) && wget -qO "$tmp/lite-orm.tar.gz" https://github.com/lite-orm/lite-orm/archive/refs/heads/main.tar.gz && tar -xzf "$tmp/lite-orm.tar.gz" -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp"/lite-orm-main/skills/liteorm "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
+```
+
+From a local checkout, the equivalent one-liner is:
+
+```bash
+tmp=$(mktemp -d) && git clone --depth 1 https://github.com/lite-orm/lite-orm.git "$tmp/lite-orm" >/dev/null && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/lite-orm/skills/liteorm" "${CODEX_HOME:-$HOME/.codex}/skills/liteorm"
 ```
 
 Then ask your agent to use `$liteorm`. The same skill covers new integrations and MyBatis migration; it scans first, writes a reviewable TODO list, and pauses when a decision needs you.
