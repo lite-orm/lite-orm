@@ -60,6 +60,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 
 ## Documentation Rules
 
+- Technical Markdown has one owner: this repository. The GitHub Pages repository only builds a generated mirror for presentation and search; never edit its synchronized docs directly.
 - Root `README.md` and `README_cn.md` are short project entry points; only the Chinese root README is localized for now.
 - User guides explain tasks and defer to reference contracts for normative behavior.
 - Reference documents own stable guarantees and compatibility classifications.
