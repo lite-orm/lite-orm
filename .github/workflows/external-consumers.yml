@@ -20,7 +20,9 @@ jobs:
       - name: Verify external Maven consumer
         run: |
           for attempt in 1 2 3; do
-            mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-spring-boot-starter -am install && exit 0
+            mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-processor -am install \
+              && mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-spring-boot-starter -am install \
+              && exit 0
             if [ "$attempt" -eq 3 ]; then
               exit 1
             fi
@@ -41,6 +43,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Install LiteORM Processor
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-processor -am install
       - name: Install LiteORM Starter
         run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-spring-boot-starter -am install
       - name: Verify external Spring Boot consumer
@@ -62,6 +66,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Install LiteORM Processor
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lite-orm-processor -am install
       - name: Verify Spring Boot Starter runtime
         run: >-
           mvn --batch-mode --no-transfer-progress
