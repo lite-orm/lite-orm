@@ -88,6 +88,9 @@ the external consumer and runtime Starter suite are verified against Boot 3.1.5,
 patch release; an unlisted line remains unverified until it passes both gates. The
 independent consumer fixture is documented in
 [`external-spring-boot-consumer`](../../../lite-orm-examples/external-spring-boot-consumer/README.md).
+For a complete two-package setup, see the runnable
+[`multi-datasource-spring-boot`](../../../lite-orm-examples/multi-datasource-spring-boot/README.md)
+example.
 
 ## Extension Beans
 

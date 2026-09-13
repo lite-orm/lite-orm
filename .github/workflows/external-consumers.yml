@@ -52,6 +52,11 @@ jobs:
           mvn --batch-mode --no-transfer-progress
           -f lite-orm-examples/external-spring-boot-consumer/pom.xml
           -Dspring-boot.version=${{ matrix.spring-boot-version }} clean verify
+      - name: Verify multi-DataSource Spring Boot example
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -f lite-orm-examples/multi-datasource-spring-boot/pom.xml
+          -Dspring-boot.version=${{ matrix.spring-boot-version }} clean verify
 
   spring-boot-runtime:
     strategy:
