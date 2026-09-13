@@ -40,6 +40,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md)
 - [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
+- [`research/mybatis-3.5.19-compatibility-sources.md`](research/mybatis-3.5.19-compatibility-sources.md): pinned primary-source evidence for the MyBatis compatibility matrix.
 
 ## Project
 
