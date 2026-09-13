@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible defect in LiteORM
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Remove sensitive data from logs and SQL before posting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Include the smallest source, Mapper, configuration, or fixture that reproduces the issue.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: LiteORM, Java, database driver, Spring Boot, and build tool versions.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification output
+      description: Include the exact command and relevant output.
+    validations:
+      required: true

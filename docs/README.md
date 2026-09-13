@@ -9,6 +9,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`user/README.md`](user/README.md): user documentation map.
 - [`user/getting-started.md`](user/getting-started.md): installation, annotation processing, the first Mapper, and runtime assembly.
 - [`user/architecture.md`](user/architecture.md): compile-time and runtime architecture.
+- [`contribute.md`](contribute.md): contributor workflow, expectations, and AI-agent contribution guidance.
 
 ### Core
 
@@ -41,8 +42,6 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md)
 - [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
-- [`research/mybatis-3.5.19-compatibility-sources.md`](research/mybatis-3.5.19-compatibility-sources.md): pinned primary-source evidence for the MyBatis compatibility matrix.
-- [`research/mybatis-migration-skill-validation.md`](research/mybatis-migration-skill-validation.md): evidence and claim boundary for migration skill validation.
 
 ## Project
 

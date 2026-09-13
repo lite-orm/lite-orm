@@ -28,7 +28,6 @@ MyBatis references:
 - [MyBatis XML mapping](https://mybatis.org/mybatis-3/sqlmap-xml.html)
 - [MyBatis dynamic SQL](https://mybatis.org/mybatis-3/dynamic-sql.html)
 - [MyBatis Spring](https://mybatis.org/spring/)
-- [Pinned compatibility evidence](../research/mybatis-3.5.19-compatibility-sources.md)
 
 LiteORM evidence:
 
