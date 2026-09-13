@@ -26,6 +26,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 
 - [`user/migration/README.md`](user/migration/README.md): migration guide index.
 - [`user/migration/from-mybatis.md`](user/migration/from-mybatis.md): manual migration from supported MyBatis patterns.
+- [`user/migration/using-migration-skill.md`](user/migration/using-migration-skill.md): install and invoke the migration skill.
 
 ## Reference
 
@@ -41,6 +42,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
 - [`research/mybatis-3.5.19-compatibility-sources.md`](research/mybatis-3.5.19-compatibility-sources.md): pinned primary-source evidence for the MyBatis compatibility matrix.
+- [`research/mybatis-migration-skill-validation.md`](research/mybatis-migration-skill-validation.md): evidence and claim boundary for migration skill validation.
 
 ## Project
 

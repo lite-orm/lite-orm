@@ -1,0 +1,4 @@
+interface:
+  display_name: "LiteORM MyBatis Migration"
+  short_description: "Scan and migrate MyBatis projects safely"
+  default_prompt: "Use $liteorm-mybatis-migration to inspect this MyBatis project and produce a reviewable LiteORM migration report."
