@@ -37,6 +37,8 @@ lite-orm:
 - Duplicate, parent, and child package rules cannot overlap.
 - Every Mapper interface is registered once and belongs to one DataSource domain. Applications with multiple DataSources use disjoint Mapper package bindings.
 - Bindings remain explicit when only one DataSource exists; the starter does not infer a default DataSource or Mapper scan package.
+- Package bindings select a DataSource domain only. They do not select a JDBC mapping family; Core's fixed, database-independent `TypeHandlerManager` routes standard values for every domain.
+- The Starter does not inspect database product metadata, maintain package mapping registries, or load database-specific mapping artifacts.
 - Generated Mapper implementations remain plain Java classes without Spring component or injection annotations.
 - Binding happens during application startup. Mapper invocation still calls its final executor field directly and performs no package or bean lookup.
 - Each Spring transaction boundary must use the `PlatformTransactionManager` associated with the same DataSource as the selected executor.

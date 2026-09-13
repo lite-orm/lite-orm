@@ -21,5 +21,7 @@ lite-orm:
   
   # Each Mapper package must bind to one Spring DataSource bean.
   mapper-bindings:
-    - package-name: com.example.mapper
-      data-source: dataSource
+    - package-name: com.example.user.mapper
+      data-source: usersDataSource
+    - package-name: com.example.order.mapper
+      data-source: ordersDataSource
