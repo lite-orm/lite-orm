@@ -1,8 +1,9 @@
 # LiteORM JMH Benchmarks
 
 This module compares Direct JDBC, generated LiteORM Mappers, and MyBatis using
-the same H2 DataSource, schema, SQL parameters, connection/session lifecycle,
-and consumed results.
+the same DataSource, schema, SQL parameters, connection/session lifecycle, and
+consumed results. H2 remains the fast local fixture; MySQL 8.4 is available for
+database-realistic runs through Testcontainers.
 
 Normal repository builds compile and test the fixtures but do not execute JMH.
 
@@ -21,6 +22,19 @@ java -jar lite-orm-benchmarks/target/benchmarks.jar \
   -rf json \
   -rff lite-orm-benchmarks/target/results/core-ga-baseline.json
 ```
+
+Run against a real MySQL 8.4 container (Docker required):
+
+```bash
+java -Dbenchmark.database=mysql \
+  -jar lite-orm-benchmarks/target/benchmarks.jar \
+  '.*Benchmark.*' -rf json \
+  -rff lite-orm-benchmarks/target/results/mysql.json
+```
+
+The MySQL mode starts one disposable `mysql:8.4` container per JVM process,
+creates the benchmark schema, and seeds 1,000 rows. It is intentionally opt-in
+so ordinary Maven tests stay deterministic and do not require Docker.
 
 The benchmark annotations define two JVM forks, three one-second warmup
 iterations, five one-second measurement iterations, one thread, average-time

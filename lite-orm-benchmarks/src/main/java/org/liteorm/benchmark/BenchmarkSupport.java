@@ -6,6 +6,8 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.h2.jdbcx.JdbcDataSource;
+import org.testcontainers.containers.MySQLContainer;
+import com.mysql.cj.jdbc.MysqlDataSource;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -15,10 +17,15 @@ import java.util.UUID;
 
 final class BenchmarkSupport {
 
+    private static MySQLContainer<?> mysql;
+
     private BenchmarkSupport() {
     }
 
     static DataSource dataSource() throws SQLException {
+        if ("mysql".equalsIgnoreCase(System.getProperty("benchmark.database", "h2"))) {
+            return mysqlDataSource();
+        }
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
         try (var connection = dataSource.getConnection();
@@ -38,6 +45,39 @@ final class BenchmarkSupport {
                 insert.executeBatch();
             }
             connection.commit();
+        }
+        return dataSource;
+    }
+
+    private static synchronized DataSource mysqlDataSource() throws SQLException {
+        if (mysql == null) {
+            mysql = new MySQLContainer<>("mysql:8.4");
+            mysql.withDatabaseName("liteorm_benchmark").withUsername("liteorm").withPassword("liteorm");
+            mysql.start();
+            Runtime.getRuntime().addShutdownHook(new Thread(mysql::stop));
+        }
+        MysqlDataSource dataSource = new MysqlDataSource();
+        dataSource.setURL(mysql.getJdbcUrl());
+        dataSource.setUser(mysql.getUsername());
+        dataSource.setPassword(mysql.getPassword());
+        try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS benchmark_users (id BIGINT PRIMARY KEY, name VARCHAR(100), age INTEGER)");
+            statement.execute("CREATE TABLE IF NOT EXISTS benchmark_batch (id BIGINT PRIMARY KEY, name VARCHAR(100))");
+            statement.execute("CREATE TABLE IF NOT EXISTS benchmark_generated (id BIGINT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
+            try (var count = statement.executeQuery("SELECT COUNT(*) FROM benchmark_users")) {
+                count.next();
+                if (count.getLong(1) == 0) {
+                    try (var insert = connection.prepareStatement("INSERT INTO benchmark_users (id, name, age) VALUES (?, ?, ?)")) {
+                        for (long id = 1; id <= 1_000; id++) {
+                            insert.setLong(1, id);
+                            insert.setString(2, "user-" + id);
+                            insert.setInt(3, 20 + (int) (id % 50));
+                            insert.addBatch();
+                        }
+                        insert.executeBatch();
+                    }
+                }
+            }
         }
         return dataSource;
     }

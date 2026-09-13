@@ -1,6 +1,6 @@
 # LiteORM Core GA Benchmark Baseline
 
-Date: 2026-08-16
+Date: 2026-09-13
 
 ## Purpose
 
@@ -10,33 +10,34 @@ This is a measurement baseline, not an optimization proposal. It compares Direct
 
 - OpenJDK JMH 1.37
 - MyBatis 3.5.19
-- H2 2.3.232, one in-memory DataSource per JMH state
+- MySQL 8.4 (`mysql:8.4` via Testcontainers), one disposable container per JVM process
 - JDK: Temurin 21.0.4+7 LTS
 - OS: macOS 26.3.1, Apple M3, 16 GiB memory
 - Mode: average time, microseconds per operation
 - Threads: 1
-- Forks: 2
-- Warmup: 3 iterations × 1 second
-- Measurement: 5 iterations × 1 second
+- Forks: 1 (refresh run; the standard protocol may use 2)
+- Warmup: 2 iterations × 1 second
+- Measurement: 3 iterations × 1 second
 - Allocation profiler: JMH `-prof gc`
 - CPU evidence: separate JMH `-prof jfr` runs for LiteORM scalar, dynamic SQL, and batch
 - Source parent: `68c01c9`; benchmark sources were added in the following benchmark commit
 
-Each comparison uses the same H2 DataSource, schema, SQL parameters, connection or session ownership boundary, and consumed result shape. `BenchmarkFixtureTest` verifies equivalent results before measurement.
-
-H2 isolates framework/JDBC-call overhead and keeps the run reproducible. These numbers are not PostgreSQL or MySQL latency claims; production database behavior remains covered by compatibility tests.
+Each comparison uses the same MySQL DataSource, schema, SQL parameters, connection or session ownership boundary, and consumed result shape. `BenchmarkFixtureTest` verifies equivalent results before measurement. H2 remains available as the fast default fixture; it must not be used to describe the MySQL results below.
 
 ## Reproduction
 
 ```bash
 mvn -pl lite-orm-benchmarks -am package
 
-java -jar lite-orm-benchmarks/target/benchmarks.jar \
+java -Dbenchmark.database=mysql -jar lite-orm-benchmarks/target/benchmarks.jar \
   '.*Benchmark.*' \
-  -prof gc \
   -rf json \
-  -rff lite-orm-benchmarks/target/results/core-ga-baseline.json
+  -rff lite-orm-benchmarks/target/results/mysql-2026-09-13.json
 ```
+
+The command starts a disposable MySQL 8.4 container and therefore requires a
+running Docker daemon. The recorded run used the command above with two
+one-second warmups, three one-second measurements, one fork, and one thread.
 
 JFR evidence was collected separately because profilers perturb timing:
 
@@ -47,57 +48,47 @@ java -jar lite-orm-benchmarks/target/benchmarks.jar \
   -wi 2 -i 3 -w 1s -r 1s -f 1
 ```
 
-## Time Results
+## MySQL Time Results
 
 Lower is better.
 
-| Workload | Direct JDBC µs/op | LiteORM µs/op | MyBatis µs/op | LiteORM vs direct | LiteORM vs MyBatis |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Scalar query | 2.475 | 3.477 | 4.239 | +40.5% | -18.0% |
-| Record mapping | 2.940 | 3.916 | 5.803 | +33.2% | -32.5% |
-| JavaBean mapping | 2.803 | 3.946 | 5.924 | +40.8% | -33.4% |
-| Dynamic SQL, one row | 25.184 | 27.013 | 28.455 | +7.3% | -5.1% |
-| Cursor, ten rows | 3.226 | 3.362 | 8.969 | +4.2% | -62.5% |
-| Local transaction + scalar | 2.680 | 4.146 | 4.284 | +54.7% | -3.2% |
-| JDBC batch, 100 rows | 40.021 | 41.319 | 71.573 | +3.2% | -42.3% |
-| Generated key | 2.766 | 3.229 | 4.772 | +16.7% | -32.3% |
+| Workload | Direct JDBC µs/op | LiteORM µs/op | MyBatis µs/op |
+| --- | ---: | ---: | ---: |
+| Scalar query | 3,511 | 3,362 | 3,563 |
+| Record mapping | 3,404 | 3,423 | 3,580 |
+| JavaBean mapping | 3,623 | 3,207 | 3,611 |
+| Dynamic SQL, one row | 3,370 | 3,499 | 3,758 |
+| Cursor, ten rows | 3,307 | 3,644 | 3,988 |
+| Local transaction + scalar | 3,587 | 3,655 | 3,508 |
+| JDBC batch, 100 rows | 117,654 | 121,036 | 13,220 |
+| Generated key | 5,837 | 6,618 | 6,288 |
 
-One no-op `ExecutionInterceptor` changes the LiteORM Record workload from 3.916 to 3.942 µs/op, approximately +0.7% in this fixture.
+Values are microseconds per operation from the 2026-09-13 MySQL run. The
+batch workload is not directly comparable to the read workloads because MyBatis
+uses a different batching strategy in this fixture; investigate before drawing
+conclusions from that row.
 
 ## Allocation Results
 
-Lower is better. Values are JMH `gc.alloc.rate.norm` bytes per operation.
-
-| Workload | Direct JDBC B/op | LiteORM B/op | MyBatis B/op |
-| --- | ---: | ---: | ---: |
-| Scalar query | 7,740 | 11,408 | 12,492 |
-| Record mapping | 8,316 | 12,356 | 15,780 |
-| JavaBean mapping | 8,184 | 12,380 | 15,756 |
-| Dynamic SQL, one row | 32,488 | 38,312 | 39,392 |
-| Cursor, ten rows | 9,168 | 9,624 | 24,696 |
-| Local transaction + scalar | 8,520 | 12,644 | 12,528 |
-| JDBC batch, 100 rows | 353,305 | 366,161 | 465,471 |
-| Generated key | 21,790 | 23,602 | 26,054 |
-
-The no-op interceptor adds approximately 28 B/op to the comparable LiteORM Record path.
+Allocation profiling was not part of this MySQL timing run. Run the same command
+with `-prof gc` and publish the generated JSON before making allocation claims.
 
 ## JFR Observations
 
 The representative JFR recordings show:
 
-- dynamic SQL samples are dominated by H2 SQL parsing and query execution;
-- batch samples are dominated by H2 batch execution, MVStore updates, and transaction logging;
-- scalar samples include H2 execution plus LiteORM `SqlResult.copyRows` and `getQueryResults` defensive-copy paths.
+- JFR was not collected for this MySQL refresh; use `-prof jfr` as a separate run
+  when CPU evidence is needed.
 
 These observations identify investigation candidates only. The JFR profiling run has high timing variance and its timings must not replace the unprofiled/GC-profile baseline.
 
 ## Interpretation
 
-- LiteORM remains above Direct JDBC, as expected for plan construction, lifecycle observation, defensive result ownership, and generated return mapping.
-- LiteORM is below MyBatis in every measured mapping, cursor, batch, generated-key, and scalar workload in this fixture.
-- Dynamic SQL and standalone transaction results are close to MyBatis; database parsing/execution and common connection ownership dominate more of those operations.
-- Cursor and batch paths are closest to Direct JDBC, suggesting the fixed executor lifecycle is not adding a large multiplicative cost for multi-row work.
-- The largest LiteORM-versus-direct percentage gaps are tiny scalar/mapping and transaction operations where fixed per-call allocations are most visible.
+- These results include network and server costs from a local MySQL container and
+  are not a production-latency promise.
+- The relatively wide confidence intervals reflect a short local run; repeat on
+  a dedicated host before using small differences as optimization evidence.
+- Compare frameworks only within the same workload and lifecycle boundary.
 
 ## Optimization Gate
 
