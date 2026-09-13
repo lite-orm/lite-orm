@@ -4,7 +4,6 @@ import org.liteorm.api.SqlExecutor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -16,7 +15,7 @@ import javax.sql.DataSource;
  * @author lite-orm
  * @since 2024/11/15
  */
-@AutoConfiguration(after = DataSourceAutoConfiguration.class)
+@AutoConfiguration
 @ConditionalOnClass({SqlExecutor.class, DataSource.class})
 @ConditionalOnProperty(prefix = "lite-orm", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(LiteOrmProperties.class)
