@@ -1,0 +1,43 @@
+# Documentation site stack research
+
+## Scope
+
+This note evaluates static-site stacks for a public LiteORM homepage and documentation site hosted on GitHub Pages, with multilingual content and output that is easy for AI agents to consume. Sources are first-party project or GitHub documentation (links below); this is an engineering recommendation, not a procurement decision.
+
+## GitHub Pages domain and deployment
+
+GitHub Pages supports custom apex domains and subdomains. A `CNAME` DNS record should point a subdomain at the Pages host; for an organization/user Pages site the conventional host is `<account>.github.io`. GitHub recommends configuring the custom domain in repository Pages settings, committing a `CNAME` file when publishing from a branch, enabling HTTPS after certificate issuance, and verifying the domain to reduce takeover risk ([GitHub: configuring a custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site), [GitHub: verifying a custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages)).
+
+The repository organization is `lite-orm`, so the organization Pages hostname would normally be `lite-orm.github.io`. The requested `lightorm.github.io` spelling should be confirmed before DNS/repository setup. A separate project repository can publish to that host (or a custom subdomain) through GitHub Actions; all candidates below generate static assets suitable for Pages.
+
+## Stack comparison
+
+| Stack | GitHub Pages deployment | i18n | Versioning | Search | Accessibility / UX | AI-agent-friendly output | Trade-offs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Docusaurus (React)** | Official deployment guide supports GitHub Pages via Actions or `gh-pages`; static export. ([deployment](https://docusaurus.io/docs/deployment)) | First-class locale configuration, translated docs/blog/theme labels, and locale-aware URLs. ([i18n](https://docusaurus.io/docs/i18n/introduction)) | Built-in docs versioning with generated versioned trees and routes. ([versioning](https://docusaurus.io/docs/versioning)) | Official local search options plus Algolia DocSearch integration; search is pluggable. ([search](https://docusaurus.io/docs/search)) | React theme provides semantic navigation, keyboard focus styles, responsive/dark themes, and customizable components; verify project-specific WCAG needs during QA. ([classic theme](https://docusaurus.io/docs/api/themes/configuration)) | Markdown/MDX source remains straightforward; generated static HTML, sitemap and clean per-page URLs can be complemented with committed `llms.txt`/Markdown mirrors. | Node/React toolchain; versioned + localized builds increase CI time and hosting size. |
+| **VitePress (Vue)** | Official guide documents GitHub Pages Actions deployment and static generation. ([deploy](https://vitepress.dev/guide/deploy)) | Locale routing and translated theme strings are supported through multiple site configs or locale blocks; content organization is largely manual. ([i18n](https://vitepress.dev/guide/i18n)) | No built-in docs-versioning workflow; maintainers typically use separate builds/branches or a versioning plugin. | Built-in MiniSearch-based local search can be enabled in the default theme; external providers require custom integration. ([default theme](https://vitepress.dev/reference/default-theme-search)) | Very fast, polished default theme with responsive navigation and accessible HTML defaults; custom Vue components are easy. ([default theme](https://vitepress.dev/reference/default-theme-config)) | Markdown-first, very small static output and predictable URLs are excellent for crawlers/agents; expose source Markdown and sitemap. | i18n/version lifecycle conventions must be designed by the project; Vue customization requires frontend expertise. |
+| **MkDocs + Material** | Static `mkdocs build` output can be published by GitHub Actions/Pages. ([publishing](https://www.mkdocs.org/user-guide/deploying-your-docs/)) | Material documents language/theme translation configuration; full multilingual sites generally use the separate `mkdocs-static-i18n` plugin, adding maintenance. ([language](https://squidfunk.github.io/mkdocs-material/setup/changing-the-language/)) | Material documents mike-based versioning, an external tool and deployment workflow. ([versioning](https://squidfunk.github.io/mkdocs-material/setup/setting-up-versioning/)) | Excellent built-in lunr search with optional search suggestions; configurable. ([search](https://squidfunk.github.io/mkdocs-material/setup/setting-up-site-search/)) | Mature accessible theme, navigation, code annotations and mobile UX. ([setup](https://squidfunk.github.io/mkdocs-material/setup/)) | Plain Markdown and static HTML are highly ingestible; generated navigation/search indexes help agents. | Python toolchain; multilingual and versioned publishing rely on plugins/tools outside MkDocs core. |
+| **Astro Starlight** | Astro’s static adapter and GitHub Pages deployment guidance apply; output is static HTML/CSS/JS. ([Starlight getting started](https://starlight.astro.build/getting-started/), [Astro deploy](https://docs.astro.build/en/guides/deploy/github/)) | Starlight has official i18n guidance for locale routing and translated UI strings. ([i18n](https://starlight.astro.build/guides/i18n/)) | No first-class documentation versioning; implement version directories/builds or an integration. | Ships a client-side Pagefind search integration in the Starlight starter; can be replaced. ([search](https://starlight.astro.build/guides/site-search/)) | Strong accessible-by-default semantic components and excellent visual baseline. ([Starlight](https://starlight.astro.build/)) | Markdown/MDX and static pages are excellent for agents; Astro islands keep output small. | Newer ecosystem and fewer turnkey versioning/translation conventions than Docusaurus. |
+
+## Recommendation
+
+Adopt **Docusaurus** for the initial `0.1.0` site. It is the only candidate here with first-class, documented i18n and documentation versioning in the same core workflow, while still providing a polished React landing page, static GitHub Pages deployment, and pluggable search. Keep documentation content in Markdown/MDX, publish a sitemap, and add an agent-oriented index (`llms.txt` plus stable Markdown pages) as generated artifacts so human and automated consumers share canonical URLs.
+
+Use a repository such as `lite-orm/lite-orm.github.io` (or a `docs-site` repository) and publish with GitHub Actions. Configure the organization Pages domain as `lite-orm.github.io`; resolve the spelling discrepancy with `lightorm.github.io` before creating DNS records. Set locale paths (`/en/`, `/zh-Hans/`), keep English as the source locale, and version the public API docs once 0.1.0 is released.
+
+## Agent-friendly publishing checklist
+
+1. Keep canonical source as Markdown/MDX; avoid information that exists only in client-side widgets.
+2. Emit static HTML, `sitemap.xml`, `robots.txt`, and deterministic heading/anchor IDs.
+3. Publish `llms.txt` and per-section Markdown snapshots, linking back to canonical pages.
+4. Include code samples that compile in CI and mark unsupported/runtime boundaries explicitly.
+5. Preserve locale and version in URLs; provide language/version selectors with crawlable links.
+6. Check keyboard navigation, color contrast, reduced motion, and screen-reader landmarks before each release.
+
+## Primary sources
+
+- [GitHub Pages custom domains](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)
+- [Docusaurus deployment](https://docusaurus.io/docs/deployment), [i18n](https://docusaurus.io/docs/i18n/introduction), [versioning](https://docusaurus.io/docs/versioning), [search](https://docusaurus.io/docs/search)
+- [VitePress deployment](https://vitepress.dev/guide/deploy), [i18n](https://vitepress.dev/guide/i18n), [search](https://vitepress.dev/reference/default-theme-search)
+- [MkDocs deployment](https://www.mkdocs.org/user-guide/deploying-your-docs/), [Material language](https://squidfunk.github.io/mkdocs-material/setup/changing-the-language/), [Material versioning](https://squidfunk.github.io/mkdocs-material/setup/setting-up-versioning/), [Material search](https://squidfunk.github.io/mkdocs-material/setup/setting-up-site-search/)
+- [Astro Starlight i18n](https://starlight.astro.build/guides/i18n/), [Starlight search](https://starlight.astro.build/guides/site-search/), [Astro GitHub Pages deployment](https://docs.astro.build/en/guides/deploy/github/)
