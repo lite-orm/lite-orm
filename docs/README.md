@@ -9,6 +9,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`user/README.md`](user/README.md): user documentation map.
 - [`user/getting-started.md`](user/getting-started.md): installation, annotation processing, the first Mapper, and runtime assembly.
 - [`user/architecture.md`](user/architecture.md): compile-time and runtime architecture.
+- [`contribute.md`](contribute.md): contributor workflow, expectations, and AI-agent contribution guidance.
 
 ### Core
 
@@ -41,8 +42,11 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`adr/0001-separate-execution-outcome-from-transaction-completion.md`](adr/0001-separate-execution-outcome-from-transaction-completion.md)
 - [`adr/0002-keep-standard-jdbc-routing-fixed-in-core.md`](adr/0002-keep-standard-jdbc-routing-fixed-in-core.md): fixed Core JDBC routing and explicit binder/row-mapper escape hatches.
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
-- [`research/mybatis-3.5.19-compatibility-sources.md`](research/mybatis-3.5.19-compatibility-sources.md): pinned primary-source evidence for the MyBatis compatibility matrix.
-- [`research/mybatis-migration-skill-validation.md`](research/mybatis-migration-skill-validation.md): evidence and claim boundary for migration skill validation.
+
+The documentation site surfaces a compact MySQL benchmark snapshot directly
+below its “Why teams choose LiteORM” capability overview; the benchmark report
+above remains the canonical source for the full table, environment metadata,
+and reproduction protocol.
 
 ## Project
 
@@ -61,6 +65,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 
 ## Documentation Rules
 
+- Technical Markdown has one owner: this repository. The GitHub Pages repository only builds a generated mirror for presentation and search; never edit its synchronized docs directly.
 - Root `README.md` and `README_cn.md` are short project entry points; only the Chinese root README is localized for now.
 - User guides explain tasks and defer to reference contracts for normative behavior.
 - Reference documents own stable guarantees and compatibility classifications.

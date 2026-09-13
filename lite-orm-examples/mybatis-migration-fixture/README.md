@@ -1,7 +1,7 @@
 # MyBatis Migration Fixture
 
 This is a small, independently built validation fixture for the
-`liteorm-mybatis-migration` agent skill. It is not a root Maven module and it
+`liteorm` agent skill (migration mode). It is not a root Maven module and it
 does not add MyBatis to any LiteORM runtime artifact.
 
 The fixture is derived from the `org.mybatis.spring.sample.mapper.UserMapper`

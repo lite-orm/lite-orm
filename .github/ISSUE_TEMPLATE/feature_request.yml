@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a focused LiteORM capability or documentation improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and users
+      description: What user problem does this solve, and who needs it?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed contract
+      description: Describe the observable API, configuration, generated code, or documentation behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Ownership and boundaries
+      description: Explain compile-time/runtime ownership, JDBC lifecycle impact, DataSource domain, and compatibility considerations.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: List focused tests, integration checks, or documentation checks that would prove the change.
+    validations:
+      required: true

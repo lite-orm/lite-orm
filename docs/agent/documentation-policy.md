@@ -42,6 +42,8 @@ Describes unfinished work. Specifications and implementation tickets live in Git
 
 ## Ownership
 
+The LiteORM code repository is the single canonical owner of technical Markdown. The `lite-orm.github.io` repository owns only presentation, navigation, theme, and build configuration. Its synchronized `src/content/docs/` files are generated artifacts and must never be edited or treated as a second source of truth.
+
 - `Design-Philosophy.md` owns durable principles and non-goals.
 - `docs/user/` owns task-oriented user guidance organized by module.
 - `docs/reference/core-contract.md` owns runtime and Mapper contracts.
