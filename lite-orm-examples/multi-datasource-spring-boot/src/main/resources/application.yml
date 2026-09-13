@@ -1,0 +1,6 @@
+lite-orm:
+  mapper-bindings:
+    - package-name: org.liteorm.example.multidatasource.user
+      data-source: usersDataSource
+    - package-name: org.liteorm.example.multidatasource.order
+      data-source: ordersDataSource

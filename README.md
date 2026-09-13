@@ -26,6 +26,7 @@ Read the [architecture overview](docs/user/architecture.md) and [design philosop
 | `lite-orm-processor` | Annotation processor, SQL compilation, validation, and source generation |
 | `lite-orm-spring-boot-starter` | Mapper registration, named DataSource binding, and Spring transaction participation |
 | `lite-orm-examples/basic-mapper` | Executable annotation, XML, mapping, transaction, batch, and generated-key examples |
+| `lite-orm-examples/multi-datasource-spring-boot` | Independent Spring Boot example with disjoint Mapper packages and named DataSources |
 | `lite-orm-benchmarks` | Reproducible Direct JDBC, LiteORM, and MyBatis JMH fixtures |
 
 ## Get Started
