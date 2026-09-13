@@ -323,12 +323,43 @@ final class XmlBasedSqlParser implements SqlContentParser {
                 throw new IllegalArgumentException("XML resource " + xmlPath
                     + ": <resultMap> requires non-blank attribute 'id'");
             }
+            validateResultMapDeclaration(resultMap, xmlPath);
             if (resultMaps.putIfAbsent(id, resultMap) != null) {
                 throw new IllegalArgumentException("XML resource " + xmlPath
                     + ": duplicate <resultMap> id '" + id + "'");
             }
         }
         return Map.copyOf(resultMaps);
+    }
+
+    private void validateResultMapDeclaration(Element resultMap, String xmlPath) {
+        validateElementAttributes(resultMap, Set.of("id", "type"), Set.of("id", "type"));
+        String resultMapId = resultMap.getAttribute("id").trim();
+        String sourceLocation = "XML resource " + xmlPath + " <resultMap id='" + resultMapId + "'>";
+        List<ResultPropertyInfo> properties = new ArrayList<>();
+        NodeList children = resultMap.getChildNodes();
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element mapping = (Element) child;
+            switch (mapping.getTagName()) {
+                case "id", "result" -> properties.add(parseResultProperty(
+                    mapping, false, -1, sourceLocation + " <" + mapping.getTagName() + ">"));
+                case "constructor" -> parseConstructorMappings(mapping, properties, sourceLocation);
+                case "association", "collection", "discriminator" -> throw new IllegalArgumentException(
+                    "Unsupported XML <" + mapping.getTagName() + "> in resultMap '" + resultMapId
+                        + "'; only flat scalar, JavaBean, and record mappings are supported");
+                default -> throw new IllegalArgumentException(
+                    "Unsupported XML tag <" + mapping.getTagName() + "> in resultMap '"
+                        + resultMapId + "'");
+            }
+        }
+        if (properties.isEmpty()) {
+            throw new IllegalArgumentException(
+                "XML resultMap '" + resultMapId + "' must declare at least one mapping");
+        }
     }
     
     /**

@@ -355,6 +355,41 @@ class UnsupportedMapperSignatureCompilationTest {
     }
 
     @Test
+    void mapperXmlRejectsUnsupportedAttributesOnUnusedResultMaps() throws Exception {
+        assertUnsupportedXml(
+            "UnusedInvalidResultMapAttributeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedInvalidResultMapAttributeMapper">
+                    <resultMap id="unusedValue" type="org.liteorm.test.diagnostics.ValueRow"
+                               fetchType="lazy">
+                        <result column="value" property="value"/>
+                    </resultMap>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "Unsupported XML attribute 'fetchType' on <resultMap>"
+        );
+    }
+
+    @Test
+    void mapperXmlRejectsMissingTypeOnUnusedResultMaps() throws Exception {
+        assertUnsupportedXml(
+            "UnusedMissingResultMapTypeMapper",
+            "ValueRow findValue();",
+            """
+                <mapper namespace="org.liteorm.test.diagnostics.UnusedMissingResultMapTypeMapper">
+                    <resultMap id="unusedValue">
+                        <result column="value" property="value"/>
+                    </resultMap>
+                    <select id="findValue" resultType="java.lang.String">SELECT 'value'</select>
+                </mapper>
+                """,
+            "XML <resultMap> requires non-blank attribute 'type'"
+        );
+    }
+
+    @Test
     void malformedMapperXmlFailsWithMapperMethodAndResourcePath() throws Exception {
         assertUnsupportedMethod(
             "MalformedXmlMapper",
