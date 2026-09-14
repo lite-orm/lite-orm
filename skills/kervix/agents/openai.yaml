@@ -1,4 +1,0 @@
-interface:
-  display_name: "Kervix MyBatis Migration"
-  short_description: "Scan and migrate MyBatis projects safely"
-  default_prompt: "Use $kervix to inspect this project and produce a bounded Kervix implementation or migration TODO list before making changes."

@@ -1,6 +1,6 @@
 # Choosing a Value or Row Mapping
 
-Kervix has one generated default path and two custom mapping escape hatches:
+Lynxus has one generated default path and two custom mapping escape hatches:
 
 - Core standard routing converts supported single JDBC values in both directions.
 - Generated result assemblers construct scalars, records, and JavaBeans inside the executor lifecycle.
@@ -48,7 +48,7 @@ Users do not configure or register this manager. It has no database-product bran
 
 Ordinary character, numeric, temporal, enum, UUID, and binary columns need no result annotation. If the driver reports an unsupported JDBC type for the target Java type, mapping fails with the result column, Java type, JDBC type, and guidance to use `@UseRowMapper`.
 
-Lifecycle-bound values such as `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, JDBC `ARRAY`, streams, and readers are not ordinary scalar results. Use `RowMapper` while the `ResultSet` is active, or raw JDBC when the application must own resource lifetime. Kervix does not provide `@ResultJdbcType`.
+Lifecycle-bound values such as `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, JDBC `ARRAY`, streams, and readers are not ordinary scalar results. Use `RowMapper` while the `ResultSet` is active, or raw JDBC when the application must own resource lifetime. Lynxus does not provide `@ResultJdbcType`.
 
 ## Choose by Scope
 

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="io.github.kervix.test.diagnostics.MalformedXmlMapper">
-    <select id="findValue" resultType="io.github.kervix.test.diagnostics.ValueRow">
-        SELECT value
-        <if test="value != null">
-            FROM values_table
-    </select>
-</mapper>

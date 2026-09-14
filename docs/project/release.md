@@ -1,7 +1,7 @@
 # Release Engineering
 
 This document defines the repeatable checks and ownership boundaries for a
-Kervix public release. It is a release checklist, not a promise that a release
+Lynxus public release. It is a release checklist, not a promise that a release
 has been published.
 
 ## Release gates
@@ -12,11 +12,11 @@ Run these commands from a clean checkout of the release commit:
 scripts/verify-release-metadata.sh
 mvn --batch-mode --no-transfer-progress test
 scripts/verify-database-test-matrix.sh
-mvn --batch-mode --no-transfer-progress -pl kervix-processor -am install -DskipTests
+mvn --batch-mode --no-transfer-progress -pl lynxus-processor -am install -DskipTests
 mvn --batch-mode --no-transfer-progress \
-  -f kervix-examples/external-spring-boot-consumer/pom.xml \
+  -f lynxus-examples/external-spring-boot-consumer/pom.xml \
   -Dspring-boot.version=3.5.16 clean verify
-gradle -p kervix-examples/external-gradle-processor --no-daemon clean build
+gradle -p lynxus-examples/external-gradle-processor --no-daemon clean build
 ```
 
 The database matrix gate must report a non-zero test count and zero failures,

@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="io.github.kervix.test.diagnostics.UnsupportedExpressionMapper">
-    <select id="findValue" resultType="io.github.kervix.test.diagnostics.ValueRow">
-        SELECT 'value'
-        <if test="@java.lang.System@currentTimeMillis() > 0">
-            WHERE 1 = 1
-        </if>
-    </select>
-</mapper>

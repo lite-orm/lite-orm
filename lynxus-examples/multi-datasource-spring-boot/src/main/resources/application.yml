@@ -1,0 +1,6 @@
+lynxus:
+  mapper-bindings:
+    - package-name: io.github.lynxus.example.multidatasource.user
+      data-source: usersDataSource
+    - package-name: io.github.lynxus.example.multidatasource.order
+      data-source: ordersDataSource

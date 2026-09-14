@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.kervix</groupId>
-    <artifactId>kervix-parent</artifactId>
+    <groupId>io.github.lynxus</groupId>
+    <artifactId>lynxus-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Kervix Parent</name>
+    <name>Lynxus Parent</name>
     <description>High-performance compile-time ORM for Java - Parent POM</description>
-    <url>https://github.com/kervix/kervix</url>
+    <url>https://github.com/lynxus-project/lynxus</url>
 
     <licenses>
         <license>
@@ -22,12 +22,12 @@
     </licenses>
 
     <modules>
-        <module>kervix-test-support</module>
-        <module>kervix-core</module>
-        <module>kervix-processor</module>
-        <module>kervix-spring-boot-starter</module>
-        <module>kervix-examples/basic-mapper</module>
-        <module>kervix-benchmarks</module>
+        <module>lynxus-test-support</module>
+        <module>lynxus-core</module>
+        <module>lynxus-processor</module>
+        <module>lynxus-spring-boot-starter</module>
+        <module>lynxus-examples/basic-mapper</module>
+        <module>lynxus-benchmarks</module>
     </modules>
 
     <properties>
@@ -51,22 +51,22 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Kervix Modules -->
+            <!-- Lynxus Modules -->
             <dependency>
-                <groupId>io.github.kervix</groupId>
-                <artifactId>kervix-core</artifactId>
+                <groupId>io.github.lynxus</groupId>
+                <artifactId>lynxus-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
             <dependency>
-                <groupId>io.github.kervix</groupId>
-                <artifactId>kervix-processor</artifactId>
+                <groupId>io.github.lynxus</groupId>
+                <artifactId>lynxus-processor</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
             <dependency>
-                <groupId>io.github.kervix</groupId>
-                <artifactId>kervix-test-support</artifactId>
+                <groupId>io.github.lynxus</groupId>
+                <artifactId>lynxus-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

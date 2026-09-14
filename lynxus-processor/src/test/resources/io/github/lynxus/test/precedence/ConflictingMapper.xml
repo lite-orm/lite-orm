@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.precedence.ConflictingMapper">
+    <select id="findValue" resultType="io.github.lynxus.test.precedence.ValueRow">
+        SELECT 'xml-source'
+    </select>
+</mapper>

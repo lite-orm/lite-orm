@@ -1,14 +1,14 @@
-# Kervix
+# Lynxus
 
 [English](README.md)
 
-Kervix 是一个面向 Java 21 的轻量级编译期 SQL Mapper。它在 javac 注解处理阶段读取 Mapper 接口、SQL 注解和可选 XML，生成普通 Java 实现，再通过明确、固定的 JDBC 生命周期执行不可变计划。
+Lynxus 是一个面向 Java 21 的轻量级编译期 SQL Mapper。它在 javac 注解处理阶段读取 Mapper 接口、SQL 注解和可选 XML，生成普通 Java 实现，再通过明确、固定的 JDBC 生命周期执行不可变计划。
 
-Kervix 不追求完整复刻 MyBatis。它关注显式 SQL、编译期诊断、可读的生成代码、确定性的 JDBC 行为，以及不依赖 Mapper 代理和运行期 XML 解释的小型运行时。
+Lynxus 不追求完整复刻 MyBatis。它关注显式 SQL、编译期诊断、可读的生成代码、确定性的 JDBC 行为，以及不依赖 Mapper 代理和运行期 XML 解释的小型运行时。
 
 ## 顶层设计
 
-![Kervix 编译期与运行期架构](docs/assets/kervix-architecture.svg)
+![Lynxus 编译期与运行期架构](docs/assets/lynxus-architecture.svg)
 
 - Mapper 校验、动态 SQL 编译、参数规划和结果映射生成发生在 javac 阶段。
 - 生成的 Mapper 是普通 Java 类，只依赖一个 `SqlExecutor`。
@@ -22,11 +22,11 @@ Kervix 不追求完整复刻 MyBatis。它关注显式 SQL、编译期诊断、�
 
 | 模块 | 职责 |
 | --- | --- |
-| `kervix-core` | 运行时注解、生成 Mapper 契约、执行计划和 Standalone JDBC 运行时 |
-| `kervix-processor` | 注解处理器、SQL 编译、校验和源码生成 |
-| `kervix-spring-boot-starter` | Mapper 注册、命名 DataSource 绑定和 Spring 事务参与 |
-| `kervix-examples/basic-mapper` | 可运行的注解、XML、映射、事务、批处理和生成键示例 |
-| `kervix-benchmarks` | Direct JDBC、Kervix 和 MyBatis 的可复现 JMH 基准 |
+| `lynxus-core` | 运行时注解、生成 Mapper 契约、执行计划和 Standalone JDBC 运行时 |
+| `lynxus-processor` | 注解处理器、SQL 编译、校验和源码生成 |
+| `lynxus-spring-boot-starter` | Mapper 注册、命名 DataSource 绑定和 Spring 事务参与 |
+| `lynxus-examples/basic-mapper` | 可运行的注解、XML、映射、事务、批处理和生成键示例 |
+| `lynxus-benchmarks` | Direct JDBC、Lynxus 和 MyBatis 的可复现 JMH 基准 |
 
 ## 开始使用
 

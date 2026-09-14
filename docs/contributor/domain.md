@@ -1,6 +1,6 @@
 # Domain Documentation
 
-Kervix is a single-context repository.
+Lynxus is a single-context repository.
 
 Before exploring or changing a subsystem:
 

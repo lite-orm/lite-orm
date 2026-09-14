@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.diagnostics.MissingIfTestMapper">
+    <select id="findValue" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT 'value'
+        <if>WHERE value = #{value}</if>
+    </select>
+</mapper>

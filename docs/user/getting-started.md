@@ -1,42 +1,42 @@
 # Quick Start
 
-Kervix requires Java 21. It generates ordinary Java Mapper implementations during annotation processing and executes them through a small JDBC runtime.
+Lynxus requires Java 21. It generates ordinary Java Mapper implementations during annotation processing and executes them through a small JDBC runtime.
 
-## 0. Install the Kervix Skill (recommended)
+## 0. Install the Lynxus Skill (recommended)
 
-Kervix is designed for agent-led development. Install the unified `kervix` skill before starting so your agent can scan the project, create a bounded TODO list, configure Kervix incrementally, and switch into migration mode when it finds an existing MyBatis project. The recommended commands download the small GitHub Release artifact rather than the full Kervix source tree; each is a single copy-paste line. Pin a versioned Release URL when reproducibility matters.
+Lynxus is designed for agent-led development. Install the unified `lynxus` skill before starting so your agent can scan the project, create a bounded TODO list, configure Lynxus incrementally, and switch into migration mode when it finds an existing MyBatis project. The recommended commands download the small GitHub Release artifact rather than the full Lynxus source tree; each is a single copy-paste line. Pin a versioned Release URL when reproducibility matters.
 
 Codex:
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/kervix/kervix/releases/latest/download/kervix-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/kervix-skill" "${CODEX_HOME:-$HOME/.codex}/skills/kervix"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lynxus-project/lynxus/releases/latest/download/lynxus-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/lynxus-skill" "${CODEX_HOME:-$HOME/.codex}/skills/lynxus"
 ```
 
 Claude Code:
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/kervix/kervix/releases/latest/download/kervix-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "$HOME/.claude/skills" && cp -R "$tmp/kervix-skill" "$HOME/.claude/skills/kervix"
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lynxus-project/lynxus/releases/latest/download/lynxus-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p "$HOME/.claude/skills" && cp -R "$tmp/lynxus-skill" "$HOME/.claude/skills/lynxus"
 ```
 
 Cursor (project-local):
 
 ```bash
-tmp=$(mktemp -d) && curl -fsSL https://github.com/kervix/kervix/releases/latest/download/kervix-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p .cursor/skills && cp -R "$tmp/kervix-skill" .cursor/skills/kervix
+tmp=$(mktemp -d) && curl -fsSL https://github.com/lynxus-project/lynxus/releases/latest/download/lynxus-skill.tar.gz | tar -xz -C "$tmp" && mkdir -p .cursor/skills && cp -R "$tmp/lynxus-skill" .cursor/skills/lynxus
 ```
 
 If `curl` is unavailable, use this `wget` one-liner for Codex:
 
 ```bash
-tmp=$(mktemp -d) && wget -qO "$tmp/kervix-skill.tar.gz" https://github.com/kervix/kervix/releases/latest/download/kervix-skill.tar.gz && tar -xzf "$tmp/kervix-skill.tar.gz" -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/kervix-skill" "${CODEX_HOME:-$HOME/.codex}/skills/kervix"
+tmp=$(mktemp -d) && wget -qO "$tmp/lynxus-skill.tar.gz" https://github.com/lynxus-project/lynxus/releases/latest/download/lynxus-skill.tar.gz && tar -xzf "$tmp/lynxus-skill.tar.gz" -C "$tmp" && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/lynxus-skill" "${CODEX_HOME:-$HOME/.codex}/skills/lynxus"
 ```
 
 From a local checkout, the equivalent one-liner is:
 
 ```bash
-tmp=$(mktemp -d) && git clone --depth 1 https://github.com/kervix/kervix.git "$tmp/kervix" >/dev/null && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/kervix/skills/kervix" "${CODEX_HOME:-$HOME/.codex}/skills/kervix"
+tmp=$(mktemp -d) && git clone --depth 1 https://github.com/lynxus-project/lynxus.git "$tmp/lynxus" >/dev/null && mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills" && cp -R "$tmp/lynxus/skills/lynxus" "${CODEX_HOME:-$HOME/.codex}/skills/lynxus"
 ```
 
-Then ask your agent to use `$kervix`. The same skill covers new integrations and MyBatis migration; it scans first, writes a reviewable TODO list, and pauses when a decision needs you.
+Then ask your agent to use `$lynxus`. The same skill covers new integrations and MyBatis migration; it scans first, writes a reviewable TODO list, and pauses when a decision needs you.
 
 ## 1. Add the Dependency
 
@@ -44,13 +44,13 @@ For Spring Boot:
 
 ```xml
 <dependency>
-    <groupId>io.github.kervix</groupId>
-    <artifactId>kervix-spring-boot-starter</artifactId>
+    <groupId>io.github.lynxus</groupId>
+    <artifactId>lynxus-spring-boot-starter</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 
-For standalone JDBC, depend on `kervix-core` and add `kervix-processor` to the compiler's
+For standalone JDBC, depend on `lynxus-core` and add `lynxus-processor` to the compiler's
 annotation processor path. While working from this repository, install snapshots locally first:
 
 ```bash
@@ -67,13 +67,13 @@ Explicitly enable the processor with Maven:
         <proc>full</proc>
         <annotationProcessorPaths>
             <path>
-                <groupId>io.github.kervix</groupId>
-                <artifactId>kervix-processor</artifactId>
+                <groupId>io.github.lynxus</groupId>
+                <artifactId>lynxus-processor</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </path>
         </annotationProcessorPaths>
         <annotationProcessors>
-            <annotationProcessor>io.github.kervix.compile.KervixProcessor</annotationProcessor>
+            <annotationProcessor>io.github.lynxus.compile.LynxusProcessor</annotationProcessor>
         </annotationProcessors>
     </configuration>
 </plugin>
@@ -91,10 +91,10 @@ public record User(Long id, String name) {
 ```java
 package com.example.user.mapper;
 
-import io.github.kervix.annotation.Insert;
-import io.github.kervix.annotation.Mapper;
-import io.github.kervix.annotation.Param;
-import io.github.kervix.annotation.Select;
+import io.github.lynxus.annotation.Insert;
+import io.github.lynxus.annotation.Mapper;
+import io.github.lynxus.annotation.Param;
+import io.github.lynxus.annotation.Select;
 
 @Mapper
 public interface UserMapper {
@@ -114,7 +114,7 @@ Compilation generates `UserMapperImpl` under `target/generated-sources/annotatio
 For Spring Boot, bind the Mapper package to a named DataSource:
 
 ```yaml
-kervix:
+lynxus:
   mapper-bindings:
     - package-name: com.example.user.mapper
       data-source: dataSource
@@ -127,4 +127,4 @@ For standalone use, create a [JDBC assembly](core/standalone.md) and construct t
 - Read the [architecture overview](architecture.md).
 - Choose a [value or row mapping strategy](core/mapping.md).
 - Configure the [Spring Boot integration](spring/spring-boot.md).
-- Run the [basic Mapper example](../../kervix-examples/basic-mapper/README.md).
+- Run the [basic Mapper example](../../lynxus-examples/basic-mapper/README.md).

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.xmlresult.NestedSelectResultMapper">
+    <resultMap id="valueResult" type="io.github.lynxus.test.xmlresult.NestedSelectResultMapper.Value">
+        <result property="value" column="value" select="findNested"/>
+    </resultMap>
+    <select id="find" resultMap="valueResult">SELECT 'value' AS value</select>
+</mapper>

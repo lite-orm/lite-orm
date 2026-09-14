@@ -2,14 +2,14 @@
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
-output="${1:-$root/dist/kervix-skill.tar.gz}"
+output="${1:-$root/dist/lynxus-skill.tar.gz}"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-mkdir -p "$stage/kervix-skill" "$(dirname "$output")"
-cp -R "$root/skills/kervix/." "$stage/kervix-skill/"
-printf '%s\n' "$(git describe --tags --always --dirty 2>/dev/null || echo unknown)" > "$stage/kervix-skill/VERSION"
-tar -czf "$output" -C "$stage" kervix-skill
+mkdir -p "$stage/lynxus-skill" "$(dirname "$output")"
+cp -R "$root/skills/lynxus/." "$stage/lynxus-skill/"
+printf '%s\n' "$(git describe --tags --always --dirty 2>/dev/null || echo unknown)" > "$stage/lynxus-skill/VERSION"
+tar -czf "$output" -C "$stage" lynxus-skill
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum "$output" > "$output.sha256"
 else

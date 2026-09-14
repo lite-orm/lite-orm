@@ -1,11 +1,11 @@
-# Kervix Context
+# Lynxus Context
 
-Kervix compiles Mapper declarations into explicit JDBC execution plans and generated implementations. This glossary defines the project-specific language used to describe compilation, execution ownership, and terminal outcomes.
+Lynxus compiles Mapper declarations into explicit JDBC execution plans and generated implementations. This glossary defines the project-specific language used to describe compilation, execution ownership, and terminal outcomes.
 
 ## Language
 
 **Mapper SQL method**:
-A Mapper method backed by a Kervix SQL annotation, Mapper XML statement, or typed SQL provider. Two effective Mapper SQL methods with the same name are overloaded even when their parameter types differ.
+A Mapper method backed by a Lynxus SQL annotation, Mapper XML statement, or typed SQL provider. Two effective Mapper SQL methods with the same name are overloaded even when their parameter types differ.
 _Avoid_: Statement method, query method
 
 **Execution outcome**:
@@ -29,15 +29,15 @@ An observational callback invoked after an execution outcome is final. A termina
 _Avoid_: Execution phase, transaction callback
 
 **Compiler rejection**:
-A deterministic javac error produced when Kervix cannot safely compile a Mapper declaration. Compiler rejection never falls back to runtime SQL interpretation or guessed generated behavior.
+A deterministic javac error produced when Lynxus cannot safely compile a Mapper declaration. Compiler rejection never falls back to runtime SQL interpretation or guessed generated behavior.
 _Avoid_: Parser warning, runtime fallback
 
 **Diagnostic context**:
-The Mapper, method, resource path, statement identifier, and any XML declaration details that Kervix can determine without guessing. Context derived from the Mapper is distinct from declarations successfully parsed from XML.
+The Mapper, method, resource path, statement identifier, and any XML declaration details that Lynxus can determine without guessing. Context derived from the Mapper is distinct from declarations successfully parsed from XML.
 _Avoid_: Parser stack trace, inferred XML declaration
 
 **Offline XML resolution**:
-XML resolution that permits only Kervix-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
+XML resolution that permits only Lynxus-owned local resources and rejects external entities, XInclude, filesystem resources, and network resources.
 _Avoid_: Best-effort XML parsing, remote DTD resolution
 
 **Type handler manager**:

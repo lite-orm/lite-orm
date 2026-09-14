@@ -1,4 +1,4 @@
-# Kervix Agent Rules
+# Lynxus Agent Rules
 
 This file is the canonical entry point for every coding agent working in this repository. Tool-specific instruction files may point here, but they must not define competing project rules.
 
@@ -27,11 +27,11 @@ Issue triage uses the standard Matt Pocock skill roles. See `docs/contributor/tr
 
 ### Domain docs
 
-Kervix uses one root domain context with repository-wide ADRs. See `docs/contributor/domain.md`.
+Lynxus uses one root domain context with repository-wide ADRs. See `docs/contributor/domain.md`.
 
 ## Project Mission
 
-Kervix is a lightweight compile-time SQL Mapper for Java. It moves Mapper validation, dynamic SQL compilation, parameter planning, and result-mapping generation to javac while keeping runtime execution explicit and JDBC-based.
+Lynxus is a lightweight compile-time SQL Mapper for Java. It moves Mapper validation, dynamic SQL compilation, parameter planning, and result-mapping generation to javac while keeping runtime execution explicit and JDBC-based.
 
 ## Non-Negotiable Architecture
 
@@ -40,13 +40,13 @@ Kervix is a lightweight compile-time SQL Mapper for Java. It moves Mapper valida
 - Spring owns IoC, transaction participation, and DataSource binding; it must not duplicate JDBC execution.
 - One Mapper belongs to one DataSource domain.
 - Runtime artifacts must not contain the annotation processor, FreeMarker, or another template engine.
-- Mapper XML and annotation scripts are compiled; Kervix does not interpret XML or OGNL at runtime.
+- Mapper XML and annotation scripts are compiled; Lynxus does not interpret XML or OGNL at runtime.
 - Do not add `SqlSession`, runtime Mapper proxies, ORM caches, lazy loading, automatic count queries, framework `Page<T>`, or a general SQL-rewrite plugin chain.
 
 ## Agent Tooling Policy
 
 - `AGENTS.md` is the only canonical project rule file; tool-specific instruction files must remain thin adapters.
-- Agent plugins and skills define workflow, not Kervix architecture; repository rules always remain authoritative.
+- Agent plugins and skills define workflow, not Lynxus architecture; repository rules always remain authoritative.
 - Agent plugins and developer-global configuration must never become build or CI dependencies.
 - Use the Matt Pocock engineering skills as the primary workflow for specification, ticketing, implementation, TDD, diagnosis, and review.
 - Keep durable facts in repository documentation and transient delivery state in the configured issue tracker.
