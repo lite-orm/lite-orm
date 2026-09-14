@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/lynxus-logo.svg" width="360" alt="Lynxus logo">
+</p>
+
 # Lynxus
 
 [Chinese](README_cn.md)
