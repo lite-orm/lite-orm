@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.diagnostics.UnknownForeachAttributeMapper">
+    <select id="findValue" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT 'value' WHERE value IN
+        <foreach collection="values" item="value" open="(" close=")" seperator=",">
+            #{value}
+        </foreach>
+    </select>
+</mapper>

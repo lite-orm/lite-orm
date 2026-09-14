@@ -1,0 +1,6 @@
+---
+description: Canonical Lynxus repository rules
+alwaysApply: true
+---
+
+Read and obey `/AGENTS.md` before making changes. Use `docs/agent/project-context.md` for repository context and `docs/agent/engineering-guide.md` for detailed engineering rules. Do not create tool-specific rules that conflict with `AGENTS.md`.

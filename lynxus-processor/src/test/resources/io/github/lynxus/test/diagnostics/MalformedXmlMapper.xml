@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.diagnostics.MalformedXmlMapper">
+    <select id="findValue" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT value
+        <if test="value != null">
+            FROM values_table
+    </select>
+</mapper>

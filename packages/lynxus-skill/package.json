@@ -1,0 +1,13 @@
+{
+  "name": "@lynxus/skill",
+  "version": "0.1.0",
+  "description": "Install the Lynxus Agent Skill for Codex, Claude Code, and Cursor.",
+  "type": "module",
+  "bin": {"lynxus-skill": "bin/lynxus-skill.mjs"},
+  "engines": {"node": ">=18"},
+  "files": ["bin", "README.md"],
+  "scripts": {"test": "node bin/lynxus-skill.mjs --help"},
+  "license": "Apache-2.0",
+  "repository": {"type": "git", "url": "https://github.com/lynxus-project/lynxus.git", "directory": "packages/lynxus-skill"},
+  "publishConfig": {"access": "public"}
+}

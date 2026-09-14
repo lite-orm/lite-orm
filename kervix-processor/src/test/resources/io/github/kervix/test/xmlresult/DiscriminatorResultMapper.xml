@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="io.github.kervix.test.xmlresult.DiscriminatorResultMapper">
-    <resultMap id="valueResult" type="io.github.kervix.test.xmlresult.DiscriminatorResultMapper.Value">
-        <discriminator column="kind" javaType="java.lang.String"/>
-    </resultMap>
-    <select id="find" resultMap="valueResult">SELECT 'value' AS value</select>
-</mapper>

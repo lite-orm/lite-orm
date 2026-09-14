@@ -1,6 +1,0 @@
-kervix:
-  mapper-bindings:
-    - package-name: io.github.kervix.example.multidatasource.user
-      data-source: usersDataSource
-    - package-name: io.github.kervix.example.multidatasource.order
-      data-source: ordersDataSource

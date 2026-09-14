@@ -1,6 +1,6 @@
 # Issue Tracker: GitHub
 
-Specifications and implementation tickets for this repository live in GitHub Issues at `kervix/kervix`. Use the `gh` CLI from this clone so the repository is inferred from `origin`.
+Specifications and implementation tickets for this repository live in GitHub Issues at `lynxus/lynxus`. Use the `gh` CLI from this clone so the repository is inferred from `origin`.
 
 ## Conventions
 

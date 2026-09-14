@@ -1,12 +1,12 @@
-# Kervix Project Context
+# Lynxus Project Context
 
 ## Repository Purpose
 
-Kervix is a Java 21 compile-time SQL Mapper. It generates ordinary Mapper implementations during annotation processing and executes immutable plans through a fixed JDBC runtime.
+Lynxus is a Java 21 compile-time SQL Mapper. It generates ordinary Mapper implementations during annotation processing and executes immutable plans through a fixed JDBC runtime.
 
 ## Current Modules
 
-### `kervix-core`
+### `lynxus-core`
 
 Runtime responsibilities:
 
@@ -17,42 +17,42 @@ Runtime responsibilities:
 - built-in execution interceptors;
 - fixed standard JDBC routing through `TypeHandlerManager`.
 
-### `kervix-processor`
+### `lynxus-processor`
 
 Owns compiler-only code and dependencies:
 
-- `KervixProcessor` and `CompilePipeline`;
+- `LynxusProcessor` and `CompilePipeline`;
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
 - structured source modeling and processor-only FreeMarker source rendering.
 
-### `kervix-spring-boot-starter`
+### `lynxus-spring-boot-starter`
 
 Registers generated Mapper implementations, binds Mapper packages to physical DataSources, supplies Spring-aware connection handles, and participates in Spring transactions. It must depend only on runtime core at runtime.
 
-### `kervix-examples/basic-mapper`
+### `lynxus-examples/basic-mapper`
 
 Provides executable annotation/XML, mapping, provider, binder, cursor, transaction, generated-key, batch, and pagination examples.
 
-### `kervix-benchmarks`
+### `lynxus-benchmarks`
 
-Compares Direct JDBC, Kervix, and MyBatis under controlled JMH fixtures. Benchmark results are evidence about the measured setup, not general production latency claims.
+Compares Direct JDBC, Lynxus, and MyBatis under controlled JMH fixtures. Benchmark results are evidence about the measured setup, not general production latency claims.
 
-### `kervix-test-support`
+### `lynxus-test-support`
 
 Provides non-published PostgreSQL and MySQL Testcontainers fixtures for database-backed tests. It is consumed only with test scope and must not enter user runtime dependency trees.
 
 ## Planned Modules
 
-- `kervix-migration`: MyBatis scanner and deterministic rewriter.
-- `kervix-generator`: DB metadata to model/Mapper skeleton generation.
+- `lynxus-migration`: MyBatis scanner and deterministic rewriter.
+- `lynxus-generator`: DB metadata to model/Mapper skeleton generation.
 
 ## Execution Path
 
 ```text
 Mapper source
-  -> kervix-processor / KervixProcessor
+  -> lynxus-processor / LynxusProcessor
   -> CompilePipeline
   -> generated MapperImpl
   -> SqlExecutor
@@ -75,11 +75,11 @@ Mapper source
 
 ```bash
 mvn test
-mvn -pl kervix-core test
-mvn -pl kervix-spring-boot-starter -am test
-mvn -pl kervix-examples/basic-mapper -am test
-mvn -pl kervix-benchmarks -am test
-gradle -p kervix-examples/external-gradle-processor clean build
+mvn -pl lynxus-core test
+mvn -pl lynxus-spring-boot-starter -am test
+mvn -pl lynxus-examples/basic-mapper -am test
+mvn -pl lynxus-benchmarks -am test
+gradle -p lynxus-examples/external-gradle-processor clean build
 git diff --check
 scripts/verify-database-test-matrix.sh
 ```

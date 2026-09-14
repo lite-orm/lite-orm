@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="io.github.kervix.test.xmlresult.ConflictResultMapper">
-    <resultMap id="valueResult" type="java.lang.String">
-        <result column="value" javaType="java.lang.String"/>
-    </resultMap>
-    <select id="find" resultMap="valueResult">
-        SELECT 'value' AS value
-    </select>
-</mapper>

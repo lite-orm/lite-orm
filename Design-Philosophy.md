@@ -1,4 +1,4 @@
-# Kervix Design Philosophy
+# Lynxus Design Philosophy
 
 > "First principles are the strongest weapon for reasoning." — Elon Musk
 >
@@ -6,13 +6,13 @@
 
 ## Purpose
 
-Kervix exists to provide a smaller and more predictable SQL Mapper for Java teams that value explicit SQL, compile-time feedback, readable generated code, and direct JDBC behavior.
+Lynxus exists to provide a smaller and more predictable SQL Mapper for Java teams that value explicit SQL, compile-time feedback, readable generated code, and direct JDBC behavior.
 
-MyBatis 3.5.x is Kervix's compatibility baseline for deterministic SQL Mapper behavior and JDBC value types. Kervix does not copy MyBatis runtime architecture, but a migration should not lose a deterministic mapping merely because Kervix omitted the corresponding built-in type. Success means teams can adopt Kervix through normal Maven or Gradle dependencies, migrate supported Mapper code with limited friction, understand generated behavior, and diagnose failures without framework internals.
+MyBatis 3.5.x is Lynxus's compatibility baseline for deterministic SQL Mapper behavior and JDBC value types. Lynxus does not copy MyBatis runtime architecture, but a migration should not lose a deterministic mapping merely because Lynxus omitted the corresponding built-in type. Success means teams can adopt Lynxus through normal Maven or Gradle dependencies, migrate supported Mapper code with limited friction, understand generated behavior, and diagnose failures without framework internals.
 
 ## Core Model
 
-The durable Kervix model is:
+The durable Lynxus model is:
 
 ```text
 Mapper interface + annotations/XML
@@ -67,7 +67,7 @@ evaluation.
 
 Generated Mapper implementations are ordinary Java classes. They receive a `SqlExecutor`, retain immutable compile-time statement definitions, bind invocation values into execution plans, and adapt typed execution results to the declared return shape. Standard query definitions carry generated result assemblers so object construction remains compile-time-defined while the executor owns result mapping and JDBC cleanup.
 
-Kervix does not expose a session abstraction and does not use runtime Mapper proxies. The runtime path should remain visible in generated source and debuggable with normal Java tools.
+Lynxus does not expose a session abstraction and does not use runtime Mapper proxies. The runtime path should remain visible in generated source and debuggable with normal Java tools.
 
 ### Keep One JDBC Lifecycle
 
@@ -79,7 +79,7 @@ Every acquired resource has one owner. Cleanup failures remain observable, origi
 
 Engineering principles are guides for judgment, not rigid procedures. Before creating a custom design, first determine whether a mature industry standard, library, protocol, pattern, or implementation already solves the problem.
 
-When a proven solution matches Kervix's requirements, architectural boundaries, dependency constraints, and ownership model, adopt it directly. Do not rebuild an established solution merely to follow an internal process or demonstrate architectural purity.
+When a proven solution matches Lynxus's requirements, architectural boundaries, dependency constraints, and ownership model, adopt it directly. Do not rebuild an established solution merely to follow an internal process or demonstrate architectural purity.
 
 Maturity alone is not sufficient. A solution must also fit the actual context. Consider its correctness, maintenance status, complexity, dependencies, operational cost, failure behavior, security, compatibility, and long-term ownership.
 
@@ -89,7 +89,7 @@ Let real usage, repeated changes, and measured bottlenecks provide evidence for 
 
 ### Apply Proven Design Principles
 
-Kervix uses the following design framework:
+Lynxus uses the following design framework:
 
 ```text
 SOLID principles
@@ -115,7 +115,7 @@ Established design patterns are tools for recurring problems, not goals by thems
 
 Do not apply SOLID principles, design patterns, abstraction rules, or architectural styles mechanically. Use them only when they make the design easier to understand, verify, maintain, and change.
 
-For Kervix, this keeps the runtime contract cohesive, separates compiler and integration concerns, and allows exceptional behavior through narrow typed contracts such as `SqlProvider`, `ParameterBinder`, `RowMapper`, `ExecutionInterceptor`, and `ConnectionHandleFactory`. These extensions must not replace the fixed JDBC lifecycle or become a general runtime plugin chain.
+For Lynxus, this keeps the runtime contract cohesive, separates compiler and integration concerns, and allows exceptional behavior through narrow typed contracts such as `SqlProvider`, `ParameterBinder`, `RowMapper`, `ExecutionInterceptor`, and `ConnectionHandleFactory`. These extensions must not replace the fixed JDBC lifecycle or become a general runtime plugin chain.
 
 ### Keep DataSource Ownership Unambiguous
 
@@ -125,9 +125,9 @@ Spring may provide IoC, transaction managers, physical DataSources, and ordered 
 
 ## Compatibility Philosophy
 
-Kervix supports common SQL Mapper work directly, converts some MyBatis patterns into static Kervix forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
+Lynxus supports common SQL Mapper work directly, converts some MyBatis patterns into static Lynxus forms, and rejects features that depend on session state, runtime interpretation, complex object graphs, or hidden framework policy.
 
-Deterministic MyBatis JDBC value behavior is a compatibility target. Kervix generates Java type information and uses a fixed Core `TypeHandlerManager` to combine it with optional parameter `jdbcType` declarations or live result metadata. Generated result assemblers still construct records and JavaBeans directly inside the executor lifecycle. Unsupported scalar representations use an explicit `ParameterBinder` or `RowMapper`; package mappings, database-specific routing, unknown-object fallback, reflection-based construction, global registries, and resource values that cannot survive the fixed JDBC cleanup boundary remain outside the contract.
+Deterministic MyBatis JDBC value behavior is a compatibility target. Lynxus generates Java type information and uses a fixed Core `TypeHandlerManager` to combine it with optional parameter `jdbcType` declarations or live result metadata. Generated result assemblers still construct records and JavaBeans directly inside the executor lifecycle. Unsupported scalar representations use an explicit `ParameterBinder` or `RowMapper`; package mappings, database-specific routing, unknown-object fallback, reflection-based construction, global registries, and resource values that cannot survive the fixed JDBC cleanup boundary remain outside the contract.
 
 Direct support focuses on:
 
@@ -141,7 +141,7 @@ Migration tooling may rewrite deterministic syntax. It must report rather than g
 
 ## Explicit Non-Goals
 
-Kervix does not add:
+Lynxus does not add:
 
 - first-level or second-level ORM caches;
 - `SqlSession`;

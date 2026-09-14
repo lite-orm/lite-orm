@@ -2,19 +2,19 @@
 set -euo pipefail
 
 suites=(
-  io.github.kervix.testsupport.database.TestDatabaseTest
-  io.github.kervix.test.database.PostgresCompatibilityTest
-  io.github.kervix.test.database.MySqlCompatibilityTest
-  io.github.kervix.test.database.PostgresCoreConcurrencySoakTest
-  io.github.kervix.test.database.MySqlCoreConcurrencySoakTest
-  io.github.kervix.test.multidatasource.PostgresMultiDataSourceExecutionTest
-  io.github.kervix.test.multidatasource.MySqlMultiDataSourceExecutionTest
-  io.github.kervix.spring.boot.PostgresPackageDataSourceExecutionTest
-  io.github.kervix.spring.boot.MySqlPackageDataSourceExecutionTest
-  io.github.kervix.spring.boot.PostgresKervixAutoConfigurationTest
-  io.github.kervix.spring.boot.MySqlKervixAutoConfigurationTest
-  io.github.kervix.example.PostgresStandaloneJdbcUsageTest
-  io.github.kervix.example.MySqlStandaloneJdbcUsageTest
+  io.github.lynxus.testsupport.database.TestDatabaseTest
+  io.github.lynxus.test.database.PostgresCompatibilityTest
+  io.github.lynxus.test.database.MySqlCompatibilityTest
+  io.github.lynxus.test.database.PostgresCoreConcurrencySoakTest
+  io.github.lynxus.test.database.MySqlCoreConcurrencySoakTest
+  io.github.lynxus.test.multidatasource.PostgresMultiDataSourceExecutionTest
+  io.github.lynxus.test.multidatasource.MySqlMultiDataSourceExecutionTest
+  io.github.lynxus.spring.boot.PostgresPackageDataSourceExecutionTest
+  io.github.lynxus.spring.boot.MySqlPackageDataSourceExecutionTest
+  io.github.lynxus.spring.boot.PostgresLynxusAutoConfigurationTest
+  io.github.lynxus.spring.boot.MySqlLynxusAutoConfigurationTest
+  io.github.lynxus.example.PostgresStandaloneJdbcUsageTest
+  io.github.lynxus.example.MySqlStandaloneJdbcUsageTest
 )
 
 failed=0
