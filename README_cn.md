@@ -10,6 +10,10 @@ Kervix 不追求完整复刻 MyBatis。它关注显式 SQL、编译期诊断、�
 
 ![Kervix 编译期与运行期架构](docs/assets/kervix-architecture.svg)
 
+下图对比 Lynxus 与传统 ORM 在编译期、启动期和方法调用期的生效流程：
+
+![Lynxus 与传统 ORM 生命周期的动态对比](docs/assets/lynxus-vs-traditional-orm-flow-zh.gif)
+
 - Mapper 校验、动态 SQL 编译、参数规划和结果映射生成发生在 javac 阶段。
 - 生成的 Mapper 是普通 Java 类，只依赖一个 `SqlExecutor`。
 - Standalone 与 Spring 共用同一个 `JdbcSqlExecutor` 执行生命周期。
