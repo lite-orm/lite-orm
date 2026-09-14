@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.diagnostics.MissingStatementMapper">
+    <select id="anotherMethod" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT 'another'
+    </select>
+</mapper>

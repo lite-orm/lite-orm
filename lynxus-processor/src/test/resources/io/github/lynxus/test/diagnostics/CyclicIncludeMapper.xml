@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.lynxus.test.diagnostics.CyclicIncludeMapper">
+    <sql id="first"><include refid="second"/></sql>
+    <sql id="second"><include refid="first"/></sql>
+    <select id="findValue" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT <include refid="first"/>
+    </select>
+</mapper>

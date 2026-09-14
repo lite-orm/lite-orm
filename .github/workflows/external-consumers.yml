@@ -20,15 +20,15 @@ jobs:
       - name: Verify external Maven consumer
         run: |
           for attempt in 1 2 3; do
-            mvn --batch-mode --no-transfer-progress -DskipTests -pl kervix-processor -am install \
-              && mvn --batch-mode --no-transfer-progress -DskipTests -pl kervix-spring-boot-starter -am install \
+            mvn --batch-mode --no-transfer-progress -DskipTests -pl lynxus-processor -am install \
+              && mvn --batch-mode --no-transfer-progress -DskipTests -pl lynxus-spring-boot-starter -am install \
               && exit 0
             if [ "$attempt" -eq 3 ]; then
               exit 1
             fi
           done
       - name: Verify external Gradle consumer
-        run: gradle -p kervix-examples/external-gradle-processor --no-daemon clean build
+        run: gradle -p lynxus-examples/external-gradle-processor --no-daemon clean build
 
   spring-boot-maven:
     strategy:
@@ -43,19 +43,19 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Install Kervix Processor
-        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl kervix-processor -am install
-      - name: Install Kervix Starter
-        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl kervix-spring-boot-starter -am install
+      - name: Install Lynxus Processor
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lynxus-processor -am install
+      - name: Install Lynxus Starter
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lynxus-spring-boot-starter -am install
       - name: Verify external Spring Boot consumer
         run: >-
           mvn --batch-mode --no-transfer-progress
-          -f kervix-examples/external-spring-boot-consumer/pom.xml
+          -f lynxus-examples/external-spring-boot-consumer/pom.xml
           -Dspring-boot.version=${{ matrix.spring-boot-version }} clean verify
       - name: Verify multi-DataSource Spring Boot example
         run: >-
           mvn --batch-mode --no-transfer-progress
-          -f kervix-examples/multi-datasource-spring-boot/pom.xml
+          -f lynxus-examples/multi-datasource-spring-boot/pom.xml
           -Dspring-boot.version=${{ matrix.spring-boot-version }} clean verify
 
   spring-boot-runtime:
@@ -71,10 +71,10 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Install Kervix Processor
-        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl kervix-processor -am install
+      - name: Install Lynxus Processor
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -pl lynxus-processor -am install
       - name: Verify Spring Boot Starter runtime
         run: >-
           mvn --batch-mode --no-transfer-progress
-          -pl kervix-spring-boot-starter -am
+          -pl lynxus-spring-boot-starter -am
           -Dspring-boot.version=${{ matrix.spring-boot-version }} test

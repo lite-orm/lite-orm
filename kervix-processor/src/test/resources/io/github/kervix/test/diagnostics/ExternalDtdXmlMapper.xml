@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper SYSTEM "https://example.invalid/kervix-external.dtd">
-<mapper namespace="io.github.kervix.test.diagnostics.ExternalDtdXmlMapper">
-    <select id="findValue" resultType="io.github.kervix.test.diagnostics.ValueRow">
-        SELECT value FROM values_table
-    </select>
-</mapper>

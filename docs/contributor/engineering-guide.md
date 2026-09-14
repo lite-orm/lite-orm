@@ -1,4 +1,4 @@
-# Kervix Engineering Guide
+# Lynxus Engineering Guide
 
 ## Design Bias
 
@@ -8,7 +8,7 @@
 - Do not add wrappers or abstractions that only rename an existing operation.
 - Keep uncertain choices reversible and validate them with a thin executable slice.
 
-These rules are adapted for Kervix from the layered rule-set approach demonstrated by [ciembor/agent-rules-books](https://github.com/ciembor/agent-rules-books); Kervix remains governed by its own architecture and contracts.
+These rules are adapted for Lynxus from the layered rule-set approach demonstrated by [ciembor/agent-rules-books](https://github.com/ciembor/agent-rules-books); Lynxus remains governed by its own architecture and contracts.
 
 ## Java Style
 

@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="io.github.kervix.test.xmlresult.BlankResultMapIdMapper">
-    <resultMap id="" type="io.github.kervix.test.xmlresult.BlankResultMapIdMapper.Value">
-        <result property="value" column="value"/>
-    </resultMap>
-    <select id="find" resultType="io.github.kervix.test.xmlresult.BlankResultMapIdMapper.Value">
-        SELECT 'value' AS value
-    </select>
-</mapper>

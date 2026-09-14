@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<mapper namespace="io.github.lynxus.test.mappingfixture.XmlRowMapperMapper">
+    <select id="findOne" resultType="io.github.lynxus.test.mappingfixture.Result">
+        SELECT id FROM users WHERE id = #{id}
+    </select>
+    <select id="findAll" resultType="io.github.lynxus.test.mappingfixture.Result">
+        SELECT id FROM users WHERE id &gt;= #{id}
+    </select>
+</mapper>

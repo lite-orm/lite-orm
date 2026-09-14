@@ -6,7 +6,7 @@ cd "$repository_root"
 
 [[ -f LICENSE ]] || { echo "Missing Apache-2.0 LICENSE file" >&2; exit 1; }
 grep -Fq 'Apache License' LICENSE || { echo "LICENSE is not Apache-2.0 text" >&2; exit 1; }
-grep -Fq '<url>https://github.com/kervix/kervix</url>' pom.xml || {
+grep -Fq '<url>https://github.com/lynxus-project/lynxus</url>' pom.xml || {
   echo "Root POM is missing project URL" >&2
   exit 1
 }

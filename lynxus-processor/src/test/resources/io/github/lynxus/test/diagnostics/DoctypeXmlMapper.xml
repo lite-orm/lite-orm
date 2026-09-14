@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper [
+    <!ENTITY external SYSTEM "file:///etc/passwd">
+]>
+<mapper namespace="io.github.lynxus.test.diagnostics.DoctypeXmlMapper">
+    <select id="findValue" resultType="io.github.lynxus.test.diagnostics.ValueRow">
+        SELECT '&external;'
+    </select>
+</mapper>

@@ -1,10 +1,10 @@
-# Kervix Core GA Benchmark Baseline
+# Lynxus Core GA Benchmark Baseline
 
 Date: 2026-09-13
 
 ## Purpose
 
-This is a measurement baseline, not an optimization proposal. It compares Direct JDBC, generated Kervix Mappers, and MyBatis under one controlled in-process database fixture. No core cache or hot-path behavior was changed while producing it.
+This is a measurement baseline, not an optimization proposal. It compares Direct JDBC, generated Lynxus Mappers, and MyBatis under one controlled in-process database fixture. No core cache or hot-path behavior was changed while producing it.
 
 ## Harness
 
@@ -19,7 +19,7 @@ This is a measurement baseline, not an optimization proposal. It compares Direct
 - Warmup: 2 iterations × 1 second
 - Measurement: 3 iterations × 1 second
 - Allocation profiler: JMH `-prof gc`
-- CPU evidence: separate JMH `-prof jfr` runs for Kervix scalar, dynamic SQL, and batch
+- CPU evidence: separate JMH `-prof jfr` runs for Lynxus scalar, dynamic SQL, and batch
 - Source parent: `68c01c9`; benchmark sources were added in the following benchmark commit
 
 Each comparison uses the same MySQL DataSource, schema, SQL parameters, connection or session ownership boundary, and consumed result shape. `BenchmarkFixtureTest` verifies equivalent results before measurement. H2 remains available as the fast default fixture; it must not be used to describe the MySQL results below.
@@ -27,12 +27,12 @@ Each comparison uses the same MySQL DataSource, schema, SQL parameters, connecti
 ## Reproduction
 
 ```bash
-mvn -pl kervix-benchmarks -am package
+mvn -pl lynxus-benchmarks -am package
 
-java -Dbenchmark.database=mysql -jar kervix-benchmarks/target/benchmarks.jar \
+java -Dbenchmark.database=mysql -jar lynxus-benchmarks/target/benchmarks.jar \
   '.*Benchmark.*' \
   -rf json \
-  -rff kervix-benchmarks/target/results/mysql-2026-09-13.json
+  -rff lynxus-benchmarks/target/results/mysql-2026-09-13.json
 ```
 
 The command starts a disposable MySQL 8.4 container and therefore requires a
@@ -42,9 +42,9 @@ one-second warmups, three one-second measurements, one fork, and one thread.
 JFR evidence was collected separately because profilers perturb timing:
 
 ```bash
-java -jar kervix-benchmarks/target/benchmarks.jar \
-  'ReadBenchmark.kervixScalar|ReadBenchmark.kervixDynamic|WriteBenchmark.kervixBatch' \
-  -prof 'jfr:dir=kervix-benchmarks/target/results/jfr' \
+java -jar lynxus-benchmarks/target/benchmarks.jar \
+  'ReadBenchmark.lynxusScalar|ReadBenchmark.lynxusDynamic|WriteBenchmark.lynxusBatch' \
+  -prof 'jfr:dir=lynxus-benchmarks/target/results/jfr' \
   -wi 2 -i 3 -w 1s -r 1s -f 1
 ```
 
@@ -52,7 +52,7 @@ java -jar kervix-benchmarks/target/benchmarks.jar \
 
 Lower is better.
 
-| Workload | Direct JDBC µs/op | Kervix µs/op | MyBatis µs/op |
+| Workload | Direct JDBC µs/op | Lynxus µs/op | MyBatis µs/op |
 | --- | ---: | ---: | ---: |
 | Scalar query | 3,511 | 3,362 | 3,563 |
 | Record mapping | 3,404 | 3,423 | 3,580 |

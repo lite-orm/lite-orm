@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lynxus MyBatis Migration"
+  short_description: "Scan and migrate MyBatis projects safely"
+  default_prompt: "Use $lynxus to inspect this project and produce a bounded Lynxus implementation or migration TODO list before making changes."

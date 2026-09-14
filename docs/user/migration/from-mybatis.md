@@ -12,14 +12,14 @@ Do not choose a provider or raw JDBC only because the original Mapper used XML. 
 
 ## 2. Migrate Mapper Declarations
 
-- Replace MyBatis imports with Kervix-owned types under `io.github.kervix.annotation`.
+- Replace MyBatis imports with Lynxus-owned types under `io.github.lynxus.annotation`.
 - Keep `@Mapper`, `@Select`, `@Insert`, `@Update`, and `@Delete` method shapes.
-- Use Kervix `@Batch` for JDBC batch and `@GeneratedKey("id")` for one explicitly named generated-key column.
+- Use Lynxus `@Batch` for JDBC batch and `@GeneratedKey("id")` for one explicitly named generated-key column.
 - Add explicit `@Param` names to multi-parameter methods.
 - Prefer supported scalars, records, JavaBeans, and `List<T>` results.
 - Inspect the generated `*MapperImpl` when diagnosing binding, dynamic SQL, or result mapping.
 
-The annotation fixture is `kervix-examples/basic-mapper/src/main/java/org/kervix/example/UserMapper.java`.
+The annotation fixture is `lynxus-examples/basic-mapper/src/main/java/io/github/lynxus/example/UserMapper.java`.
 
 ## 3. Migrate XML
 
@@ -29,13 +29,13 @@ The annotation fixture is `kervix-examples/basic-mapper/src/main/java/org/kervix
 - Replace data `${}` substitutions with bound `#{}` parameters.
 - If XML and an annotation coexist, XML wins and javac warns on the Mapper method.
 
-The XML fixture is `kervix-examples/basic-mapper/src/main/resources/org/kervix/example/UserXmlMapper.xml`.
+The XML fixture is `lynxus-examples/basic-mapper/src/main/resources/io/github/lynxus/example/UserXmlMapper.xml`.
 
 Use XML `<batch>` or `@Batch` for `PreparedStatement.addBatch/executeBatch`. A normal `<insert>` containing `<foreach>` remains one dynamically generated SQL statement.
 
 ## 4. Replace Runtime OGNL Assumptions
 
-Kervix translates its controlled OGNL-like subset into Java during annotation processing. It does not execute OGNL, MVEL, SpEL, or another runtime expression engine.
+Lynxus translates its controlled OGNL-like subset into Java during annotation processing. It does not execute OGNL, MVEL, SpEL, or another runtime expression engine.
 
 ```text
 name != null and name != ''      -> name != null && !name.isEmpty()
@@ -72,7 +72,7 @@ For dynamic tenant, shard, or read/write selection, prefer an application routin
 Replace legacy engine, connection-provider, coordinator, or global configuration assembly with one `JdbcAssembly` per DataSource:
 
 ```java
-JdbcAssembly assembly = Kervix.jdbc(dataSource)
+JdbcAssembly assembly = Lynxus.jdbc(dataSource)
     .domain("users")
     .interceptors(interceptors)
     .build();
@@ -97,7 +97,7 @@ Create independent assemblies for independent DataSources. Core does not provide
 Keep Mapper package bindings explicit:
 
 ```yaml
-kervix:
+lynxus:
   mapper-bindings:
     - package-name: com.example.user.mapper
       data-source: usersDataSource
@@ -109,7 +109,7 @@ kervix:
 - One Mapper interface is registered once against one DataSource.
 - Generated classes remain Spring-neutral and are registered by the starter.
 - Each `@Transactional` boundary must use the transaction manager for the same DataSource.
-- A physical or routing DataSource may be bound, but Kervix does not own its routing context.
+- A physical or routing DataSource may be bound, but Lynxus does not own its routing context.
 
 ## 9. Verify Migration
 
@@ -117,7 +117,7 @@ Run the full compiler, standalone, Spring, and external fixtures:
 
 ```bash
 mvn clean test
-mvn -pl kervix-core -am verify
+mvn -pl lynxus-core -am verify
 ```
 
 Treat compilation diagnostics as migration tasks. Do not add runtime reflection or expression interpretation to bypass them.
