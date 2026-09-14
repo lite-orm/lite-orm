@@ -5,6 +5,7 @@ target
 .agents
 .gradle
 **/build/
+/dist/
 
 # Local research notes are retained on disk but excluded from version control.
 /docs/research/
