@@ -29,6 +29,6 @@ Standalone and Spring applications use the same generated Mapper and `JdbcSqlExe
 
 One Mapper belongs to one DataSource domain. Applications with several DataSources use disjoint Mapper packages and independent executor graphs.
 
-![Animated comparison of the Lynxus and MyBatis lifecycles](../assets/lynxus-vs-mybatis-flow-en.gif)
+![Animated comparison of the Lynxus and traditional ORM lifecycles](../assets/lynxus-vs-traditional-orm-flow-en.gif)
 
 The durable architectural principles and non-goals are defined in [Design Philosophy](../../Design-Philosophy.md). Normative behavior is defined in the [Core contract](../reference/core-contract.md).
