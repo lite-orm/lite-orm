@@ -55,9 +55,10 @@ in the review plan before conversion.
 - The original XML also contains `getUsers`, but the reduced Java input has no
   corresponding method. It is intentionally excluded rather than silently
   invented.
-- Database execution is not claimed by this compile-time fixture. The relevant
-  PostgreSQL/MySQL behavior remains covered by Lynxus's existing Testcontainers
-  suites.
+- Database execution remains outside this reduced compile-time migration
+  fixture. The relevant PostgreSQL/MySQL behavior is covered by Lynxus's
+  existing Testcontainers suites. Native Image verification is covered by the
+  standalone external consumer fixture.
 
 ## Verification
 
@@ -75,7 +76,6 @@ Observed on September 13, 2026 from the repository root with OpenJDK 21.0.4:
   `0`; compiled 3 sources, generated and compiled
   `org.mybatis.spring.sample.mapper.UserMapperImpl`, and produced the fixture
   JAR.
-- Fixture tests: no test sources; no tests were run.
 - Database execution: not run; this fixture intentionally verifies the
   compile-time migration boundary only.
 - `git diff --check`: exit `0`.

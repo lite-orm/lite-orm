@@ -20,6 +20,10 @@ malformed XML fail during compilation whenever javac can identify the location.
 
 Generated Mappers retain immutable statement definitions and bind only each invocation's SQL parameter values into execution plans before calling `SqlExecutor`. Fixed SQL, statement identity, options, JDBC routing, and result assembly live in generated `QueryDefinition`, `CommandDefinition`, or `BatchDefinition` fields instead of being rebuilt on every call. Standard SELECT methods use a typed `QueryExecutionPlan<T>` whose generated result assembler performs direct object construction and setter calls after Core JDBC value conversion. `JdbcSqlExecutor` owns statement preparation, parameter binding, execution, result reading and assembly, cleanup, and final observation. Runtime code does not load Mapper XML, evaluate OGNL, dispatch through Mapper proxies, or discover handlers.
 
+This generated-code boundary is also the basis for Lynxus's AOT-first
+position. The standalone path is verified with an ARM64 Native Image smoke
+build; see [AOT usage](aot.md).
+
 ## Host Integrations
 
 Standalone and Spring applications use the same generated Mapper and `JdbcSqlExecutor` path. They differ only in assembly, connection participation, transaction ownership, and Mapper instance registration.

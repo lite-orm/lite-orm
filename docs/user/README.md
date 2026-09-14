@@ -6,6 +6,7 @@ Lynxus documentation is organized by the task or module a user is working with. 
 
 - [Quick start](getting-started.md): add Lynxus, define a Mapper, and configure annotation processing.
 - [Architecture](architecture.md): understand the compile-time and runtime boundaries.
+- [AOT usage](aot.md): compile and verify a generated Mapper as a Native Image.
 
 ## Core
 

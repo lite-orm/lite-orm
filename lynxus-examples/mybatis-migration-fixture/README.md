@@ -37,6 +37,6 @@ mvn -f lynxus-examples/mybatis-migration-fixture/pom.xml clean verify
 
 The build runs annotation processing and compiles
 `GeneratedMapperConsumer`, which constructs the generated Mapper from the
-public `SqlExecutor` contract. A database is not required for this
-compile-time fixture; database-backed behavior remains covered by the Core and
-processor Testcontainers suites.
+public `SqlExecutor` contract. Database-backed behavior remains covered by the
+Core and processor Testcontainers suites. The standalone generated Mapper
+Native Image smoke check is documented in [`docs/user/aot.md`](../../docs/user/aot.md).

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/lynxus-logo.svg" width="360" alt="Lynxus logo">
+</p>
+
 # Lynxus Documentation
 
 This is the canonical documentation index. User-facing guides are grouped by product area under `docs/user/`; normative contracts, project records, and contributor material remain separate so readers can distinguish guidance from guarantees and internal workflow.
@@ -9,6 +13,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`user/README.md`](user/README.md): user documentation map.
 - [`user/getting-started.md`](user/getting-started.md): installation, annotation processing, the first Mapper, and runtime assembly.
 - [`user/architecture.md`](user/architecture.md): compile-time and runtime architecture.
+- [`user/aot.md`](user/aot.md): Lynxus AOT-first compilation and Native Image verification.
 - [`contribute.md`](contribute.md): contributor workflow, expectations, and AI-agent contribution guidance.
 
 ### Core
@@ -36,6 +41,8 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`reference/mybatis-compatibility.md`](reference/mybatis-compatibility.md): supported, partial, and unsupported MyBatis behavior.
 - [`../Design-Philosophy.md`](../Design-Philosophy.md): durable product principles and non-goals.
 - [`../CONTEXT.md`](../CONTEXT.md): canonical project terminology and ownership.
+
+The runnable Native Image consumer is [`../lynxus-examples/native-image`](../lynxus-examples/native-image).
 
 ## Architecture Decisions and Evidence
 
