@@ -1,12 +1,12 @@
-# LiteORM Project Context
+# Kervix Project Context
 
 ## Repository Purpose
 
-LiteORM is a Java 21 compile-time SQL Mapper. It generates ordinary Mapper implementations during annotation processing and executes immutable plans through a fixed JDBC runtime.
+Kervix is a Java 21 compile-time SQL Mapper. It generates ordinary Mapper implementations during annotation processing and executes immutable plans through a fixed JDBC runtime.
 
 ## Current Modules
 
-### `lite-orm-core`
+### `kervix-core`
 
 Runtime responsibilities:
 
@@ -17,42 +17,42 @@ Runtime responsibilities:
 - built-in execution interceptors;
 - fixed standard JDBC routing through `TypeHandlerManager`.
 
-### `lite-orm-processor`
+### `kervix-processor`
 
 Owns compiler-only code and dependencies:
 
-- `LiteOrmProcessor` and `CompilePipeline`;
+- `KervixProcessor` and `CompilePipeline`;
 - annotation and XML parsing;
 - dynamic SQL AST and validation;
 - generated Mapper source.
 - structured source modeling and processor-only FreeMarker source rendering.
 
-### `lite-orm-spring-boot-starter`
+### `kervix-spring-boot-starter`
 
 Registers generated Mapper implementations, binds Mapper packages to physical DataSources, supplies Spring-aware connection handles, and participates in Spring transactions. It must depend only on runtime core at runtime.
 
-### `lite-orm-examples/basic-mapper`
+### `kervix-examples/basic-mapper`
 
 Provides executable annotation/XML, mapping, provider, binder, cursor, transaction, generated-key, batch, and pagination examples.
 
-### `lite-orm-benchmarks`
+### `kervix-benchmarks`
 
-Compares Direct JDBC, LiteORM, and MyBatis under controlled JMH fixtures. Benchmark results are evidence about the measured setup, not general production latency claims.
+Compares Direct JDBC, Kervix, and MyBatis under controlled JMH fixtures. Benchmark results are evidence about the measured setup, not general production latency claims.
 
-### `lite-orm-test-support`
+### `kervix-test-support`
 
 Provides non-published PostgreSQL and MySQL Testcontainers fixtures for database-backed tests. It is consumed only with test scope and must not enter user runtime dependency trees.
 
 ## Planned Modules
 
-- `lite-orm-migration`: MyBatis scanner and deterministic rewriter.
-- `lite-orm-generator`: DB metadata to model/Mapper skeleton generation.
+- `kervix-migration`: MyBatis scanner and deterministic rewriter.
+- `kervix-generator`: DB metadata to model/Mapper skeleton generation.
 
 ## Execution Path
 
 ```text
 Mapper source
-  -> lite-orm-processor / LiteOrmProcessor
+  -> kervix-processor / KervixProcessor
   -> CompilePipeline
   -> generated MapperImpl
   -> SqlExecutor
@@ -75,11 +75,11 @@ Mapper source
 
 ```bash
 mvn test
-mvn -pl lite-orm-core test
-mvn -pl lite-orm-spring-boot-starter -am test
-mvn -pl lite-orm-examples/basic-mapper -am test
-mvn -pl lite-orm-benchmarks -am test
-gradle -p lite-orm-examples/external-gradle-processor clean build
+mvn -pl kervix-core test
+mvn -pl kervix-spring-boot-starter -am test
+mvn -pl kervix-examples/basic-mapper -am test
+mvn -pl kervix-benchmarks -am test
+gradle -p kervix-examples/external-gradle-processor clean build
 git diff --check
 scripts/verify-database-test-matrix.sh
 ```

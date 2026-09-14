@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="830" viewBox="0 0 1600 830" role="img" aria-labelledby="title description">
+  <title id="title">Kervix compile-time SQL Mapper architecture</title>
+  <desc id="description">Kervix compiles Mapper sources and JDBC mapping policy into ordinary Java Mapper implementations. At runtime application services call generated Mappers, which create immutable execution plans and execute them through one fixed JDBC lifecycle. Standalone and Spring integrations own assembly and transaction participation without replacing JDBC execution.</desc>
+  <defs>
+    <marker id="arrow-dark" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#344054"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#4263eb"/>
+    </marker>
+    <filter id="paper" x="-4%" y="-4%" width="108%" height="108%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="17" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.3" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <style>
+      .ink { stroke: #344054; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .rough { filter: url(#paper); }
+      .box { fill: #ffffff; }
+      .title { font-family: Arial, Helvetica, sans-serif; font-size: 36px; font-weight: 700; fill: #101828; }
+      .subtitle { font-family: Arial, Helvetica, sans-serif; font-size: 17px; fill: #667085; }
+      .phase { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 1.7px; }
+      .heading { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; fill: #101828; }
+      .body { font-family: Arial, Helvetica, sans-serif; font-size: 15px; fill: #475467; }
+      .small { font-family: Arial, Helvetica, sans-serif; font-size: 13px; fill: #475467; }
+      .mono { font-family: Menlo, Consolas, monospace; font-size: 14px; font-weight: 600; fill: #344054; }
+      .label { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 600; fill: #344054; }
+      .flow { fill: none; stroke: #344054; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-dark); }
+      .compile-flow { fill: none; stroke: #4263eb; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-blue); }
+      .optional { fill: none; stroke: #667085; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 8 7; marker-end: url(#arrow-dark); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="830" fill="#fffdf8"/>
+  <text class="title" x="50" y="55">Kervix — Compile-time SQL Mapper Architecture</text>
+  <text class="subtitle" x="51" y="84">Compile stable knowledge once; keep every runtime call explicit and JDBC-based.</text>
+
+  <path class="ink rough" fill="#eef4ff" d="M49 112 Q43 113 44 122 L42 377 Q43 389 55 388 L1548 391 Q1559 389 1557 377 L1559 121 Q1557 110 1547 112 Z"/>
+  <rect x="65" y="126" width="176" height="31" rx="15" fill="#dbe7ff" stroke="#4263eb" stroke-width="2"/>
+  <text class="phase" x="83" y="147" fill="#364fc7">COMPILE TIME · JAVAC</text>
+
+  <path class="box ink rough" d="M83 181 Q84 173 94 174 L324 172 Q335 173 334 183 L336 299 Q334 309 324 308 L94 310 Q83 309 84 299 Z"/>
+  <circle cx="111" cy="202" r="14" fill="#fff3bf" stroke="#e67700" stroke-width="2"/>
+  <path d="M105 202 h12 M111 196 v12" stroke="#e67700" stroke-width="2" stroke-linecap="round"/>
+  <text class="heading" x="137" y="209">Mapper sources</text>
+  <text class="body" x="105" y="242">Mapper interface</text>
+  <text class="body" x="105" y="266">SQL annotations</text>
+  <text class="body" x="105" y="290">Optional Mapper XML</text>
+
+  <path class="box ink rough" fill="#dbe7ff" d="M421 157 Q422 148 433 149 L762 147 Q774 148 772 159 L774 312 Q772 323 762 322 L433 324 Q421 323 422 312 Z"/>
+  <circle cx="454" cy="187" r="16" fill="#748ffc" stroke="#364fc7" stroke-width="2"/>
+  <path d="M446 187 h16 M454 179 v16 M448 181 l12 12 M460 181 l-12 12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <text class="heading" x="482" y="194">KervixProcessor</text>
+  <text class="mono" x="447" y="228">CompilePipeline</text>
+  <path d="M447 243 Q596 246 748 243" stroke="#748ffc" stroke-width="1.8" stroke-linecap="round"/>
+  <text class="body" x="447" y="271">validate Mapper + SQL</text>
+  <text class="body" x="447" y="295">compile SQL branches</text>
+  <text class="body" x="625" y="271">plan bindings</text>
+  <text class="body" x="625" y="295">generate result readers</text>
+
+  <path class="ink rough" fill="#fff4d6" d="M421 339 Q422 331 432 332 L763 331 Q773 332 772 341 L773 370 Q772 379 762 378 L432 380 Q421 378 422 370 Z"/>
+  <text class="label" x="441" y="360">mapping policy:</text>
+  <rect x="552" y="343" width="67" height="23" rx="11" fill="#fff" stroke="#d97706"/>
+  <text class="small" x="564" y="359">standard</text>
+  <rect x="629" y="343" width="76" height="23" rx="11" fill="#fff" stroke="#d97706"/>
+  <text class="small" x="640" y="359">database</text>
+  <rect x="715" y="343" width="43" height="23" rx="11" fill="#fff" stroke="#d97706"/>
+  <text class="small" x="724" y="359">app</text>
+
+  <path class="box ink rough" fill="#e6fcf5" d="M873 181 Q874 172 885 173 L1165 172 Q1176 173 1174 184 L1176 299 Q1174 309 1164 308 L885 310 Q873 309 874 299 Z"/>
+  <path d="M899 193 l8 -8 h25 l8 8 v28 h-41 z M907 185 v9 h25" fill="#b2f2bb" stroke="#2b8a3e" stroke-width="2" stroke-linejoin="round"/>
+  <text class="heading" x="956" y="207">Generated Mapper</text>
+  <text class="mono" x="900" y="243">UserMapperImpl</text>
+  <text class="body" x="900" y="271">ordinary Java · direct calls</text>
+  <text class="body" x="900" y="294">one SqlExecutor dependency</text>
+
+  <path class="box ink rough" fill="#f3f0ff" d="M1238 198 Q1239 190 1249 191 L1350 190 Q1360 191 1359 201 L1360 282 Q1359 292 1349 291 L1249 293 Q1238 292 1239 282 Z"/>
+  <text class="mono" x="1260" y="227">.java</text>
+  <text class="mono" x="1254" y="251">.class</text>
+  <text class="small" x="1256" y="276">build output</text>
+
+  <path class="compile-flow rough" d="M337 241 Q373 238 418 240"/>
+  <path class="compile-flow rough" d="M775 240 Q816 243 869 241"/>
+  <path class="compile-flow rough" d="M1178 241 Q1205 238 1235 240"/>
+  <path class="compile-flow rough" stroke-dasharray="7 6" d="M598 334 Q598 328 598 325"/>
+
+  <path class="ink rough" fill="#ecfdf3" d="M48 438 Q42 439 44 450 L42 777 Q43 790 55 789 L1548 792 Q1559 789 1557 778 L1559 449 Q1557 438 1547 440 Z"/>
+  <rect x="65" y="453" width="213" height="31" rx="15" fill="#d1fadf" stroke="#2b8a3e" stroke-width="2"/>
+  <text class="phase" x="83" y="474" fill="#217a3c">RUNTIME · EACH MAPPER CALL</text>
+
+  <path class="box ink rough" d="M82 548 Q83 540 93 541 L253 540 Q264 541 263 551 L264 638 Q263 648 253 647 L93 649 Q82 648 83 638 Z"/>
+  <circle cx="112" cy="572" r="12" fill="#ffd8a8" stroke="#d9480f" stroke-width="2"/>
+  <path d="M106 574 q6 -10 12 0 M108 566 a4 4 0 1 0 8 0" fill="none" stroke="#d9480f" stroke-width="2" stroke-linecap="round"/>
+  <text class="heading" x="137" y="579">Application</text>
+  <text class="body" x="104" y="611">service calls</text>
+  <text class="mono" x="104" y="633">userMapper.find(...)</text>
+
+  <path class="box ink rough" fill="#e6fcf5" d="M337 533 Q338 524 349 525 L552 524 Q563 525 562 536 L563 651 Q562 661 552 660 L349 662 Q337 661 338 651 Z"/>
+  <text class="heading" x="363" y="566">UserMapperImpl</text>
+  <text class="body" x="363" y="596">generated Java branches</text>
+  <text class="body" x="363" y="621">ordered parameters</text>
+  <text class="body" x="363" y="646">generated result reader</text>
+
+  <path class="box ink rough" fill="#fff4d6" d="M632 548 Q633 540 643 541 L803 540 Q814 541 813 551 L814 638 Q813 648 803 647 L643 649 Q632 648 633 638 Z"/>
+  <text class="heading" x="656" y="580">ExecutionPlan</text>
+  <text class="body" x="658" y="610">immutable SQL</text>
+  <text class="body" x="658" y="633">values + binders</text>
+
+  <path class="box ink rough" fill="#dbe7ff" d="M884 516 Q885 507 896 508 L1142 507 Q1154 508 1152 519 L1154 668 Q1152 679 1142 678 L896 680 Q884 679 885 668 Z"/>
+  <text class="heading" x="910" y="548">JdbcSqlExecutor</text>
+  <text class="small" x="910" y="578">one fixed lifecycle</text>
+  <rect x="907" y="595" width="222" height="52" rx="12" fill="#fff" stroke="#748ffc" stroke-width="1.7"/>
+  <text class="small" x="920" y="616">acquire → prepare → bind</text>
+  <text class="small" x="920" y="638">execute → map → close</text>
+
+  <path class="ink rough" fill="#f3f0ff" d="M1243 526 Q1301 508 1355 526 L1355 651 Q1301 669 1243 651 Z"/>
+  <path d="M1243 526 Q1301 546 1355 526 M1243 651 Q1301 631 1355 651" fill="none" stroke="#7048e8" stroke-width="2.5"/>
+  <text class="heading" x="1268" y="577">JDBC</text>
+  <text class="body" x="1266" y="605">driver</text>
+  <text class="body" x="1260" y="630">database</text>
+
+  <path class="flow rough" d="M267 595 Q300 592 333 594"/>
+  <path class="flow rough" d="M566 594 Q598 597 628 595"/>
+  <path class="flow rough" d="M817 594 Q847 591 880 593"/>
+  <path class="flow rough" d="M1157 594 Q1195 598 1239 594"/>
+
+  <path class="compile-flow rough" d="M1025 313 L1026 411 Q1025 426 1008 426 L467 426 Q451 427 451 444 L451 520"/>
+  <rect x="707" y="408" width="121" height="26" rx="13" fill="#fffdf8" stroke="#4263eb" stroke-width="1.5"/>
+  <text class="label" x="722" y="426" fill="#364fc7">compiled once</text>
+
+  <path class="box ink rough" fill="#fff9db" d="M337 714 Q338 706 348 707 L592 706 Q603 707 602 716 L603 764 Q602 774 592 773 L348 775 Q337 774 338 764 Z"/>
+  <text class="label" x="357" y="730">Standalone assembly</text>
+  <text class="small" x="357" y="753">JdbcAssembly · callback transaction</text>
+
+  <path class="box ink rough" fill="#fff9db" d="M685 714 Q686 706 696 707 L1015 706 Q1026 707 1025 716 L1026 764 Q1025 774 1015 773 L696 775 Q685 774 686 764 Z"/>
+  <text class="label" x="705" y="730">Spring Boot host</text>
+  <text class="small" x="705" y="753">Mapper registration · DataSourceUtils · @Transactional</text>
+
+  <path class="optional rough" d="M470 704 Q467 684 456 665"/>
+  <path class="optional rough" d="M857 704 Q912 689 953 683"/>
+  <text class="small" x="1090" y="739">host owns assembly + transaction boundary</text>
+  <text class="small" x="1090" y="760">Kervix keeps one JDBC execution path</text>
+</svg>

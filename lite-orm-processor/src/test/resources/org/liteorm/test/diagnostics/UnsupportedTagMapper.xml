@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="org.liteorm.test.diagnostics.UnsupportedTagMapper">
-    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
-        SELECT 'value'
-        <unsupported>WHERE 1 = 1</unsupported>
-    </select>
-</mapper>

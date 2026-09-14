@@ -6,7 +6,7 @@ Repository rules and agent workflows are separate concerns:
 
 - `AGENTS.md` is the canonical project policy for every coding agent.
 - Tool-specific files are thin adapters that point to `AGENTS.md`.
-- Agent plugins and skills must not redefine LiteORM architecture or override repository policy.
+- Agent plugins and skills must not redefine Kervix architecture or override repository policy.
 
 The repository must remain buildable, testable, and maintainable without any agent plugin. Agent tooling standardizes how agents work; it is never a build dependency.
 

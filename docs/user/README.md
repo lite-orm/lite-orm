@@ -1,10 +1,10 @@
-# LiteORM User Documentation
+# Kervix User Documentation
 
-LiteORM documentation is organized by the task or module a user is working with. Start with the quick start, then open only the module-specific guide you need.
+Kervix documentation is organized by the task or module a user is working with. Start with the quick start, then open only the module-specific guide you need.
 
 ## Start Here
 
-- [Quick start](getting-started.md): add LiteORM, define a Mapper, and configure annotation processing.
+- [Quick start](getting-started.md): add Kervix, define a Mapper, and configure annotation processing.
 - [Architecture](architecture.md): understand the compile-time and runtime boundaries.
 
 ## Core

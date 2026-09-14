@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.kervix.test.diagnostics.InvalidChooseChildMapper">
+    <select id="findValue" resultType="io.github.kervix.test.diagnostics.ValueRow">
+        SELECT 'value'
+        <choose>
+            <if test="value != null">WHERE value = #{value}</if>
+        </choose>
+    </select>
+</mapper>

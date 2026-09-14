@@ -1,4 +1,4 @@
-# LiteORM Roadmap
+# Kervix Roadmap
 
 This document owns strategic delivery order. It does not track implementation steps, assignees, dependencies, or completion state. GitHub Issues own active specifications and tracer-bullet tickets; contracts, ADRs, and `CONTEXT.md` own durable facts.
 
@@ -19,7 +19,7 @@ Use MyBatis 3.5.19 deterministic built-in TypeHandlers as the compatibility base
 ### Public API And Artifact Boundaries
 
 Freeze the supported public API with binary compatibility checks. Keep annotation processing in
-`lite-orm-processor` so runtime consumers do not carry compiler implementation or template
+`kervix-processor` so runtime consumers do not carry compiler implementation or template
 dependencies. Within the processor, keep compiler semantics in Java and use FreeMarker only to
 render the structured generated-source layout.
 
@@ -33,7 +33,7 @@ Complete artifact metadata, license and repository checks, reproducible release 
 
 ## Migration And XML Priorities
 
-- Publish an immutable LiteORM Mapper DTD with offline resolution.
+- Publish an immutable Kervix Mapper DTD with offline resolution.
 - Complete the controlled XML subset, including integrity diagnostics and explicitly supported statement attributes.
 - Maintain executable annotation, XML, standalone, Spring, multi-DataSource, and MyBatis migration examples.
 - Build a read-only MyBatis compatibility scanner before any deterministic safe rewriter.
@@ -41,4 +41,4 @@ Complete artifact metadata, license and repository checks, reproducible release 
 
 ## Optional Tooling
 
-A DB-to-Mapper generator may ship on an independent version track after Core, processor, XML, and artifact contracts stabilize. New ecosystem features require demonstrated user demand, a named owner, an executable contract, and a design that preserves LiteORM's fixed runtime boundaries.
+A DB-to-Mapper generator may ship on an independent version track after Core, processor, XML, and artifact contracts stabilize. New ecosystem features require demonstrated user demand, a named owner, an executable contract, and a design that preserves Kervix's fixed runtime boundaries.

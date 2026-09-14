@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.kervix.test.diagnostics.WhenAfterOtherwiseMapper">
+    <select id="findValue" resultType="io.github.kervix.test.diagnostics.ValueRow">
+        SELECT 'value'
+        <choose>
+            <otherwise>WHERE 1 = 1</otherwise>
+            <when test="value != null">WHERE value = #{value}</when>
+        </choose>
+    </select>
+</mapper>

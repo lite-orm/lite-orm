@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="org.liteorm.test.diagnostics.ExternalSchemaXmlMapper"
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="https://example.invalid/liteorm-mapper.xsd">
-    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
-        SELECT value FROM values_table
-    </select>
-</mapper>

@@ -1,6 +1,6 @@
 # Domain Documentation
 
-LiteORM is a single-context repository.
+Kervix is a single-context repository.
 
 Before exploring or changing a subsystem:
 

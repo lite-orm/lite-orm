@@ -1,6 +1,6 @@
 # Extension Contracts
 
-LiteORM keeps generated Mapper code as the default. Extensions are narrow, explicit escape hatches for cases that cannot remain fully generated.
+Kervix keeps generated Mapper code as the default. Extensions are narrow, explicit escape hatches for cases that cannot remain fully generated.
 
 For the top-level mental model and a decision diagram, start with [Choosing a Value or Row Mapping](../user/core/mapping.md). This document owns the precise validation and lifecycle contracts.
 
@@ -10,13 +10,13 @@ For the top-level mental model and a decision diagram, start with [Choosing a Va
 | --- | --- | --- |
 | Generated annotations/XML | Strongest: SQL source, supported expressions, parameter order, and built-in mapping are generated | JDBC execution only |
 | Typed extension | Extension class, generic compatibility, visibility, constructor, and invocation are compile-time-bound | Explicit provider, binder, mapper, or interceptor code runs |
-| Raw JDBC | Outside LiteORM generation guarantees | Application owns SQL, binding, mapping, resources, and diagnostics |
+| Raw JDBC | Outside Kervix generation guarantees | Application owns SQL, binding, mapping, resources, and diagnostics |
 
 ## Concurrency Contract
 
 Generated Mapper implementations and `JdbcSqlExecutor` are designed for concurrent reuse. Each Mapper call builds its own immutable execution plan, while simple transaction state and Spring transaction-bound connections remain isolated by thread.
 
-Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. `JdbcSqlExecutor` also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. LiteORM does not clone extension instances per call and provides no stateful-extension factory contract.
+Generated code keeps one Provider, Binder, and RowMapper instance per Mapper instance. `JdbcSqlExecutor` also reuses its configured Interceptor instances, and Spring normally supplies those interceptors as singleton beans. Therefore every Provider, Binder, RowMapper, and Interceptor implementation must be stateless, thread-safe, or protect its mutable state with external synchronization. Kervix does not clone extension instances per call and provides no stateful-extension factory contract.
 
 ## Spring Boot Version Policy
 
@@ -39,7 +39,7 @@ consumer and runtime gates. The Starter does not claim compatibility with every
 Spring registration uses explicit package bindings rather than type-only selection:
 
 ```yaml
-lite-orm:
+kervix:
   mapper-bindings:
     - package-name: com.example.user.mapper
       data-source: usersDataSource
@@ -70,9 +70,9 @@ Closing a host-aware `ConnectionHandle` releases one executor participation. It 
 The boundary is verified by the core JDBC, cursor, and standalone transaction tests plus the Spring Starter integration suite:
 
 ```bash
-mvn -pl lite-orm-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
-mvn -pl lite-orm-spring-boot-starter -am test
-rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-spring-boot-starter/src/main/java
+mvn -pl kervix-core -Dtest=JdbcSqlExecutorTest,JdbcCursorExecutionTest,SimpleTransactionTest test
+mvn -pl kervix-spring-boot-starter -am test
+rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' kervix-spring-boot-starter/src/main/java
 ```
 
 ## Standalone Assembly And Transactions
@@ -80,7 +80,7 @@ rg -n 'prepareStatement|executeQuery|executeUpdate|getGeneratedKeys' lite-orm-sp
 Create one immutable `JdbcAssembly` per DataSource domain:
 
 ```java
-JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+JdbcAssembly assembly = Kervix.jdbc(dataSource)
     .domain("users")
     .interceptors(interceptors)
     .build();
@@ -153,10 +153,10 @@ Register `ExecutionInterceptor` instances through `JdbcAssembly`, or expose them
 
 Prefer a physical or routing `DataSource` behind one explicit Mapper binding. The DataSource and its transaction manager own tenant context, shard selection, read/write routing, physical connection choice, and connection reuse.
 
-Use a `SqlExecutor` decorator only for exceptional whole-execution behavior that cannot be represented by the DataSource or observational interceptor contracts. Such a decorator must preserve statement identity, parameter order, transaction-domain ownership, resource cleanup, and failure suppression. LiteORM does not provide an implicit routing decorator or put DataSource names in `ExecutionPlan`.
+Use a `SqlExecutor` decorator only for exceptional whole-execution behavior that cannot be represented by the DataSource or observational interceptor contracts. Such a decorator must preserve statement identity, parameter order, transaction-domain ownership, resource cleanup, and failure suppression. Kervix does not provide an implicit routing decorator or put DataSource names in `ExecutionPlan`.
 
 ## Raw JDBC Boundary
 
 Use raw JDBC when SQL shape, multi-row graph aggregation, vendor APIs, streaming, or resource control cannot fit the generated or typed extension contracts.
 
-Keep this boundary explicit in repository structure and application code. LiteORM does not silently fall back to raw JDBC, runtime XML interpretation, Mapper proxies, or reflection.
+Keep this boundary explicit in repository structure and application code. Kervix does not silently fall back to raw JDBC, runtime XML interpretation, Mapper proxies, or reflection.

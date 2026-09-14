@@ -1,4 +1,4 @@
-# LiteORM Documentation
+# Kervix Documentation
 
 This is the canonical documentation index. User-facing guides are grouped by product area under `docs/user/`; normative contracts, project records, and contributor material remain separate so readers can distinguish guidance from guarantees and internal workflow.
 
@@ -44,7 +44,7 @@ This is the canonical documentation index. User-facing guides are grouped by pro
 - [`benchmarks/core-ga-baseline.md`](benchmarks/core-ga-baseline.md): reproducible Core GA benchmark evidence.
 
 The documentation site surfaces a compact MySQL benchmark snapshot directly
-below its “Why teams choose LiteORM” capability overview; the benchmark report
+below its “Why teams choose Kervix” capability overview; the benchmark report
 above remains the canonical source for the full table, environment metadata,
 and reproduction protocol.
 

@@ -1,7 +1,7 @@
 # Core Guides
 
 The Core module owns generated Mapper runtime contracts, execution, standalone JDBC assembly, and
-database-independent JDBC mappings. The separate `lite-orm-processor` module owns Mapper
+database-independent JDBC mappings. The separate `kervix-processor` module owns Mapper
 compilation, validation, and source generation.
 
 - [Choosing a value or row mapping](mapping.md)

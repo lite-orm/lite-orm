@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="org.liteorm.test.diagnostics.MissingIncludeMapper">
-    <select id="findValue" resultType="org.liteorm.test.diagnostics.ValueRow">
-        SELECT <include refid="missingFragment"/>
-    </select>
-</mapper>

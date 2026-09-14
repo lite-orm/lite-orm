@@ -7,7 +7,7 @@ The Spring Boot starter registers generated Mapper implementations and binds eac
 Registration is explicit even when the application has one DataSource:
 
 ```yaml
-lite-orm:
+kervix:
   enabled: true
   mapper-bindings:
     - package-name: com.example.user.mapper
@@ -38,7 +38,7 @@ database product, register package mappings, or choose handlers per package.
 
 ## Transactions
 
-Inside `@Transactional`, `SpringConnectionHandleFactory` obtains and releases the thread-bound connection through `DataSourceUtils`. Spring owns commit and rollback timing; LiteORM does not duplicate the transaction boundary.
+Inside `@Transactional`, `SpringConnectionHandleFactory` obtains and releases the thread-bound connection through `DataSourceUtils`. Spring owns commit and rollback timing; Kervix does not duplicate the transaction boundary.
 
 The `PlatformTransactionManager` must manage the same DataSource named by the Mapper package binding. A mismatch fails explicitly.
 
@@ -46,7 +46,7 @@ The `PlatformTransactionManager` must manage the same DataSource named by the Ma
 
 For read/write separation, bind the Mapper package to one Spring
 `AbstractRoutingDataSource`. Spring owns the route context and maps keys to the
-read and write pools; LiteORM sees only the routing DataSource:
+read and write pools; Kervix sees only the routing DataSource:
 
 ```java
 @Bean
@@ -68,7 +68,7 @@ DataSource readWriteDataSource(
 Bind the package to `readWriteDataSource`:
 
 ```yaml
-lite-orm:
+kervix:
   mapper-bindings:
     - package-name: com.example.mapper
       data-source: readWriteDataSource
@@ -77,7 +77,7 @@ lite-orm:
 Application code sets `ReadWriteContext` before invoking a Mapper and clears it
 in a `finally` block. The route is selected when Spring obtains the connection;
 do not change the key during one transaction. Configure a transaction manager
-for the same routing DataSource so Spring and LiteORM share one transaction
+for the same routing DataSource so Spring and Kervix share one transaction
 domain. This policy is exercised by the Starter's routing integration tests.
 
 ## Version and Consumer Verification
@@ -87,9 +87,9 @@ the external consumer and runtime Starter suite are verified against Boot 3.1.5,
 3.5.16, and 4.1.1. These anchors do not automatically cover every minor or
 patch release; an unlisted line remains unverified until it passes both gates. The
 independent consumer fixture is documented in
-[`external-spring-boot-consumer`](../../../lite-orm-examples/external-spring-boot-consumer/README.md).
+[`external-spring-boot-consumer`](../../../kervix-examples/external-spring-boot-consumer/README.md).
 For a complete two-package setup, see the runnable
-[`multi-datasource-spring-boot`](../../../lite-orm-examples/multi-datasource-spring-boot/README.md)
+[`multi-datasource-spring-boot`](../../../kervix-examples/multi-datasource-spring-boot/README.md)
 example.
 
 ## Extension Beans

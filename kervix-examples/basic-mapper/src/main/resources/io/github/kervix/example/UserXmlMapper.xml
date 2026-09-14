@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="io.github.kervix.example.UserXmlMapper">
+    <sql id="userColumns">id, name, email, age</sql>
+
+    <select id="findByEmail" resultType="io.github.kervix.example.User">
+        SELECT id, name, email, age FROM users WHERE email = #{email}
+    </select>
+
+    <select id="findByIds" resultType="io.github.kervix.example.User">
+        SELECT id, name, email, age FROM users
+        <where>
+            <if test="ids != null and ids.size() > 0">
+                id IN
+                <foreach collection="ids" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+        ORDER BY id
+    </select>
+
+    <select id="searchAdvanced" resultType="io.github.kervix.example.User">
+        SELECT <include refid="userColumns"/> FROM users
+        <bind name="namePattern" value="'%' + name + '%'"/>
+        <trim prefix="WHERE" prefixOverrides="AND |OR ">
+            <choose>
+                <when test="name != null and name != ''">
+                    AND name LIKE #{namePattern}
+                </when>
+                <when test="minimumAge != null">
+                    AND age &gt;= #{minimumAge}
+                </when>
+                <otherwise>
+                    AND 1 = 1
+                </otherwise>
+            </choose>
+            <if test="ids != null and ids.size() > 0">
+                AND id IN
+                <foreach collection="ids" item="id" open="(" close=")" separator=",">
+                    #{id}
+                </foreach>
+            </if>
+        </trim>
+        ORDER BY id
+    </select>
+
+    <update id="updateSelective">
+        UPDATE users
+        <set>
+            <if test="user.name != null">name = #{user.name},</if>
+            <if test="user.email != null">email = #{user.email},</if>
+            <if test="user.age != null">age = #{user.age},</if>
+        </set>
+        WHERE id = #{user.id}
+    </update>
+
+    <batch id="insertBatch">
+        INSERT INTO users (id, name, email, age) VALUES
+        (#{item.id}, #{item.name}, #{item.email}, #{item.age})
+    </batch>
+</mapper>

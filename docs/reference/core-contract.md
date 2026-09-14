@@ -1,8 +1,8 @@
-# LiteORM Core GA Contract
+# Kervix Core GA Contract
 
 Date: 2026-09-08
 
-This document defines the supported contract of `lite-orm-core` for the first GA release. It is intentionally narrower than MyBatis and narrower than the Spring Boot integration. Anything not listed here is unsupported unless another public contract explicitly says otherwise.
+This document defines the supported contract of `kervix-core` for the first GA release. It is intentionally narrower than MyBatis and narrower than the Spring Boot integration. Anything not listed here is unsupported unless another public contract explicitly says otherwise.
 
 ## 1. Responsibility Boundary
 
@@ -35,9 +35,9 @@ Supported SQL sources are:
 - Mapper XML statements;
 - `@UseSqlProvider` for typed runtime SQL construction.
 
-When XML and a SQL annotation define the same Mapper method, XML wins and javac reports a warning on that method. LiteORM does not load or reinterpret Mapper XML at runtime.
+When XML and a SQL annotation define the same Mapper method, XML wins and javac reports a warning on that method. Kervix does not load or reinterpret Mapper XML at runtime.
 
-Effective Mapper SQL methods cannot be overloaded. LiteORM reports all conflicting resolved signatures before parsing their SQL source so statement identity remains unambiguous.
+Effective Mapper SQL methods cannot be overloaded. Kervix reports all conflicting resolved signatures before parsing their SQL source so statement identity remains unambiguous.
 
 Supported dynamic SQL elements are `if`, `choose`, `when`, `otherwise`, `trim`, `where`, `set`, `foreach`, `bind`, `sql`, and `include`. Supported expressions are compiled to Java. Arbitrary OGNL, static method access, and unsupported method calls fail compilation. Unsafe `${...}` substitution is rejected; values use `#{...}` and exceptional SQL structure uses a typed provider.
 
@@ -45,7 +45,7 @@ Mapper XML must have a `<mapper>` root with a non-blank `namespace` equal to the
 
 Generated dynamic methods use one invocation-scoped `BoundSqlBuilder`. The builder owns SQL-fragment spacing, `where`, `set`, and `trim` normalization, and atomic placeholder registration with its value, optional binder, Java type, and JDBC type. Child fragments retain their parameters only when the enclosing clause is emitted. `build()` produces immutable `BoundSql` with statement-aware failures for blank SQL or incompatible fragment composition. This generated-code seam is not an application query DSL and does not interpret XML or expressions at runtime.
 
-Mapper XML and annotation `<script>` content use one fail-closed parser configuration. `DOCTYPE`, external entities, external DTD loading, XInclude, and external schema access are disabled; failure to enforce the required parser controls rejects compilation. LiteORM does not resolve referenced external XML resources from the filesystem or network during SQL parsing.
+Mapper XML and annotation `<script>` content use one fail-closed parser configuration. `DOCTYPE`, external entities, external DTD loading, XInclude, and external schema access are disabled; failure to enforce the required parser controls rejects compilation. Kervix does not resolve referenced external XML resources from the filesystem or network during SQL parsing.
 
 ### 2.2 Parameters
 
@@ -143,10 +143,10 @@ Lifecycle-bound values such as `BLOB`, `CLOB`, `NCLOB`, `SQLXML`, JDBC `ARRAY`, 
 The executable contract is verified by:
 
 ```bash
-mvn -pl lite-orm-core -am \
+mvn -pl kervix-core -am \
   -Dtest=JdbcTypeCompilationTest,TypeHandlerManagerRoutingTest,ResultValueConvertersTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
-mvn -pl lite-orm-core -am \
+mvn -pl kervix-core -am \
   -Dtest=PostgresCompatibilityTest,MySqlCompatibilityTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
@@ -161,7 +161,7 @@ Generated keys require all of the following:
 - exactly one returned key row and one returned key column;
 - a supported scalar return type or an explicit `@UseRowMapper`.
 
-Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. LiteORM prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
+Generated keys are not supported for batch methods, dynamic SQL, or SQL providers. Kervix prepares the statement with the declared key-column name so drivers such as PostgreSQL do not return an entire inserted row by default.
 
 ### 2.8 Statement Options And Pagination
 
@@ -208,7 +208,7 @@ An execution outcome covers the executor-owned lifecycle only. It includes `Conn
 
 ## 4. Failure Contract
 
-All framework runtime failures derive from `LiteOrmException`. The main categories are:
+All framework runtime failures derive from `KervixException`. The main categories are:
 
 - `ConfigurationException` for assembly and extension-contract failures;
 - `SqlExecutionException` for physical JDBC lifecycle failures;
@@ -220,7 +220,7 @@ All framework runtime failures derive from `LiteOrmException`. The main categori
 | State | Meaning |
 | --- | --- |
 | `NOT_EXECUTED` | JDBC execution was not attempted, including an empty batch that performs no `executeBatch()` call. |
-| `OUTCOME_UNKNOWN` | The JDBC execute call was entered but threw before LiteORM received a result; retry safety depends on the operation and database. |
+| `OUTCOME_UNKNOWN` | The JDBC execute call was entered but threw before Kervix received a result; retry safety depends on the operation and database. |
 | `EXECUTED` | JDBC returned and later result reading, mapping, observation, or cleanup failed. |
 
 These states do not claim commit or rollback. Transaction completion belongs to the local `TransactionalExecutor` or the host transaction manager.

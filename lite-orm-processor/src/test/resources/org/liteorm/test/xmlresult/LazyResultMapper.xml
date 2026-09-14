@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="org.liteorm.test.xmlresult.LazyResultMapper">
-    <resultMap id="valueResult" type="org.liteorm.test.xmlresult.LazyResultMapper.Value">
-        <result property="value" column="value" fetchType="lazy"/>
-    </resultMap>
-    <select id="find" resultMap="valueResult">SELECT 'value' AS value</select>
-</mapper>

@@ -16,6 +16,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           while IFS= read -r commit_hash; do
-            git show -s --format=%B "$commit_hash" > /tmp/liteorm-commit-message
-            scripts/validate-commit-message.sh /tmp/liteorm-commit-message
+            git show -s --format=%B "$commit_hash" > /tmp/kervix-commit-message
+            scripts/validate-commit-message.sh /tmp/kervix-commit-message
           done < <(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")

@@ -1,6 +1,6 @@
-# Contribute to LiteORM
+# Contribute to Kervix
 
-LiteORM is in its early stage. We are building a new generation of explicit, compile-time Java ORM tooling and welcome people who want to shape its contracts, implementation, documentation, examples, and agent workflows.
+Kervix is in its early stage. We are building a new generation of explicit, compile-time Java ORM tooling and welcome people who want to shape its contracts, implementation, documentation, examples, and agent workflows.
 
 ## Contribution workflow
 
@@ -12,7 +12,7 @@ LiteORM is in its early stage. We are building a new generation of explicit, com
 6. Open a Pull Request using the template. Explain compatibility, verification commands, and remaining risks.
 7. Respond to review feedback with follow-up commits and keep the original intent visible.
 
-AI agents are welcome contributors. Use the [`liteorm` skill](../skills/liteorm/SKILL.md) to scan a repository, produce a bounded TODO list, work in reviewable batches, and ask before making semantic or authorization decisions.
+AI agents are welcome contributors. Use the [`kervix` skill](../skills/kervix/SKILL.md) to scan a repository, produce a bounded TODO list, work in reviewable batches, and ask before making semantic or authorization decisions.
 
 ## Good first contributions
 

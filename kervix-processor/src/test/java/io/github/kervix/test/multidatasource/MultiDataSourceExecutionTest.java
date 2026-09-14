@@ -1,0 +1,134 @@
+package io.github.kervix.test.multidatasource;
+
+import org.junit.jupiter.api.Test;
+import io.github.kervix.JdbcAssembly;
+import io.github.kervix.Kervix;
+import io.github.kervix.api.ExecutionPlan;
+import io.github.kervix.test.User;
+import io.github.kervix.test.UserMapper;
+import io.github.kervix.test.UserMapperImpl;
+import io.github.kervix.testsupport.database.DatabaseEngine;
+import io.github.kervix.testsupport.database.TestDatabase;
+
+import javax.sql.DataSource;
+import java.sql.SQLException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+abstract class MultiDataSourceExecutionTest {
+
+    protected abstract DatabaseEngine databaseEngine();
+
+    @Test
+    void sameGeneratedMapperClassKeepsReadsAndWritesInsideItsAssembly() throws SQLException {
+        UserMapper users = mapper(dataSource());
+        UserMapper archive = mapper(dataSource());
+
+        users.insert("users", "users@example.com", 20);
+        archive.insert("archive", "archive@example.com", 30);
+
+        assertEquals("users", users.findById(1L).name());
+        assertEquals("archive", archive.findById(1L).name());
+        assertEquals(UserMapperImpl.class, users.getClass());
+        assertEquals(UserMapperImpl.class, archive.getClass());
+    }
+
+    @Test
+    void concurrentTransactionsUseIndependentRootsAndConnections() throws Exception {
+        JdbcAssembly usersAssembly = Kervix.jdbc(dataSource()).domain("users").build();
+        JdbcAssembly archiveAssembly = Kervix.jdbc(dataSource()).domain("archive").build();
+        UserMapper users = new UserMapperImpl(usersAssembly.sqlExecutor());
+        UserMapper archive = new UserMapperImpl(archiveAssembly.sqlExecutor());
+        CountDownLatch active = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var usersFuture = executor.submit(() -> usersAssembly.transactionalExecutor().execute(() -> {
+                active.countDown();
+                await(release);
+                users.insert("users", "users@example.com", 20);
+                return users.findById(1L);
+            }));
+            var archiveFuture = executor.submit(() -> archiveAssembly.transactionalExecutor().execute(() -> {
+                active.countDown();
+                await(release);
+                archive.insert("archive", "archive@example.com", 30);
+                return archive.findById(1L);
+            }));
+
+            assertTrue(active.await(5, TimeUnit.SECONDS));
+            release.countDown();
+            assertEquals("users", usersFuture.get().name());
+            assertEquals("archive", archiveFuture.get().name());
+        }
+    }
+
+    @Test
+    void failureInOneDataSourceDoesNotRollbackTheOtherTransaction() throws SQLException {
+        JdbcAssembly usersAssembly = Kervix.jdbc(dataSource()).domain("users").build();
+        JdbcAssembly archiveAssembly = Kervix.jdbc(dataSource()).domain("archive").build();
+        UserMapper users = new UserMapperImpl(usersAssembly.sqlExecutor());
+        UserMapper archive = new UserMapperImpl(archiveAssembly.sqlExecutor());
+
+        usersAssembly.transactionalExecutor().execute(() -> {
+            users.insert("committed", "users@example.com", 20);
+            try {
+                archiveAssembly.transactionalExecutor().execute(() -> {
+                    archive.insert("rolled-back", "archive@example.com", 30);
+                    throw new IllegalStateException("archive failed");
+                });
+            } catch (IllegalStateException expected) {
+                assertEquals("archive failed", expected.getMessage());
+            }
+            return null;
+        });
+
+        assertEquals("committed", users.findById(1L).name());
+        assertNull(archive.findById(1L));
+        assertFalse(hasDataSourceMetadata());
+    }
+
+    private UserMapper mapper(DataSource dataSource) {
+        return new UserMapperImpl(Kervix.jdbc(dataSource).build().sqlExecutor());
+    }
+
+    private DataSource dataSource() throws SQLException {
+        DataSource dataSource = TestDatabase.shared(databaseEngine()).createDataSource();
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE users ("
+                + "id " + identityDefinition() + ", "
+                + "name VARCHAR(100), email VARCHAR(100), age INTEGER)");
+        }
+        return dataSource;
+    }
+
+    private String identityDefinition() {
+        return databaseEngine() == DatabaseEngine.POSTGRESQL
+            ? "BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY"
+            : "BIGINT AUTO_INCREMENT PRIMARY KEY";
+    }
+
+    private boolean hasDataSourceMetadata() {
+        return java.util.Arrays.stream(ExecutionPlan.class.getDeclaredFields())
+            .map(field -> field.getName().toLowerCase())
+            .anyMatch(name -> name.contains("datasource") || name.contains("executor"));
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting for concurrent transaction release");
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(failure);
+        }
+    }
+}

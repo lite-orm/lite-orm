@@ -5,7 +5,7 @@ One `JdbcAssembly` represents one DataSource and transaction domain.
 ```java
 DataSource dataSource = createDataSource();
 
-JdbcAssembly assembly = LiteOrm.jdbc(dataSource)
+JdbcAssembly assembly = Kervix.jdbc(dataSource)
     .domain("users")
     .build();
 
@@ -23,6 +23,6 @@ User user = assembly.transactionalExecutor().execute(() -> {
 
 `SqlExecutor` owns the fixed JDBC lifecycle. `ConnectionHandleFactory` supplies connection participation, while `TransactionalExecutor` owns the standalone callback boundary. Nested callbacks join the root transaction; a nested failure marks it rollback-only.
 
-Create one assembly per DataSource. LiteORM does not coordinate distributed commits or dynamically bind one Mapper to multiple DataSources.
+Create one assembly per DataSource. Kervix does not coordinate distributed commits or dynamically bind one Mapper to multiple DataSources.
 
 For lifecycle, failure, and transaction guarantees, see the [Core contract](../../reference/core-contract.md). For host-provided connection participation, see the [Extension contracts](../../reference/extensions.md).

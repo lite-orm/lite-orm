@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mapper namespace="org.liteorm.test.xmlresult.BlankResultMapIdMapper">
-    <resultMap id="" type="org.liteorm.test.xmlresult.BlankResultMapIdMapper.Value">
-        <result property="value" column="value"/>
-    </resultMap>
-    <select id="find" resultType="org.liteorm.test.xmlresult.BlankResultMapIdMapper.Value">
-        SELECT 'value' AS value
-    </select>
-</mapper>
