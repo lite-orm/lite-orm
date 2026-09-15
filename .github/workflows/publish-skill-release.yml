@@ -1,0 +1,41 @@
+name: Publish Lynxus skill release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/lynxus/**"
+      - "scripts/package-skill.sh"
+      - "scripts/verify-skill-package.sh"
+      - ".github/workflows/publish-skill-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package Lynxus skill
+        run: |
+          chmod +x scripts/package-skill.sh scripts/verify-skill-package.sh
+          scripts/package-skill.sh dist/lynxus-skill.tar.gz
+          scripts/verify-skill-package.sh dist/lynxus-skill.tar.gz
+      - name: Publish latest skill release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: skill-latest
+          name: Lynxus Skill (latest)
+          body: |
+            This rolling release contains the latest unified Lynxus agent skill.
+
+            Install it from the Quick Start guide:
+            https://lynxus-project.github.io/docs/user/getting-started/
+          make_latest: true
+          files: |
+            dist/lynxus-skill.tar.gz
+            dist/lynxus-skill.tar.gz.sha256
