@@ -1,6 +1,7 @@
 ---
 title: GraalVM Native Image Java ORM
 description: Verify Lynxus as an AOT-first Java ORM with GraalVM Native Image, ARM64, and generated Mapper implementations.
+slug: docs/user/aot
 ---
 
 # AOT Usage
@@ -57,8 +58,8 @@ application-provided reflection configuration.
 ## Spring Boot
 
 Spring Boot applications use Spring Boot's AOT processing in addition to
-Lynxus's annotation processing. Spring Native is no longer a separate
-dependency for Spring Boot 3 and later. Spring AOT contributes reachability
+Lynxus's annotation processing. Spring Native is not a separate dependency in
+the supported Spring Boot integration. Spring AOT contributes reachability
 metadata for Spring-managed beans, proxies, reflection, and resources; Lynxus
 continues to generate the Mapper implementation at Java compile time.
 

@@ -1,6 +1,7 @@
 ---
-title: Spring Boot 3 AOT ORM Integration
-description: Integrate Lynxus with Spring Boot 3, named DataSources, explicit transactions, and Spring AOT.
+title: Spring Boot AOT ORM Integration
+description: Integrate Lynxus with Spring Boot, named DataSources, explicit transactions, and Spring AOT.
+slug: docs/user/spring/spring-boot
 ---
 
 # Spring Boot Integration
