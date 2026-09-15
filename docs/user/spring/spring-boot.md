@@ -1,3 +1,8 @@
+---
+title: Spring Boot 3 AOT ORM Integration
+description: Integrate Lynxus with Spring Boot 3, named DataSources, explicit transactions, and Spring AOT.
+---
+
 # Spring Boot Integration
 
 The Spring Boot starter registers generated Mapper implementations and binds each Mapper package to one named DataSource. Generated classes remain Spring-neutral and continue to depend only on `SqlExecutor`.

@@ -1,3 +1,8 @@
+---
+title: GraalVM Native Image Java ORM
+description: Verify Lynxus as an AOT-first Java ORM with GraalVM Native Image, ARM64, and generated Mapper implementations.
+---
+
 # AOT Usage
 
 Lynxus is AOT-first by design. During Java compilation, the Lynxus processor

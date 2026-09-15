@@ -1,3 +1,8 @@
+---
+title: Compile-time Java ORM Architecture
+description: See how Lynxus compiles SQL mapping into Java and keeps JDBC execution explicit at runtime.
+---
+
 # Architecture
 
 Lynxus moves stable Mapper knowledge to compilation and keeps physical JDBC work in one explicit runtime lifecycle.
